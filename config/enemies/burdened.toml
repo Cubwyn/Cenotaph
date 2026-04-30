@@ -1,0 +1,52 @@
+# The Burdened - Stone-carrying husks
+# Design Document: Slow but high impact, physical weight and momentum
+
+[base]
+name = "The Burdened"
+description = "Stone-carrying husks that move slowly but hit with devastating force"
+
+[stats]
+health = 200
+damage = 40
+speed = 1.5
+armor = 20
+
+[combat]
+attack_range = 2.0
+attack_cooldown = 2.5
+
+[loot]
+table = "common"
+experience_value = 75
+rare_drop_chance = 0.02
+
+[assets]
+model_path = "assets/enemies/burdened.obj"
+texture_path = "assets/enemies/burdened.png"
+
+[audio]
+sound_path = "assets/audio/enemies/burdened.wav"
+footstep_sound = "assets/audio/enemies/heavy_footsteps.wav"
+ambient_sound = "assets/audio/enemies/stone_rumble.wav"
+
+[ai]
+patrol_radius = 10.0
+alert_radius = 15.0
+flee_health_threshold = 0.1
+
+[abilities]
+list = ["heavy_charge", "ground_slam"]
+
+[environment]
+destructible = true
+can_break_props = true
+triggers_traps = false
+
+[scaling]
+health_multiplier_per_level = 1.15
+damage_multiplier_per_level = 1.10
+speed_multiplier_per_level = 1.01
+
+[requirements]
+unlock_level = 1
+min_player_level = 1

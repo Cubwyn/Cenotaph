@@ -1,0 +1,136 @@
+# Level Configuration Template
+# Copy this for new levels
+# Based on Cenotaph design document strata system
+
+[level_info]
+name = "NEW_LEVEL_NAME"
+description = "Brief description of the level and its role in the story"
+difficulty = 1  # 1-10 scale
+required_level = 1
+time_of_day = "dawn"  # dawn, day, dusk, night
+weather = "clear"     # clear, rain, fog, storm, wind
+
+# Design Document Strata Information
+strata_type = "ash_walk"  # ash_walk, ward_of_irons, hanging_slums, sanctuary, gallery_of_wind, mirror_crust, the_breach
+theme = "collapse"        # collapse, industrial_insanity, precarious_life, broken_divinity, breath_of_abyss, reality_distortion, geometric_collapse
+palette = "sepia"         # sepia, rust_red, desaturated_teal, gold_leaf, pale_limestone, silver_blue, black_white
+
+[environment]
+gravity_multiplier = 1.0
+wind_strength = 0.0
+fog_density = 0.05
+fog_color = [0.1, 0.1, 0.15]
+lighting_intensity = 0.6
+ambient_light_color = [0.8, 0.8, 1.0]  # Based on strata palette
+
+# Vertical Design (Core to Cenotaph)
+vertical_range = { min = 0.0, max = 50.0 }
+horizontal_bounds = { min_x = -100.0, max_x = 100.0, min_z = -100.0, max_z = 100.0 }
+primary_path_heights = [10.0, 20.0, 30.0, 40.0]
+shortcut_locations = [
+    { x = 0.0, y = 25.0, z = 0.0, description = "Vertical shortcut" }
+]
+
+[spawn_points]
+default = [0.0, 10.0, 0.0]
+checkpoints = [
+    [10.0, 15.0, 5.0],
+    [25.0, 20.0, -10.0],
+    [50.0, 30.0, 0.0]
+]
+
+# Enemy Configuration
+[enemies]
+spawn_rate = 1.0
+difficulty_scaling = 1.1
+patrol_density = 5  # Enemies per 100 units
+alert_radius = 30.0
+
+enemy_types = [
+    { type = "burdened", weight = 10, max_concurrent = 5, spawn_height = "ground" },
+    { type = "silencer", weight = 3, max_concurrent = 2, spawn_height = "mid" },
+    { type = "paranoiac", weight = 5, max_concurrent = 3, spawn_height = "high" },
+    { type = "harpy", weight = 2, max_concurrent = 2, spawn_height = "air" }
+]
+
+# Loot Configuration
+[loot]
+common_drop_rate = 0.8
+uncommon_drop_rate = 0.4
+rare_drop_rate = 0.1
+epic_drop_rate = 0.02
+
+loot_spawns = [
+    { type = "health_pack", count = 5, spawn_weight = 10, height_preference = "ground" },
+    { type = "ammo", count = 10, spawn_weight = 15, height_preference = "mid" },
+    { type = "weapon_part", count = 3, spawn_weight = 5, height_preference = "high" },
+    { type = "artifact", count = 1, spawn_weight = 2, height_preference = "secret" }
+]
+
+# Environmental Hazards (Based on design document)
+[hazards]
+fall_damage_multiplier = 2.0
+environmental_damage_per_second = 0.0
+hazard_zones = [
+    { type = "spike_trap", x = 0.0, y = 0.0, z = 0.0, radius = 5.0, damage = 10 },
+    { type = "crushing_wall", x = 10.0, y = 15.0, z = 0.0, radius = 3.0, damage = 25 }
+]
+
+# Traversal Challenges
+[traversal]
+climbable_props = 50
+vertical_shortcuts = 5
+dangerous_jumps = 10
+hidden_paths = 3
+puzzle_elements = 2
+
+# Audio Configuration
+[audio]
+ambient_track = "assets/audio/music/level_theme.wav"
+ambient_sounds = [
+    "assets/audio/ambient/wind.wav",
+    "assets/audio/ambient/dripping.wav",
+    "assets/audio/ambient/stone_creak.wav"
+]
+combat_music = "assets/audio/music/combat_theme.wav"
+
+# Visual Effects
+[visual_effects]
+particle_systems = [
+    { type = "dust", x = 0.0, y = 0.0, z = 0.0, intensity = 1.0 },
+    { type = "sparks", x = 10.0, y = 20.0, z = 0.0, intensity = 0.5 }
+]
+lighting_effects = [
+    { type = "shaft_light", x = 0.0, y = 50.0, z = 0.0, color = [1.0, 1.0, 1.0] }
+]
+
+# Progression and Story
+[progression]
+unlocks = ["next_level_name"]
+bell_effects = ["unlock_hidden_areas", "reveal_secrets", "change_enemy_behavior"]
+story_events = ["event_1", "event_2", "boss_encounter"]
+
+# Bell Resonance System
+[bell_system]
+bell_location = [0.0, 45.0, 0.0]
+bell_radius = 100.0
+resonance_effects = [
+    "reveal_omitted_objects",
+    "unlock_new_paths",
+    "change_lighting",
+    "alter_enemy_spawns"
+]
+
+# Performance Settings
+[performance]
+max_draw_distance = 100.0
+lod_bias = 1.0
+particle_limit = 50
+physics_substeps = 2
+max_active_enemies = 20
+
+# Future Level Templates (for future-you)
+# [new_level]
+# level_info.name = "New Level Name"
+# level_info.description = "Description of new level"
+# # ... rest of configuration

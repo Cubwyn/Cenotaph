@@ -1,0 +1,95 @@
+# Loot Table Configuration
+# Based on Cenotaph design document rarity system
+
+[common_loot]
+items = [
+    { item = "health_pack", chance = 0.5, min_count = 1, max_count = 3 },
+    { item = "ammo", chance = 0.8, min_count = 5, max_count = 20 },
+    { item = "scrap_metal", chance = 0.3, min_count = 1, max_count = 5 },
+    { item = "basic_parts", chance = 0.2, min_count = 1, max_count = 2 }
+]
+
+[uncommon_loot]
+items = [
+    { item = "weapon_part", chance = 0.2, min_count = 1, max_count = 1 },
+    { item = "health_pack", chance = 0.8, min_count = 2, max_count = 5 },
+    { item = "ammo", chance = 0.9, min_count = 10, max_count = 30 },
+    { item = "medium_parts", chance = 0.15, min_count = 1, max_count = 1 }
+]
+
+[rare_loot]
+items = [
+    { item = "artifact", chance = 0.05, min_count = 1, max_count = 1 },
+    { item = "weapon_part", chance = 0.4, min_count = 1, max_count = 2 },
+    { item = "special_ammo", chance = 0.1, min_count = 5, max_count = 15 },
+    { item = "rare_parts", chance = 0.1, min_count = 1, max_count = 1 }
+]
+
+[epic_loot]
+items = [
+    { item = "legendary_weapon", chance = 0.01, min_count = 1, max_count = 1 },
+    { item = "artifact", chance = 0.15, min_count = 1, max_count = 3 },
+    { item = "rare_material", chance = 0.25, min_count = 5, max_count = 10 },
+    { item = "epic_parts", chance = 0.05, min_count = 1, max_count = 1 }
+]
+
+[legendary_loot]
+items = [
+    { item = "mythical_weapon", chance = 0.001, min_count = 1, max_count = 1 },
+    { item = "legendary_artifact", chance = 0.02, min_count = 1, max_count = 1 },
+    { item = "legendary_material", chance = 0.1, min_count = 10, max_count = 20 },
+    { item = "legendary_parts", chance = 0.02, min_count = 1, max_count = 2 }
+]
+
+[enemy_loot]
+burdened = "common_loot"
+silencer = "uncommon_loot"
+paranoiac = "common_loot"
+harpy = "uncommon_loot"
+
+[level_loot]
+the_hanging_slums = "common_loot"
+ash_walk = "common_loot"
+ward_of_irons = "uncommon_loot"
+sanctuary = "rare_loot"
+gallery_of_wind = "uncommon_loot"
+mirror_crust = "rare_loot"
+the_breach = "epic_loot"
+
+[container_loot]
+chest_common = "common_loot"
+chest_uncommon = "uncommon_loot"
+chest_rare = "rare_loot"
+chest_epic = "epic_loot"
+chest_legendary = "legendary_loot"
+
+[boss_loot]
+strata_boss = "epic_loot"
+final_boss = "legendary_loot"
+
+[crafting_materials]
+shard_metal = { name = "Shard Metal", description = "Fragmented metal from broken weapons", rarity = "common" }
+chaotic_crystal = { name = "Chaotic Crystal", description = "Unstable crystal with fragmentation properties", rarity = "uncommon" }
+unstable_alloy = { name = "Unstable Alloy", description = "Metal that fractures unpredictably", rarity = "rare" }
+moon_essence = { name = "Moon Essence", description = "Lunar energy captured in crystal form", rarity = "common" }
+guiding_crystal = { name = "Guiding Crystal", description = "Crystal that responds to light and movement", rarity = "uncommon" }
+lunar_alloy = { name = "Lunar Alloy", description = "Metal infused with moonlight properties", rarity = "rare" }
+royal_metal = { name = "Royal Metal", description = "Metal imbued with authority and control", rarity = "common" }
+dominion_crystal = { name = "Dominion Crystal", description = "Crystal that manipulates gravity and space", rarity = "uncommon" }
+command_alloy = { name = "Command Alloy", description = "Metal that responds to will and intent", rarity = "rare" }
+scrap_metal = { name = "Scrap Metal", description = "Basic metal fragments", rarity = "common" }
+basic_parts = { name = "Basic Parts", description = "Standard mechanical components", rarity = "common" }
+medium_parts = { name = "Medium Parts", description = "Advanced mechanical components", rarity = "uncommon" }
+rare_parts = { name = "Rare Parts", description = "Specialized mechanical components", rarity = "rare" }
+epic_parts = { name = "Epic Parts", description = "Masterwork mechanical components", rarity = "epic" }
+legendary_parts = { name = "Legendary Parts", description = "Ancient mechanical components", rarity = "legendary" }
+
+[consumables]
+health_pack = { name = "Health Pack", description = "Restores health", effect = "heal_25", rarity = "common" }
+ammo = { name = "Ammo", description = "Standard ammunition", effect = "refill_ammo", rarity = "common" }
+special_ammo = { name = "Special Ammo", description = "Enhanced ammunition", effect = "refill_special_ammo", rarity = "uncommon" }
+
+[artifacts]
+basic_artifact = { name = "Basic Artifact", description = "Ancient relic with minor power", effect = "minor_stat_boost", rarity = "common" }
+artifact = { name = "Artifact", description = "Powerful ancient relic", effect = "stat_boost", rarity = "rare" }
+legendary_artifact = { name = "Legendary Artifact", description = "Mythical relic of great power", effect = "major_stat_boost", rarity = "legendary" }

@@ -1,0 +1,64 @@
+# Weapon Part Configuration Template
+# Copy this for new weapon parts
+# Based on Cenotaph design document modular relic weapons
+
+[part_info]
+name = "NEW_PART_NAME"
+type = "barrel"  # barrel, scope, stock, magazine, trigger, grip
+rarity = "common"  # common, uncommon, rare, epic, legendary
+description = "Brief description of part effect and philosophy"
+
+# Design Document Weapon Philosophies
+philosophy = "fragmentation"  # fragmentation, guidance, authority
+faction = "schizoid"  # schizoid, moonchild, sovereign
+
+[stats]
+damage_modifier = 1.0
+fire_rate_modifier = 1.0
+accuracy_modifier = 1.0
+reload_speed_modifier = 1.0
+stamina_cost_modifier = 1.0
+range_modifier = 1.0
+critical_chance_modifier = 0.05
+
+[visuals]
+model_path = "assets/weapons/parts/new_part.obj"
+texture_path = "assets/weapons/parts/new_part.png"
+color = [1.0, 1.0, 1.0]  # RGB values
+glow_color = [0.0, 0.0, 0.0]  # For special effects
+emission_strength = 0.0
+
+[audio]
+fire_sound = "assets/audio/weapons/fire.wav"
+reload_sound = "assets/audio/weapons/reload.wav"
+equip_sound = "assets/audio/weapons/equip.wav"
+
+[requirements]
+level_requirement = 1
+faction_reputation = 0
+previous_parts = []  # Parts required before this can be added
+
+[compatibility]
+compatible_with = ["rifle", "shotgun", "pistol"]
+incompatible_with = ["other_part_name"]
+max_per_category = 1  # How many of this type can be equipped
+
+# Special Effects (Based on design document)
+[effects]
+elemental_damage = "none"  # fire, ice, lightning, poison, holy
+projectile_type = "standard"  # homing, explosive, piercing, split, charged
+special_abilities = []  # ["rapid_fire", "burst_shot", "scope_zoom"]
+
+# Design Document Specific Effects
+schizoid_effects = []  # Split trajectories, chaotic recoil
+moonchild_effects = []  # Homing projectiles, delayed pulses
+sovereign_effects = []  # Gravity distortion, shockwaves
+
+# Crafting and Progression
+crafting_cost = 100
+rarity_weight = 1.0
+unlock_conditions = []  # ["defeat_boss", "reach_level", "find_location"]
+
+# Balancing
+balance_tier = 1  # 1-10 scale for progression
+meta_rating = 5   # 1-10 scale for current balance

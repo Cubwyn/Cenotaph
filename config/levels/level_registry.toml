@@ -1,0 +1,68 @@
+# Level Registry - Add new levels here to make them available
+# Based on Cenotaph design document strata progression
+
+[ash_walk]
+file = "ash_walk.toml"
+unlock_level = 1
+difficulty = 3
+strata_order = 1
+description = "Collapse and decay with wagon graveyards."
+
+[the_hanging_slums]
+file = "the_hanging_slums.toml"
+unlock_level = 3
+difficulty = 2
+strata_order = 2
+description = "Precarious life clinging to cliff walls."
+
+[ward_of_irons]
+file = "ward_of_irons.toml"
+unlock_level = 4
+difficulty = 5
+strata_order = 3
+description = "Industrial insanity with bleeding steam pipes."
+
+[sanctuary]
+file = "sanctuary.toml"
+unlock_level = 6
+difficulty = 4
+strata_order = 4
+description = "Broken divinity in a suspended cathedral."
+
+[gallery_of_wind]
+file = "gallery_of_wind.toml"
+unlock_level = 8
+difficulty = 6
+strata_order = 5
+description = "Breath of the abyss with massive wind tunnels."
+
+[mirror_crust]
+file = "mirror_crust.toml"
+unlock_level = 10
+difficulty = 7
+strata_order = 6
+description = "Reality distortion with glass trees and upward-flowing water."
+
+[the_breach]
+file = "the_breach.toml"
+unlock_level = 12
+difficulty = 9
+strata_order = 7
+description = "Geometric collapse at the final ascent."
+
+# Future Level Templates (for future-you)
+# Add new strata here following the pattern:
+# [new_strata_name]
+# file = "new_strata.toml"
+# unlock_level = X
+# difficulty = Y
+# strata_order = Z
+# description = "Description of new strata."
+
+# Example template for future strata:
+# [new_strata]
+# file = "new_strata.toml"
+# unlock_level = 15
+# difficulty = 8
+# strata_order = 8
+# description = "New strata with unique theme and mechanics."

@@ -1,0 +1,121 @@
+# Weapon Assembly Rules and Base Definitions
+# Based on Cenotaph design document modular relic weapons
+
+# Base Weapon Types
+[rifle_base]
+compatible_parts = ["barrel", "scope", "stock", "magazine", "trigger", "grip"]
+base_damage = 25
+base_fire_rate = 600
+base_accuracy = 0.8
+base_reload_speed = 2.0
+base_stamina_cost = 10.0
+base_range = 50.0
+
+[shotgun_base]
+compatible_parts = ["barrel", "stock", "magazine", "trigger", "grip"]
+base_damage = 50
+base_fire_rate = 300
+base_accuracy = 0.4
+base_reload_speed = 3.0
+base_stamina_cost = 15.0
+base_range = 20.0
+
+[pistol_base]
+compatible_parts = ["barrel", "magazine", "trigger", "grip"]
+base_damage = 15
+base_fire_rate = 800
+base_accuracy = 0.7
+base_reload_speed = 1.5
+base_stamina_cost = 5.0
+base_range = 30.0
+
+[sniper_base]
+compatible_parts = ["barrel", "scope", "stock", "magazine", "trigger", "grip"]
+base_damage = 100
+base_fire_rate = 100
+base_accuracy = 0.95
+base_reload_speed = 4.0
+base_stamina_cost = 25.0
+base_range = 150.0
+
+# Part Categories
+[part_categories]
+barrel = [
+    "short_barrel", "homing_barrel", "heavy_barrel",
+    "extended_barrel", "light_barrel", "gravity_barrel"
+]
+scope = [
+    "light_scope", "authority_scope", "iron_sights",
+    "red_dot", "sniper_scope", "lunar_scope"
+]
+stock = [
+    "light_stock", "command_stock", "no_stock",
+    "heavy_stock", "illuminated_stock", "unstable_stock"
+]
+magazine = [
+    "standard_mag", "extended_mag", "charged_mag",
+    "shock_mag", "fragment_magazine", "lunar_magazine"
+]
+trigger = [
+    "standard_trigger", "crystal_trigger", "rapid_trigger",
+    "overlord_trigger", "overclocked_trigger", "guiding_trigger"
+]
+grip = [
+    "standard_grip", "regal_grip", "light_grip",
+    "guiding_grip", "shaking_grip", "command_grip"
+]
+
+# Faction Compatibility Rules
+[faction_compatibility]
+schizoid = ["rifle_base", "pistol_base"]
+moonchild = ["rifle_base", "sniper_base"]
+sovereign = ["shotgun_base", "sniper_base"]
+
+# Part Compatibility Matrix
+[part_compatibility]
+# Barrel compatibilities
+short_barrel.compatible_with = ["rifle_base", "pistol_base"]
+homing_barrel.compatible_with = ["rifle_base", "sniper_base"]
+heavy_barrel.compatible_with = ["shotgun_base", "sniper_base"]
+
+# Scope compatibilities
+light_scope.compatible_with = ["rifle_base", "sniper_base"]
+authority_scope.compatible_with = ["sniper_base"]
+iron_sights.compatible_with = ["rifle_base", "pistol_base"]
+
+# Incompatibility rules
+short_barrel.incompatible_with = ["heavy_barrel", "gravity_barrel"]
+homing_barrel.incompatible_with = ["iron_sights", "red_dot"]
+heavy_barrel.incompatible_with = ["short_barrel", "light_barrel"]
+
+# Crafting Requirements
+[crafting_requirements]
+# Schizoid weapons require fragmentation materials
+schizoid_materials = ["shard_metal", "chaotic_crystal", "unstable_alloy"]
+# Moonchild weapons require lunar materials
+moonchild_materials = ["moon_essence", "guiding_crystal", "lunar_alloy"]
+# Sovereign weapons require authority materials
+sovereign_materials = ["royal_metal", "dominion_crystal", "command_alloy"]
+
+# Weapon Progression
+[progression]
+# Level requirements for weapon types
+rifle_base.min_level = 1
+shotgun_base.min_level = 3
+pistol_base.min_level = 1
+sniper_base.min_level = 5
+
+# Faction unlock levels
+schizoid_unlock = 1
+moonchild_unlock = 4
+sovereign_unlock = 6
+
+# Future Weapon Templates (for future-you)
+# [new_weapon_type]
+# compatible_parts = ["barrel", "scope", "stock", "magazine", "trigger", "grip"]
+# base_damage = 75
+# base_fire_rate = 400
+# base_accuracy = 0.75
+# base_reload_speed = 2.5
+# base_stamina_cost = 20.0
+# base_range = 80.0

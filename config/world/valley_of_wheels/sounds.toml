@@ -1,0 +1,5 @@
+# valley_of_wheels/sounds.toml
+# V0.03 - Minimal ambient only
+
+[ambient]
+primary_track = "audio/valley_of_wheels/ambient_loop.wav"

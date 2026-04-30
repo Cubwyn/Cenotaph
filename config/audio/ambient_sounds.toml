@@ -1,0 +1,103 @@
+# Ambient Sound Configuration
+# Based on Cenotaph design document audio direction
+
+# Environmental Sounds
+[environmental]
+wind_vertical = { file = "assets/audio/ambient/wind_vertical.wav", volume = 0.7, loop = true }
+distant_chimes = { file = "assets/audio/ambient/distant_chimes.wav", volume = 0.3, loop = true }
+stone_creak = { file = "assets/audio/ambient/stone_creak.wav", volume = 0.4, loop = false }
+metal_groan = { file = "assets/audio/ambient/metal_groan.wav", volume = 0.5, loop = false }
+dripping_water = { file = "assets/audio/ambient/dripping_water.wav", volume = 0.3, loop = true }
+chains_groaning = { file = "assets/audio/ambient/chains_groaning.wav", volume = 0.6, loop = true }
+
+# Level-specific Ambient Sounds
+[the_hanging_slums]
+ambient_sounds = [
+    "wind_vertical",
+    "dripping_water",
+    "wood_creak",
+    "distant_bells"
+]
+volume_multiplier = 0.8
+reverb_preset = "cathedral"
+
+[ash_walk]
+ambient_sounds = [
+    "wind_vertical",
+    "stone_creak",
+    "distant_thunder",
+    "dust_storm"
+]
+volume_multiplier = 0.9
+reverb_preset = "cave"
+
+[ward_of_irons]
+ambient_sounds = [
+    "metal_groan",
+    "steam_hiss",
+    "machinery_rumble",
+    "dripping_oil"
+]
+volume_multiplier = 1.0
+reverb_preset = "industrial"
+
+[sanctuary]
+ambient_sounds = [
+    "distant_chimes",
+    "chains_groaning",
+    "echoing_footsteps",
+    "hollow_wind"
+]
+volume_multiplier = 0.6
+reverb_preset = "cathedral"
+
+[gallery_of_wind]
+ambient_sounds = [
+    "wind_vertical",
+    "howling_wind",
+    "metal_whistle",
+    "air_currents"
+]
+volume_multiplier = 1.1
+reverb_preset = "large_hall"
+
+[mirror_crust]
+ambient_sounds = [
+    "glass_chimes",
+    "water_flow_upward",
+    "crystal_ringing",
+    "reality_distortion"
+]
+volume_multiplier = 0.7
+reverb_preset = "crystal_cave"
+
+[the_breach]
+ambient_sounds = [
+    "silence_hum",
+    "reality_cracking",
+    "distant_screams",
+    "void_whispers"
+]
+volume_multiplier = 0.5
+reverb_preset = "void"
+
+# Dynamic Audio Events
+[dynamic_events]
+bell_ring = { file = "assets/audio/effects/bell_ring.wav", volume = 1.0, spatial = true }
+bell_resonance = { file = "assets/audio/effects/bell_resonance.wav", volume = 0.8, loop = true }
+enemy_alert = { file = "assets/audio/effects/enemy_alert.wav", volume = 0.9, spatial = false }
+level_complete = { file = "assets/audio/effects/level_complete.wav", volume = 1.0, spatial = false }
+
+# Combat Audio
+[combat]
+footsteps_metal = { file = "assets/audio/combat/footsteps_metal.wav", volume = 0.5, loop = false }
+footsteps_wood = { file = "assets/audio/combat/footsteps_wood.wav", volume = 0.4, loop = false }
+footsteps_stone = { file = "assets/audio/combat/footsteps_stone.wav", volume = 0.6, loop = false }
+weapon_fire = { file = "assets/audio/combat/weapon_fire.wav", volume = 1.0, spatial = true }
+weapon_reload = { file = "assets/audio/combat/weapon_reload.wav", volume = 0.7, spatial = false }
+enemy_hit = { file = "assets/audio/combat/enemy_hit.wav", volume = 0.8, spatial = true }
+player_hit = { file = "assets/audio/combat/player_hit.wav", volume = 1.0, spatial = false }
+
+# Future Audio Templates (for future-you)
+# [new_sound_category]
+# sound_name = { file = "path/to/sound.wav", volume = 0.5, loop = false }

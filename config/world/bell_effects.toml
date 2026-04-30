@@ -1,0 +1,122 @@
+# Bell Resonance System Configuration
+# Based on Cenotaph design document bell mechanic
+
+[bell_clapper]
+name = "The Bell-Clapper"
+description = "Ringing the Great Bell unlocks previously silenced areas and reveals omitted objects"
+location = "sanctuary_hub"
+activation_cost = "resonance_energy"
+cooldown = 300
+
+[basic_bell_effects]
+reveal_omitted_objects = {
+    enabled = true,
+    range = 50.0,
+    duration = 60.0,
+    description = "Reveals objects that were forgotten by reality"
+}
+
+unlock_hidden_areas = {
+    enabled = true,
+    range = 30.0,
+    duration = 120.0,
+    description = "Unlocks previously inaccessible areas"
+}
+
+[advanced_bell_effects]
+change_enemy_behavior = {
+    enabled = true,
+    range = 40.0,
+    duration = 90.0,
+    description = "Alters enemy patrol patterns and aggression"
+}
+
+alter_environment = {
+    enabled = true,
+    range = 60.0,
+    duration = 180.0,
+    description = "Changes environmental conditions and hazards"
+}
+
+[master_bell_effects]
+reality_stabilization = {
+    enabled = true,
+    range = 100.0,
+    duration = 300.0,
+    description = "Stabilizes reality in the affected area"
+}
+
+memory_restoration = {
+    enabled = true,
+    range = 80.0,
+    duration = 240.0,
+    description = "Restores memories and reveals secrets"
+}
+
+[the_hanging_slums_bell]
+effects = ["reveal_omitted_objects", "unlock_hidden_areas"]
+resonance_cost = 50
+cooldown = 180
+
+[ash_walk_bell]
+effects = ["reveal_omitted_objects", "change_enemy_behavior"]
+resonance_cost = 75
+cooldown = 240
+
+[ward_of_irons_bell]
+effects = ["unlock_hidden_areas", "alter_environment"]
+resonance_cost = 100
+cooldown = 300
+
+[sanctuary_bell]
+effects = ["reveal_omitted_objects", "unlock_hidden_areas", "change_enemy_behavior"]
+resonance_cost = 125
+cooldown = 360
+
+[gallery_of_wind_bell]
+effects = ["alter_environment", "reality_stabilization"]
+resonance_cost = 150
+cooldown = 420
+
+[mirror_crust_bell]
+effects = ["reveal_omitted_objects", "memory_restoration", "reality_stabilization"]
+resonance_cost = 200
+cooldown = 480
+
+[the_breach_bell]
+effects = ["all_effects_combined"]
+resonance_cost = 300
+cooldown = 600
+
+[bell_interaction_rules]
+minimum_level = 2
+minimum_resonance = 25
+bell_knowledge_required = true
+bell_visible = true
+bell_accessible = true
+no_interference = true
+
+[bell_upgrades]
+resonance_amplification = {
+    level_required = 10,
+    effect = "increases_bell_range_by_25_percent",
+    cost = 500
+}
+
+echoing_resonance = {
+    level_required = 12,
+    effect = "reduces_bell_cooldown_by_20_percent",
+    cost = 750
+}
+
+harmonic_alignment = {
+    level_required = 15,
+    effect = "increases_bell_duration_by_50_percent",
+    cost = 1000
+}
+
+[bell_audio]
+ring_sound = "assets/audio/effects/bell_ring.wav"
+resonance_sound = "assets/audio/effects/bell_resonance.wav"
+echo_sound = "assets/audio/effects/bell_echo.wav"
+silence_sound = "assets/audio/effects/bell_silence.wav"

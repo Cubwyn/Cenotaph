@@ -1,0 +1,5 @@
+# valley_of_wheels/atmosphere.toml
+# V0.03 - Minimal global only
+
+[global]
+gravity = 9.8

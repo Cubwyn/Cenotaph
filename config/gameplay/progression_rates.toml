@@ -1,0 +1,107 @@
+# Experience and Level Progression
+# Based on Cenotaph design document progression system
+
+[experience_curves]
+easy = { base_xp = 100, multiplier = 1.2, description = "Casual progression" }
+normal = { base_xp = 200, multiplier = 1.3, description = "Standard progression" }
+hard = { base_xp = 300, multiplier = 1.4, description = "Challenging progression" }
+nightmare = { base_xp = 500, multiplier = 1.5, description = "Extreme progression" }
+
+[level_requirements]
+level_1 = 0
+level_2 = 200
+level_3 = 500
+level_4 = 900
+level_5 = 1400
+level_6 = 2000
+level_7 = 2700
+level_8 = 3500
+level_9 = 4400
+level_10 = 5400
+level_11 = 6500
+level_12 = 7700
+level_13 = 9000
+level_14 = 10400
+level_15 = 11900
+level_16 = 13500
+level_17 = 15200
+level_18 = 17000
+level_19 = 18900
+level_20 = 20900
+level_21 = 23000
+level_22 = 25200
+level_23 = 27500
+level_24 = 29900
+level_25 = 32400
+level_26 = 35000
+level_27 = 37700
+level_28 = 40500
+level_29 = 43400
+level_30 = 46400
+
+[stat_progression]
+health_per_level = 10
+stamina_per_level = 5
+damage_per_level = 2
+speed_per_level = 0.1
+accuracy_per_level = 0.02
+critical_chance_per_level = 0.01
+
+[stat_caps]
+max_health = 500
+max_stamina = 200
+max_speed = 10.0
+max_accuracy = 0.95
+max_critical_chance = 0.50
+
+[unlock_progression]
+new_weapons = [5, 10, 15, 20, 25, 30]
+new_abilities = [3, 8, 12, 18, 22, 28]
+new_areas = [1, 6, 11, 16, 21, 26]
+new_factions = [4, 9, 14, 19, 24, 29]
+
+[weapon_faction_unlocks]
+schizoid = 1
+moonchild = 4
+sovereign = 6
+
+[bell_unlocks]
+basic = 2
+advanced = 8
+master = 15
+
+[enemy_progression]
+health_scaling = 1.10
+damage_scaling = 1.05
+speed_scaling = 1.02
+spawn_rate_scaling = 1.05
+
+[elite_enemy_unlocks]
+elite_burdened = 5
+elite_silencer = 8
+elite_paranoiac = 6
+elite_harpy = 7
+
+[boss_progression]
+first_boss = 10
+boss_scaling = 1.25
+boss_health_scaling = 1.30
+boss_damage_scaling = 1.15
+
+[loot_progression]
+common_loot_scaling = 1.0
+uncommon_loot_scaling = 1.05
+rare_loot_scaling = 1.10
+epic_loot_scaling = 1.20
+legendary_loot_scaling = 1.35
+
+[crafting_material_unlocks]
+shard_metal = 3
+chaotic_crystal = 8
+unstable_alloy = 15
+moon_essence = 4
+guiding_crystal = 10
+lunar_alloy = 18
+royal_metal = 6
+dominion_crystal = 12
+command_alloy = 20

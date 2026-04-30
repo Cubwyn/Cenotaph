@@ -1,0 +1,52 @@
+# The Harpies - Marble angel statues with decayed wings
+# Design Document: Agile threats, aerial combat, vertical threats
+
+[base]
+name = "The Harpy"
+description = "Marble angel statues with decayed wings, agile aerial threats"
+
+[stats]
+health = 90
+damage = 25
+speed = 5.0
+armor = 10
+
+[combat]
+attack_range = 6.0
+attack_cooldown = 1.2
+
+[loot]
+table = "uncommon"
+experience_value = 85
+rare_drop_chance = 0.06
+
+[assets]
+model_path = "assets/enemies/harpy.obj"
+texture_path = "assets/enemies/harpy.png"
+
+[audio]
+sound_path = "assets/audio/enemies/harpy.wav"
+footstep_sound = "assets/audio/enemies/wing_flaps.wav"
+ambient_sound = "assets/audio/enemies/stone_creak.wav"
+
+[ai]
+patrol_radius = 30.0
+alert_radius = 40.0
+flee_health_threshold = 0.4
+
+[abilities]
+list = ["dive_attack", "aerial_dodge", "wing_buffet"]
+
+[environment]
+destructible = true
+can_break_props = true
+triggers_traps = false
+
+[scaling]
+health_multiplier_per_level = 1.12
+damage_multiplier_per_level = 1.08
+speed_multiplier_per_level = 1.03
+
+[requirements]
+unlock_level = 4
+min_player_level = 3

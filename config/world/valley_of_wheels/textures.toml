@@ -1,0 +1,5 @@
+# valley_of_wheels/textures.toml
+# V0.03 - Minimal material only
+
+[materials]
+ground_diffuse = "textures/valley_of_wheels/ground_diffuse.png"

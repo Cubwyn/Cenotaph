@@ -1,0 +1,62 @@
+# Level-specific configuration for The Hanging Slums
+# This file contains settings that override global defaults for this specific level
+
+[level]
+name = "The Hanging Slums"
+difficulty_multiplier = 1.0
+time_of_day = "dusk"
+weather = "clear"
+
+# Level-specific spawn settings
+[spawn]
+default_position = [0.0, 10.0, 0.0]
+respawn_position = [0.0, 10.0, 0.0]
+spawn_protection_time = 3.0
+
+# Environmental hazards
+[hazards]
+fall_damage_multiplier = 2.0
+environmental_damage_per_second = 0.0
+wind_strength = 0.0
+gravity_multiplier = 1.0
+
+# Enemy configuration
+[enemies]
+spawn_rate_multiplier = 1.0
+difficulty_scaling = 1.0
+max_active_enemies = 10
+
+# Loot configuration
+[loot]
+common_drop_rate = 0.8
+uncommon_drop_rate = 0.4
+rare_drop_rate = 0.1
+epic_drop_rate = 0.02
+
+# Audio settings
+[audio]
+ambient_volume = 0.7
+music_volume = 0.5
+sfx_volume = 0.8
+reverb_preset = "cathedral"
+
+# Visual settings
+[visuals]
+fog_density = 0.05
+fog_color = [0.1, 0.1, 0.15]
+lighting_intensity = 0.6
+shadow_quality = "medium"
+
+# Performance settings
+[performance]
+max_draw_distance = 100.0
+lod_bias = 1.0
+particle_limit = 50
+physics_substeps = 2
+
+# Level-specific events (future implementation)
+[events]
+dynamic_platforms = false
+collapsing_structures = false
+weather_effects = false
+day_night_cycle = false

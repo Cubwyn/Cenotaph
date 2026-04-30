@@ -1,0 +1,27 @@
+{
+  "root_path": "assets",
+  "models": [
+    {
+      "filename": "Cube.obj",
+      "relative_path": "Cube.obj",
+      "full_path": "assets/Cube.obj",
+      "format": "obj",
+      "size_bytes": 939
+    },
+    {
+      "filename": "ashwalk_001.obj",
+      "relative_path": "ashwalk_001.obj",
+      "full_path": "assets/ashwalk_001.obj",
+      "format": "obj",
+      "size_bytes": 5349062
+    },
+    {
+      "filename": "map_001.glb",
+      "relative_path": "map_001.glb",
+      "full_path": "assets/map_001.glb",
+      "format": "glb",
+      "size_bytes": 193284
+    }
+  ],
+  "subfolders": []
+}

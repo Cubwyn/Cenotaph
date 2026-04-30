@@ -1,0 +1,9 @@
+{
+  "name": "Ashwalk",
+  "base_map": "assets/ashwalk_001.obj",
+  "player_spawn": [0.0, 150.0, 0.0],
+  "props": [],
+  "atmosphere": "Open terrain",
+  "color_palette": "Natural tones",
+  "sound_identity": "Ambient wind"
+}

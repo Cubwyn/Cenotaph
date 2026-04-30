@@ -1,0 +1,110 @@
+# Strata Definitions - World Structure Configuration
+# Based on Cenotaph design document world architecture
+
+[world_structure]
+name = "The Great Omission"
+description = "A tectonic shaft of impossible depth with fused geological layers"
+depth = "infinite"
+walls_composition = ["compressed_cities", "bone_deposits", "cathedral_remains"]
+atmosphere = "oppressive"
+
+[pillar_of_regret]
+name = "The Pillar of Regret"
+description = "A mountain formed from crushed architecture, petrified roots, and ancient machinery"
+height = "infinite_ascent"
+composition = ["crushed_architecture", "petrified_roots", "ancient_machinery"]
+danger_level = "extreme"
+
+[obsidian_spire]
+name = "The Obsidian Spire"
+description = "A black glass tower piercing the cavern ceiling into the dead world above"
+location = "cavern_ceiling"
+material = "obsidian_glass"
+access_required = "bell_master"
+
+[anchor_chains]
+name = "Anchor Chains"
+description = "Colossal chains bolted into the cavern ceiling stabilizing the mountain"
+count = 8
+function = "stabilization_against_updrafts"
+hazard_level = "moderate"
+
+[the_ash_walk]
+strata_name = "The Ash-Walk"
+difficulty = 3
+
+[the_ward_of_irons]
+strata_name = "The Ward of Irons"
+difficulty = 5
+
+[the_hanging_slums]
+strata_name = "The Hanging Slums"
+difficulty = 2
+
+[the_sanctuary]
+strata_name = "The Sanctuary"
+difficulty = 4
+
+[the_gallery_of_wind]
+strata_name = "The Gallery of Wind"
+difficulty = 6
+
+[the_mirror_crust]
+strata_name = "The Mirror-Crust"
+difficulty = 7
+
+[the_breach]
+strata_name = "The Breach"
+difficulty = 9
+
+[progression_rules]
+strata_order = [
+    "the_hanging_slums",
+    "the_ash_walk",
+    "the_ward_of_irons",
+    "the_sanctuary",
+    "the_gallery_of_wind",
+    "the_mirror_crust",
+    "the_breach"
+]
+
+[bell_requirements]
+the_ash_walk = 1
+the_ward_of_irons = 3
+the_sanctuary = 4
+the_gallery_of_wind = 5
+the_mirror_crust = 6
+the_breach = 7
+
+[environmental_transitions]
+light_quality_degradation = {
+    the_hanging_slums = "normal",
+    the_ash_walk = "dim",
+    the_ward_of_irons = "flickering",
+    the_sanctuary = "candlelight",
+    the_gallery_of_wind = "misty",
+    the_mirror_crust = "distorted",
+    the_breach = "failing"
+}
+
+[gravity_effects]
+the_hanging_slums = "normal"
+the_ash_walk = "slightly_heavier"
+the_ward_of_irons = "unstable"
+the_sanctuary = "echoing"
+the_gallery_of_wind = "wind_affects_movement"
+the_mirror_crust = "gravity_anomalies"
+the_breach = "reality_breaking"
+
+[world_phenomena]
+reality_fading = {
+    enabled = true,
+    trigger_level = 20,
+    effects = ["color_draining", "sound_fading", "textures_fading"]
+}
+
+[bell_resonance_effects]
+reveal_omitted = true
+unlock_hidden_areas = true
+change_enemy_behavior = true
+alter_environment = true

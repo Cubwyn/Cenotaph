@@ -1,0 +1,44 @@
+[physics]
+gravity = -9.8
+jump_velocity = 4.0
+player_speed = 2.0
+
+[camera]
+speed = 4.0
+sensitivity = 0.002
+
+[combat]
+stamina_regen_rate = 10.0
+stamina_regen_delay = 1.0
+dash_stamina_cost = 25.0
+dash_distance = 5.0
+dash_duration = 0.2
+
+[keybindings]
+# Movement
+forward  = "W"
+backward = "S"
+left     = "A"
+right    = "D"
+jump     = "Space"
+fly_up   = "E"
+fly_down = "Q"
+
+# Combat
+fire_primary   = "MouseLeft"
+fire_secondary = "MouseRight"
+reload         = "R"
+dash           = "LeftShift"
+aim            = "LeftControl"
+weapon_swap    = "Tab"
+
+# Resonance Arts
+art_1 = "1"
+art_2 = "2"
+art_3 = "3"
+art_4 = "4"
+
+# Editor
+editor_toggle = "F1"
+editor_grab   = "G"
+editor_delete = "X"

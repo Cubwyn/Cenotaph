@@ -1,0 +1,52 @@
+# The Paranoiacs - Cage-headed screamers
+# Design Document: Alert entire zones if not eliminated quickly, area denial, escalation
+
+[base]
+name = "The Paranoiac"
+description = "Cage-headed screamers that alert entire zones when threatened"
+
+[stats]
+health = 80
+damage = 15
+speed = 4.0
+armor = 0
+
+[combat]
+attack_range = 15.0
+attack_cooldown = 3.0
+
+[loot]
+table = "common"
+experience_value = 60
+rare_drop_chance = 0.03
+
+[assets]
+model_path = "assets/enemies/paranoiac.obj"
+texture_path = "assets/enemies/paranoiac.png"
+
+[audio]
+sound_path = "assets/audio/enemies/paranoiac.wav"
+footstep_sound = "assets/audio/enemies/quick_steps.wav"
+ambient_sound = "assets/audio/enemies/nervous_whispers.wav"
+
+[ai]
+patrol_radius = 25.0
+alert_radius = 50.0
+flee_health_threshold = 0.5
+
+[abilities]
+list = ["zone_alert", "scream_damage", "hide_quickly"]
+
+[environment]
+destructible = true
+can_break_props = false
+triggers_traps = false
+
+[scaling]
+health_multiplier_per_level = 1.08
+damage_multiplier_per_level = 1.03
+speed_multiplier_per_level = 1.05
+
+[requirements]
+unlock_level = 5
+min_player_level = 3
