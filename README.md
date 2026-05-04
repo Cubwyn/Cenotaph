@@ -1,11 +1,11 @@
 # Cenotaph: The Great Omission
 
-> Version: 0.334
-
+> Version: 0.335
+> 
 > Genre: Vertical Action RPG / Open-Zone Looter-Shooter
-
+> 
 > Core Loop: Explore -> Loot -> Optimize -> Fight -> Repeat (Infinitely)
-
+> 
 > Tone: Surreal decay, tragic beauty, chaotic exploration.
 
 ## Executive Summary
@@ -24,91 +24,58 @@ A vertical looter-shooter with infinite replayability. Every enemy, puzzle, and 
 The game takes place within The Great Omission, a tectonic shaft of impossible depth.
 
 ### Key Locations
-- The Pillar of Regret: The main play space—a mountain formed from compressed cities and machinery.
+- The Pillar of Regret: The main play space a mountain formed from compressed cities, machinery and forgotten dreams.
 - The Obsidian Spire: A black glass tower piercing the cavern ceiling.
 - The Sanctuary: The central safe hub where players manage inventory, upgrade perks, and fast travel.
 - Anchor Chains: Colossal chains stabilizing the mountain, serving as key traversal points.
 
-### The Seven Strata and Sub-Level Hierarchy
+### The Seven Strata (High-Level Overview)
 
-The following hierarchy outlines the primary Strata and their associated side areas, sub-levels, and hidden zones. These areas are designed to offer alternative routes, specific loot pools, and unique challenges.
+The world is divided into seven primary vertical zones (Strata). Each Stratum contains a mix of open exploration areas, hidden sub-zones, and specific challenge types (combat, parkour, puzzles). Detailed layouts, specific enemy placements, and exact loot tables are defined during the content creation phase.
 
-- The Ash-Walk (Stratum 1: Collapse)
-    - Primary Zone: Wagon Graveyard Expanse
-        - Sub-Level: The Fossilized Root Caves
-            - Hidden Zone: The Buried Wagon Cache (High-tier Scrap)
-        - Sub-Level: The Dust Storm Corridors
-            - Hidden Zone: The Silent Watcher's Outpost (Elite Camp)
-    - Side Objective: The Wagon Graveyard Rescue
-        - Reward: Unique "Ash-Drifter" Class Mod
-    - Parkour Challenge: The Falling Wagon Run
-        - Reward: "Gravity-Defier" Movement Trinket
+- **Stratum 1: The Ash-Walk**
+    - Theme: Collapse and decay.
+    - Structure: Wide-open wastelands with scattered ruins and vertical cave systems.
+    - Key Features: Multiple entry points, hidden resource caches, early-game elite camps.
+    - Challenge Types: Basic combat, introductory parkour routes.
 
-- The Ward of Irons (Stratum 2: Industrial Insanity)
-    - Primary Zone: The Bleeding Factory Floor
-        - Sub-Level: The Rust-Slick Catwalks
-            - Hidden Zone: The Ventilation Shaft Maze (Stealth Route)
-        - Sub-Level: The Suspended Machinery Hangar
-            - Hidden Zone: The Power Core Chamber (Boss: The Overheated Golem)
-    - Side Objective: Restore the Steam Cycle
-        - Reward: "Iron-Heart" Perk Node (Heat Resistance)
-    - Puzzle: The Pressure Valve Sequence
-        - Reward: "Steam-Press" Weapon Mod (Adds knockback)
+- **Stratum 2: The Ward of Irons**
+    - Theme: Industrial insanity and machinery.
+    - Structure: Dense factory floors, maze-like corridors, and suspended walkways.
+    - Key Features: Dynamic environmental hazards (steam, moving parts), stealth sections.
+    - Challenge Types: Combat in tight spaces, puzzle-solving involving machinery.
 
-- The Hanging Slums (Stratum 3: Precarious Life)
-    - Primary Zone: The Cliffside Tenements
-        - Sub-Level: The Rooftop Parkour Network
-            - Hidden Zone: The Wire-Tangled Attic (Legendary Weapon Chest)
-        - Sub-Level: The Basement Sewer Tunnels
-            - Hidden Zone: The Forgotten Water Cistern (Resource Cache)
-    - Side Objective: The Refugee Escort
-        - Reward: "Shadow-Step" Movement Perk
-    - Special Enemy: The Silent Stalker (Hidden in shadows)
-        - Reward: "Whisper" Cloak (Temporary invisibility)
+- **Stratum 3: The Hanging Slums**
+    - Theme: Precarious life and verticality.
+    - Structure: Cliffside dwellings, rope bridges, and deep underground tunnels.
+    - Key Features: High-risk platforming, hidden residential zones, NPC interactions.
+    - Challenge Types: Advanced parkour, stealth infiltration, escort missions.
 
-- The Sanctuary (Stratum 4: Broken Divinity)
-    - Primary Zone: The Central Cathedral Hub
-        - Sub-Level: The Vendor Atrium
-            - Function: Weapon Rerolling, Blueprint Crafting, Perk Unlocks
-        - Sub-Level: The Quest Board Archives
-            - Function: Daily/Weekly Challenges, Lore Entries
-        - Sub-Level: The Fast Travel Nexus
-            - Function: Instant travel to unlocked Strata entrances
-    - Special Feature: The Memory Shrine
-        - Function: View collected lore, completed achievements, and NG+ stats
+- **Stratum 4: The Sanctuary**
+    - Theme: Broken divinity and safety.
+    - Structure: Central hub area within a suspended cathedral.
+    - Key Features: Vendors, Perk trainers, fast travel nodes, quest boards.
+    - Challenge Types: None (Safe Zone), but contains lore and progression gates.
 
-- The Gallery of Wind (Stratum 5: Breath of the Abyss)
-    - Primary Zone: The Trumpet Carvings
-        - Sub-Level: The Aerial Currents
-            - Hidden Zone: The Floating Platform Garden (High-Speed Challenge)
-        - Sub-Level: The Deep Wind Tunnels
-            - Hidden Zone: The Wind Singer's Nest (Elite: The Gale Harpy)
-    - Side Objective: Silence the Wind Singer
-        - Reward: "Gale-Force" Projectile Speed Perk
-    - Parkour Challenge: The Wind Tunnel Sprint
-        - Reward: "Zephyr" Boots (Increased air control)
+- **Stratum 5: The Gallery of Wind**
+    - Theme: Breath of the abyss and aerial movement.
+    - Structure: Massive open chambers with wind currents, floating islands, and deep drops.
+    - Key Features: High-speed traversal, wind-based mechanics, aerial combat.
+    - Challenge Types: Speed runs, aerial parkour, wind-current navigation puzzles.
 
-- The Mirror-Crust (Stratum 6: Reality Distortion)
-    - Primary Zone: The Glass Forest
-        - Sub-Level: The Reflection Pools
-            - Hidden Zone: The Inverted Room (Puzzle: Reverse Gravity)
-        - Sub-Level: The Shattered Pathways
-            - Hidden Zone: The Memory Fragment Vault (Lore & Blueprints)
-    - Side Objective: The Shattered Memory
-        - Reward: "Mirror-Image" Deception Perk (Creates decoy)
-    - Puzzle: The Prism Alignment
-        - Reward: "Prism" Weapon Mod (Bullets split on impact)
+- **Stratum 6: The Mirror-Crust**
+    - Theme: Reality distortion and reflection.
+    - Structure: Glass-like terrain, inverted gravity zones, and reflective surfaces.
+    - Key Features: Visual illusions, gravity-shifting puzzles, hidden reflection rooms.
+    - Challenge Types: Complex environmental puzzles, disorientation combat.
 
-- The Breach (Stratum 7: Geometric Collapse)
-    - Primary Zone: The Fracturing Ascent
-        - Sub-Level: The Elite Barracks
-            - Hidden Zone: The Boss Rush Arena (Challenge Mode)
-        - Sub-Level: The Void Threshold
-            - Hidden Zone: The Final Memory (Secret Ending Trigger)
-    - Side Objective: The Summit Push
-        - Reward: Access to Ultra-Void Difficulty Tier
-    - Special Boss: The Architect of Nothing
-        - Reward: "Void-Caller" Legendary Weapon (Unique effect per NG+ cycle)
+- **Stratum 7: The Breach**
+    - Theme: Geometric collapse and the final ascent.
+    - Structure: Fracturing space, unstable platforms, and the path to the summit.
+    - Key Features: Elite enemy concentrations, boss arenas, secret ending triggers.
+    - Challenge Types: High-difficulty combat, boss rushes, final parkour gauntlets.
+
+*Note: Each Stratum is designed to be replayable with varying layouts and loot pools in subsequent NG+ cycles.*
 
 ## Core Gameplay Systems
 
