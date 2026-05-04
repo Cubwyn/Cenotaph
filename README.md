@@ -204,7 +204,7 @@ If something feels generic, remove it.
 * [x] Physics integration (Rapier3D)
 * [x] Basic movement and vertical traversal
 * [x] Configuration handling and generic inputs
-* [x] Level loading and rendering geometry
+* [in progress] Level loading and rendering geometry
 * [ ] Polish player physics controller
 * [ ] Proper map geometry pipelines
 
