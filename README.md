@@ -1,24 +1,24 @@
 # CENOTAPH: THE GREAT OMISSION
 ## Project Document
 
-**Version:** 0.32  
+**Version:** 0.333
 **Start Date:** 2026-01-29  
-**Status:** Laying the foundation
+**Status:** Open-Zone & Loot Loop Definition
 
 ---
 
 ## Executive Summary
 
-* **Genre:** First-Person Action RPG / Shooter
-* **Structure:** Vertical Metroidvania with modular loot systems
-* **Tone:** Surreal decay, existential grandeur, tragic beauty all conveyed in a simple manner
-* **Core Fantasy:** Climb a dead kingdom's corpse to discover why reality forgot it.
+* **Genre:** Vertical Action RPG / Open-Zone Loot Shooter
+* **Structure:** 7 Massive, Non-Linear Strata with branching paths, side quests, and hidden zones.
+* **Tone:** Surreal decay, tragic beauty, chaotic exploration.
+* **Core Fantasy:** Explore a vast, dying world, hunt for legendary weapons, and climb the mountain in your own unique way.
 
 ## Elevator Pitch
 
 A modular loot shooter set inside a sunken mountain made of crushed cathedrals and machine remains. 
 
-Players ascend through layered strata of forgotten architecture while manipulating memory and causality. The higher they climb, the more reality destabilizes—until they breach the surface and discover the universe has already ended.
+*Cenotaph* features 7 massive, open Strata filled with branching paths, hidden caves, and dynamic events. Players explore freely, choosing their own route to the summit. Every enemy drops randomized, fully-formed weapons with unique stats and effects. There are multiple ways to solve every encounter: stealth, brute force, or environmental manipulation. The mountain resets on death, but permanent upgrades and the sheer volume of loot ensure infinite replayability.
 
 ---
 
@@ -31,50 +31,50 @@ Players ascend through layered strata of forgotten architecture while manipulati
 * **The Obsidian Spire:** A black glass tower piercing the cavern ceiling into the dead world above.
 * **Anchor Chains:** Colossal chains bolted into the cavern ceiling stabilizing the mountain against violent updrafts.
 
-### 2. Strata Overview (Playable Biomes)
+### 2. Strata Overview (Open Zones)
 
 * **The Ash-Walk**
   * *Theme:* Collapse
   * *Visuals:* Wagon graveyards, fossilized tree roots, dust storms
   * *Palette:* Sepia, pale red, smoke gray
-  * *Traversal:* Mud slows movement, unstable ground
-  * *Gameplay:* Environmental hazards
+  * *Traversal:* Wide open spaces, multiple vertical routes, hidden wagon caches.
+  * *Gameplay:* Multiple entry points to the next zone; optional "Wagon Graveyard" side quest.
 * **The Ward of Irons**
   * *Theme:* Industrial insanity
   * *Visuals:* Bleeding steam pipes, iron scaffolds, suspended torture machinery
   * *Palette:* Rust red, oil black, tarnished brass
-  * *Traversal:* Rotating gears, steam bursts
-  * *Gameplay:* Mechanical puzzles
+  * *Traversal:* Maze-like factory floors, elevator shafts, rooftop shortcuts.
+  * *Gameplay:* Dynamic events (steam vent cycles); optional "Power Core" side objective.
 * **The Hanging Slums**
   * *Theme:* Precarious life
   * *Visuals:* Houses pinned to cliff walls, floating debris, grand pianos tangled in wires
   * *Palette:* Desaturated teal, faded wood tones
-  * *Traversal:* Chain networks, shifting structures
-  * *Gameplay:* Vertical navigation
+  * *Traversal:* Rooftop parkour, chain bridges, hidden basement tunnels.
+  * *Gameplay:* Stealth opportunities; optional "Rescue" side quests for unique loot.
 * **The Sanctuary**
   * *Theme:* Broken divinity
   * *Visuals:* Gothic cathedral suspended in chains
   * *Palette:* Gold leaf, ivory stone, dim violet light
-  * *Traversal:* Hub area
-  * *Gameplay:* Bell mechanic, vendors
+  * *Traversal:* Central Hub (Safe Zone).
+  * *Gameplay:* Vendor, Quest Board, Perk upgrades, Fast Travel to Strata entrances.
 * **The Gallery of Wind**
   * *Theme:* Breath of the abyss
   * *Visuals:* Massive carved trumpets and wind tunnels
   * *Palette:* Pale limestone, wind-swept silver
-  * *Traversal:* Wind currents
-  * *Gameplay:* Environmental manipulation
+  * *Traversal:* Aerial currents, floating platforms, deep vertical drops.
+  * *Gameplay:* High-speed traversal challenges; optional "Wind Singer" side quest.
 * **The Mirror-Crust**
   * *Theme:* Reality distortion
   * *Visuals:* Glass trees, upward-flowing water, reflective terrain
   * *Palette:* Silver-blue, glass white
-  * *Traversal:* Reflection puzzles
-  * *Gameplay:* Reality bending
+  * *Traversal:* Slippery slopes, mirror portals, hidden reflection rooms.
+  * *Gameplay:* Puzzle-solving for shortcuts; optional "Shattered Memory" side quest.
 * **The Breach**
   * *Theme:* Geometric collapse
   * *Visuals:* Obsidian floors, fracturing space
   * *Palette:* Black, stark white, color draining
-  * *Traversal:* Final challenge
-  * *Gameplay:* Climactic ascent
+  * *Traversal:* Final ascent with multiple branching paths to the peak.
+  * *Gameplay:* Elite enemy camps; optional "Boss Rush" challenge.
 
 ---
 
@@ -82,25 +82,41 @@ Players ascend through layered strata of forgotten architecture while manipulati
 
 ### 1. Combat Philosophy
 
-**Fast, responsive FPS combat with vertical mobility.**
-* Combat area -> climbing/exploration -> loot -> repeat
-* Modular weapon generation
-* Environmental manipulation
-* Verticality as tactical advantage
+**Fast, responsive FPS combat with vertical mobility and multiple approaches.**
+* **Open Exploration:** Players choose their path through each Stratum.
+* **Multiple Approaches:**
+  * *Brute Force:* Overwhelm enemies with heavy firepower.
+  * *Stealth:* Use shadows and silence to bypass groups.
+  * *Environmental:* Lure enemies into traps or use verticality to snipe.
+* **Randomized Loot:** Every enemy and chest drops a **fully formed weapon** with random stats, elements, and effects. No assembly required.
+* **Verticality as Tactical Advantage:** Use recoil to boost upward, drop-kicks for damage, and wall-runs for evasion.
 
-### 2. Modular Relic Weapons
+### 2. Modular Relic Weapons (Randomized Drops)
 
-* **Schizoid Parts:** High fire rate, split trajectories, chaotic recoil. *(Philosophy: Fragmentation, instability)*
-* **Moonchild Parts:** Homing projectiles, light-elemental effects, delayed impact pulses. *(Philosophy: Guidance, illumination)*
-* **Sovereign Parts:** Heavy impact, gravity distortion, environmental shockwaves. *(Philosophy: Authority, control)*
+* **Weapon Types:** Schizoid (Chaotic), Moonchild (Homing), Sovereign (Heavy), plus hybrids.
+* **Randomization System:**
+  * **Prefixes/Suffixes:** "The Weeping," "The Regretful," "The Burning," "The Void."
+  * **Stats:** Fire Rate, Damage, Spread, Heat Gen, Reload Speed, Element (Fire, Ice, Shock, Void).
+  * **Special Effects:** "Hitscan," "Bouncing Bullets," "Explosive Rounds," "Life Steal."
+* **Loot Philosophy:** Every drop is unique. Finding a "Legendary" weapon with a crazy effect is the core reward loop.
 
-### 3. Resonance System
+### 3. Progression System
 
-* **The Bell-Clapper:** Ringing the Great Bell unlocks previously "silenced" areas, reveals omitted objects, and changes enemy behavior in lower strata. *(Progression Backbone: Core advancement mechanic)*
+* **The Infinite Loop:** Upon death, the mountain collapses and regenerates.
+* **Persistent Upgrades:** Players retain **Scrap** (currency) and **Memory Shards** to unlock permanent **Perks** at the Sanctuary.
+* **Perk Slots:**
+  * *Movement:* Double Jump, Wall-Run Speed, Dash Cooldown.
+  * *Combat:* Loot Magnet, Crit Chance, Heat Capacity.
+  * *Survival:* Max HP, Damage Resistance, Revive Chance.
+* **Quest System:** Each Stratum has a Main Objective (Reach the top) and 2-3 Side Quests (Find a specific item, clear a camp, rescue an NPC) that reward unique loot or lore.
+* **Difficulty Scaling:** Each loop increases the "Madness Level," spawning harder enemies and rarer loot.
 
 ### 4. Vertical Traversal
 
-* **Movement Toolkit:** Combat dodge, rope/chain swinging, and chain, rock, and building climbing. *(Design Principle: The world must reward height constantly)*
+* **Movement Toolkit:** Combat dodge, rope/chain swinging, wall-running, and climbing.
+* **Recoil Dash:** Shooting pushes the player backward; aiming down allows upward propulsion (rocket-jump style).
+* **Drop-Kick:** Falling onto enemies deals massive damage and bounces the player up.
+* **Design Principle:** The world must reward height constantly. Multiple paths (high, mid, low) exist for every section.
 
 ---
 
@@ -110,7 +126,8 @@ Players ascend through layered strata of forgotten architecture while manipulati
 * **The Silencers:** Tall figures with mouths sewn shut in gold wire. Suppress player abilities temporarily. *(Design: Anti-magic, silence mechanics)*
 * **The Paranoiacs:** Cage-headed screamers. Alert entire zones if not eliminated quickly. *(Design: Area denial, escalation)*
 * **The Harpies:** Marble angel statues with decayed wings. Agile threats. *(Design: Aerial combat, vertical threats)*
-* **Boss Philosophy:** Each boss represents a failed memory of the kingdom.
+* **Elite Variants:** Randomly generated enemies with unique modifiers (e.g., "Fire Burdened," "Fast Silencer") found in higher Strata.
+* **Boss Philosophy:** Each boss represents a failed memory of the kingdom, guarding a major loot cache or quest item.
 
 ---
 
@@ -120,13 +137,14 @@ Players ascend through layered strata of forgotten architecture while manipulati
 * Industrial cathedral ambience
 * Distant choral fragments
 * Metallic percussion
-* Gradual loss of instrumentation near the end
+* Dynamic intensity that scales with "Madness Level"
 
 ### Sound Design
 * Deep echo reverb
 * Chains groaning under stress
 * Wind howling vertically
-* Bell resonance that shakes UI subtly
+* Distinct "jam" sound for overheating
+* **Loot Feedback:** Unique chimes for Common, Rare, Epic, and Legendary drops.
 
 ---
 
@@ -135,22 +153,22 @@ Players ascend through layered strata of forgotten architecture while manipulati
 ### Act I - Survival
 * **Belief:** There is salvation above.
 * **Player State:** Hope, determination, curiosity
+* **Mechanic:** Exploring the first Strata, learning the loot system.
 
 ### Act II - Distortion
 * **Reality:** Destabilizes. NPC accounts contradict.
 * **Player State:** Confusion, paranoia, doubt
+* **Mechanic:** Side quests reveal conflicting lore; Madness Level increases.
 
-### Act III - Breach
+### Act III - The Infinite
 * **Environment:** Color drains. Systems begin failing.
 * **Player State:** Dread, inevitability
+* **Mechanic:** The mountain regenerates endlessly. The goal is to find the "Perfect Loadout" and survive the highest loop.
 
-### Finale - Epitaph
+### Finale - Epitaph (Optional)
 * **Setting:** Surface is an infinite gray ash desert.
 * **Revelation:** There is no kingdom to save. The mountain was the last vibrant remnant in a dead universe.
-
-### Final Choice
-1. Preserve the illusion and restart the cycle (New Game+)
-2. Let the mountain collapse into peace (End save)
+* **Choice:** The player chooses to continue the climb (New Loop) or rest (End Save).
 
 ---
 
@@ -165,21 +183,24 @@ Shafted vertical light beams, soft volumetric fog, high contrast near peak. Ligh
 ### Silhouette Language
 Spires, chains, vertical thrust. Angular machinery fused with organic curves. Everything points upward.
 
+### Loot Feedback
+Weapons glow with rarity colors (White, Green, Blue, Purple, Orange) upon pickup. Legendary items have unique visual effects (e.g., trailing fire, static).
+
 ---
 
 ## Thematic Pillars
 
 ### The Great Omission
 **Reality is missing something.** Entire civilizations are erased—not destroyed, but forgotten. Absence is the central antagonist.
-* **Gameplay Expression:** Phasing environments, objects that exist only when "remembered", enemies missing vital components, architecture that doesn't obey consistent physical rules.
+* **Gameplay Expression:** The mountain regenerates because reality cannot remember its end. Loot is the only tangible memory.
 
 ### Vertical Regret
 **The world is a wound that collapsed inward.** Height equals proximity to truth.
-* **Gameplay Expression:** Vertical traversal is primary, climbable architecture and chain networks, environmental scale communicates oppression.
+* **Gameplay Expression:** Vertical traversal is primary. The climb is the only way forward.
 
 ### Memory vs. Illusion
 **The mountain may be the last "living" thing.** The surface may be sterile oblivion.
-* **Gameplay Expression:** Ringing the Bell unlocks forgotten areas, NPCs contradict each other's recollections, player abilities degrade near the end.
+* **Gameplay Expression:** Permanent upgrades (Perks) are the only "truth" retained between loops. The rest is an illusion.
 
 ### Beauty in Ruin
 **This is not grimdark brutality.** It is decayed elegance.
@@ -193,30 +214,32 @@ Spires, chains, vertical thrust. Angular machinery fused with organic curves. Ev
 Vertical scale, surreal architecture, oppressing feel, bleak but elegant tone.
 
 ### Quality Control
-If something feels generic, remove it.
+If something feels generic, remove it. If a mechanic doesn't serve the exploration or the loot, cut it.
 
 ---
 
 ## Development Priorities
 
-### Phase 1: Laying the Foundation
+### Phase 1: The Tight Core (Current)
 * [x] Engine rendering pipeline (WGPU)
 * [x] Physics integration (Rapier3D)
-* [x] Basic movement and vertical traversal
+* [x] Basic movement and vertical traversal (Wall-run, Chain-swing, Recoil Dash)
 * [x] Configuration handling and generic inputs
-* [in progress] Level loading and rendering geometry
+* [in progress] Randomized Loot Drop System (Fully formed weapons)
 * [ ] Polish player physics controller
-* [ ] Proper map geometry pipelines
+* [ ] Implement Heat System and Overheat logic
 
-### Phase 2: Core Gameplay Mechanics (Planned)
-* [ ] Enemy AI and basic combat loop
-* [ ] Modular weapon generation
-* [ ] Bell resonance progression mechanic
+### Phase 2: Open-Zone & Content (Planned)
+* [ ] Build 7 Massive Strata with branching paths and side quests
+* [ ] Enemy AI and dynamic event system
+* [ ] Perk System and Sanctuary Hub
+* [ ] Quest Board and NPC interaction
 
-### Phase 3: Content Creation (Planned)
-* [ ] Complete all 7 strata and levels
-* [ ] Boss encounters and enemy factions
+### Phase 3: Polish & Scale (Planned)
+* [ ] Complete all 7 strata and level variations
+* [ ] Boss encounters and Elite variants
 * [ ] Audio, music, and atmosphere integration
+* [ ] Leaderboards and Challenge Modes
 
 ---
 
@@ -225,18 +248,19 @@ If something feels generic, remove it.
 ### Creative Direction
 * Maintain thematic consistency across all systems.
 * Prioritize verticality in level design.
-* Ensure every mechanic serves the core themes.
+* Ensure every mechanic serves the core loop (Explore -> Loot -> Fight -> Die -> Repeat).
 * Preserve the tone of tragic beauty.
+* **Multiple Paths:** Every zone must have at least 3 distinct routes (High, Mid, Low) to encourage replayability.
 
 ### Technical Standards
 * Performance optimization for large vertical spaces.
-* Modular, extensible code architecture.
+* Modular, extensible code architecture for loot generation and procedural events.
 * Comprehensive asset pipeline.
 * Cross-platform compatibility.
 
 ### Quality Assurance
-* Regular playtesting for vertical traversal.
-* Performance monitoring for large prop counts.
+* Regular playtesting for vertical traversal feel.
+* Balance testing for loot drop rates and difficulty scaling.
 * Narrative coherence verification.
 * Audio-visual synchronization.
 
@@ -244,11 +268,11 @@ If something feels generic, remove it.
 
 ## Conclusion
 
-**Cenotaph: The Great Omission** aims to represent a unique fusion of vertical exploration, modular progression, and existential storytelling. 
+**Cenotaph: The Great Omission** aims to represent a unique fusion of vertical exploration, modular progression, and infinite replayability. 
 
-The foundation is solid, with a complete engine and first level implementation providing a strong base for further development. The project's strength lies in its cohesive thematic integration—every system, from combat to traversal to narrative, serves the core concept of ascending through forgotten reality. Maintaining this thematic purity will be crucial as development progresses.
+The foundation is solid, with a complete engine and first level implementation providing a strong base for further development. The project's strength lies in its cohesive thematic integration—every system, from combat to traversal to the infinite loop, serves the core concept of ascending through a forgotten reality. Maintaining this thematic purity while refining the "Recoil Dash," "Loot," and "Open-Zone" feel will be crucial as development progresses.
 
 With the technical foundation established and creative vision clearly defined, the project is ready to move into the next phase of content creation and system implementation.
 
 **Document Maintained By:** _Cubwyn  
-**Last Updated:** March 26, 2026
+**Last Updated:** May 04, 2026
