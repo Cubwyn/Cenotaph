@@ -2,7 +2,9 @@
 ## Project Document
 
 **Version:** 0.333
+
 **Start Date:** 2026-01-29  
+
 **Status:** Open-Zone & Loot Loop Definition
 
 ---
