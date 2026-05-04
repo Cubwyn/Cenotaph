@@ -1,8 +1,11 @@
 # Cenotaph: The Great Omission
 
-> Version: 0.334 
+> Version: 0.334
+
 > Genre: Vertical Action RPG / Open-Zone Looter-Shooter
+
 > Core Loop: Explore -> Loot -> Optimize -> Fight -> Repeat (Infinitely)
+
 > Tone: Surreal decay, tragic beauty, chaotic exploration.
 
 ## Executive Summary
