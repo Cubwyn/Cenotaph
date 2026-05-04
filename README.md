@@ -1,6 +1,6 @@
 # Cenotaph: The Great Omission
 
-> Version: 0.335
+> Version: 0.336 (Streamlined Architecture)
 > 
 > Genre: Vertical Action RPG / Open-Zone Looter-Shooter
 > 
@@ -24,7 +24,7 @@ A vertical looter-shooter with infinite replayability. Every enemy, puzzle, and 
 The game takes place within The Great Omission, a tectonic shaft of impossible depth.
 
 ### Key Locations
-- The Pillar of Regret: The main play space a mountain formed from compressed cities, machinery and forgotten dreams.
+- The Pillar of Regret: The main play space—a mountain formed from compressed cities and machinery.
 - The Obsidian Spire: A black glass tower piercing the cavern ceiling.
 - The Sanctuary: The central safe hub where players manage inventory, upgrade perks, and fast travel.
 - Anchor Chains: Colossal chains stabilizing the mountain, serving as key traversal points.
