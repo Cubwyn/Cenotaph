@@ -1,0 +1,21 @@
+# bindings.toml
+# User-editable key bindings for Cenotaph: The Great Omission
+# 
+# This file controls what keyboard keys trigger each action.
+# Edit these values to rebind controls.
+
+[keybindings]
+# Movement
+forward = "W"
+backward = "S"
+left = "A"
+right = "D"
+jump = "SPACE"
+sprint = "SHIFT"
+
+# Actions
+dash = "SHIFT"
+attack = "MOUSE_LEFT"
+interact = "E"
+inventory = "I"
+pause = "ESCAPE"

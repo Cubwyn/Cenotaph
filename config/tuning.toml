@@ -1,0 +1,54 @@
+# tuning.toml
+# Developer game constants for Cenotaph: The Great Omission
+#
+# All gameplay values that designers can tweak without touching code.
+# These values are loaded at startup and drive the entire game experience.
+
+[player]
+# Health and stamina
+max_health = 100.0
+max_stamina = 100.0
+stamina_regen_rate = 10.0  # per second
+stamina_regen_delay = 1.0  # seconds before regen starts after depletion
+
+# Movement speeds (units per second)
+walk_speed = 3.0
+sprint_speed = 8.0
+
+[movement]
+# Dash mechanics
+dash_speed_multiplier = 2.0  # how much faster dash is compared to sprint
+dash_stamina_cost = 25.0
+dash_cooldown = 2.0  # seconds between dashes
+dash_duration = 0.5  # seconds
+
+# Sprint mechanics
+sprint_stamina_drain_rate = 20.0  # per second
+
+[camera]
+# Mouse look sensitivity
+sensitivity = 0.002
+
+[physics]
+# World physics
+gravity = -9.8
+jump_velocity = 5.0
+player_speed = 5.0
+
+[combat]
+# Weapon and damage
+base_damage = 10.0
+crit_multiplier = 2.0
+attack_cooldown = 0.5
+
+[world]
+# Level loading
+draw_distance = 500.0
+fog_density = 0.01
+
+[lighting]
+# Environment
+ambient_color = [0.1, 0.1, 0.15]
+sun_color = [1.0, 0.8, 0.5]
+sun_intensity = 2.0
+sun_position_offset = 5.0  # height above player

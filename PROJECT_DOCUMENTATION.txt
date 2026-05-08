@@ -1,0 +1,341 @@
+PROJECT DOCUMENTATION - CENOTAPH: THE GREAT OMISSION
+================================================
+
+Version: 0.33
+Last Updated: May 6, 2026
+Project Type: First-Person Action RPG/Shooter with Vertical Metroidvania Structure
+
+================================================================================
+PROJECT OVERVIEW
+================================================================================
+
+Cenotaph: The Great Omission is a first-person action RPG/shooter built with Rust, 
+wgpu, and Rapier3D. The game takes place in "The Pillar of Regret" - a 
+vertical mountain formed from crushed architecture where players must climb through 
+layered strata to discover why reality has ended.
+
+Genre: First-Person Action RPG / Shooter
+Structure: Vertical Metroidvania with modular loot
+Tone: Surreal decay, existential grandeur, tragic beauty
+
+================================================================================
+FILE STRUCTURE & DESCRIPTIONS
+================================================================================
+
+--- ROOT FILES ---
+
+FILE: Cargo.toml
+DESC: Rust package manifest defining project metadata and dependencies.
+      Key dependencies: winit, wgpu, glam, rapier3d, tobj, serde, etc.
+
+FILE: Cargo.lock
+DESC: Auto-generated dependency lock file ensuring reproducible builds.
+
+FILE: README.md
+DESC: Main project documentation containing executive summary,
+      architecture overview, strata definitions, and development roadmap.
+
+FILE: readme.txt
+DESC: Text version of project readme.
+
+FILE: .gitignore
+DESC: Git ignore file specifying files/directories to exclude from version control.
+
+FILE: task_progress.md
+DESC: Development task tracking file.
+
+--- ASSETS DIRECTORY (assets/) ---
+
+FILE: assets/ashwalk_001.mtl
+DESC: Wavefront MTL material file for the ashwalk_001 3D model.
+      Contains material definitions like diffuse, specular, ambient properties.
+
+FILE: assets/ashwalk_001.obj
+DESC: Wavefront OBJ 3D model file for the Ash-Walk level area.
+      Contains vertex positions, normals, texture coordinates.
+
+FILE: assets/Cube.mtl
+DESC: MTL material file for the generic Cube model.
+      Standard cube material properties.
+
+FILE: assets/Cube.obj
+DESC: OBJ format generic cube model.
+      Used as placeholder or primitive object.
+
+FILE: assets/map_001.blend
+DESC: Blender source file (.blend) containing the base map 3D model.
+      Can be edited in Blender for level geometry changes.
+
+FILE: assets/map_001.glb
+DESC: GLTF binary format of the base map model.
+      The main level geometry that players walk on.
+      Loaded directly by the game engine via gltf crate.
+
+FILE: assets/props.json
+DESC: JSON file defining all props (objects) in the game.
+      Contains prop IDs, positions, scales, types.
+
+--- LEVELS DIRECTORY (levels/) ---
+
+FILE: levels/ashwalk_001.blend
+DESC: Blender source file for the "Ash-Walk" level.
+      The first playable stratum/biome.
+
+FILE: levels/ashwalk_01.json
+DESC: JSON level data file for Ash-Walk.
+      Contains: name, base_map path, player_spawn position, props array.
+      Current content: player spawns at [0.0, 5.0, 0.0], base map "assets/map_001.glb"
+
+FILE: levels/ashwalk_001.mtl
+DESC: Material definitions for the Ash-Walk level model.
+
+FILE: levels/ashwalk_001.obj
+DESC: OBJ format 3D model for the Ash-Walk level.
+
+--- CONFIG DIRECTORY (config/) ---
+
+FILE: config/
+DESC: Directory for configuration files. Currently empty.
+      Intended for Config.toml with keybindings.
+
+--- TEXTURES DIRECTORY (textures/) ---
+
+FILE: textures/
+ DESC: Directory for texture image files.
+       Referenced by material files and render system.
+
+--- SOURCE CODE (src/) ---
+
+DIR: src/
+ DESC: Main Rust source code directory.
+
+FILE: src/main.rs
+ DESC: Application entry point.
+       Creates event loop with winit, initializes App, runs main loop.
+       Entry point: main() -> Result<(), Box<dyn Error>>
+
+FILE: src/app.rs
+ DESC: Winit ApplicationHandler implementation.
+       Owns the Renderer and routes OS events into the engine.
+       Handles window creation, events, input processing, render loop.
+       Key struct: App { renderer: Option<Renderer>, input: InputManager }
+
+--- CORE SUBSYSTEM (src/core/) ---
+
+DIR: src/core/
+ DESC: Core engine systems module.
+       Owns runtime: GPU state, subsystems, update/render loop.
+
+FILE: src/core/mod.rs
+ DESC: Core module declaration.
+       Exports: pub mod engine;
+
+DIR: src/core/engine/
+ DESC: Engine core implementation directory.
+
+FILE: src/core/engine/mod.rs
+ DESC: Engine module root.
+       Sub-modules: asset_catalog, loader, state, sync, update
+       Exports: pub use state::EngineState;
+
+FILE: src/core/engine/state.rs
+ DESC: EngineState struct definition.
+       Maintains GPU state, manages all game subsystems.
+       Handles construction, resize, and render orchestration.
+
+FILE: src/core/engine/loader.rs
+ DESC: Asset loader implementation.
+       Disk I/O helpers for textures and prop assets.
+       Handles reading OBJ, GLB, and other asset formats.
+
+FILE: src/core/engine/sync.rs
+ DESC: Instance buffer synchronization.
+       Instance buffer rebuild functionality for rendering.
+
+FILE: src/core/engine/update.rs
+ DESC: Per-frame update logic.
+       Physics step, gameplay updates, game state advancement.
+
+FILE: src/core/engine/asset_catalog.rs
+ DESC: Asset catalog management.
+       Tracks and organizes all loaded game assets.
+
+--- SYSTEMS SUBSYSTEM (src/systems/) ---
+
+DIR: src/systems/
+ DESC: Game subsystems module.
+       Input, Physics, Rendering.
+
+FILE: src/systems/mod.rs
+ DESC: Systems module declaration.
+       Exports: pub mod input, pub mod physics, pub mod render
+
+DIR: src/systems/input/
+ DESC: Input handling system.
+
+FILE: src/systems/input/mod.rs
+ DESC: Input module declaration.
+       Exports: pub mod manager, pub use manager::InputManager
+
+FILE: src/systems/input/manager.rs
+ DESC: InputManager implementation.
+       Raw input capture and query interface.
+       Processes keyboard/mouse events from OS.
+
+DIR: src/systems/physics/
+ DESC: Physics simulation system using Rapier3D.
+
+FILE: src/systems/physics/engine.rs
+ DESC: PhysicsEngine wrapper around Rapier3D.
+       Thin wrapper owning simulation state.
+       - rigid_body_set, collider_set
+       - physics_pipeline, integration_parameters
+       - player movement, collision detection
+       - prop colliders and terrain mesh
+
+DIR: src/systems/render/
+ DESC: Rendering system using WGPU.
+
+FILE: src/systems/render/mod.rs
+ DESC: Render module declaration.
+       Exports: renderer, pipeline, camera, mesh, instance, texture, assets, lighting
+       Exports: pub use renderer::Renderer
+
+FILE: src/systems/render/shader.wgsl
+ DESC: WGSL shader code for GPU rendering pipeline.
+       Custom shader for 3D rendering in WebGPU style.
+
+--- GAMEPLAY SUBSYSTEM (src/game/) ---
+
+DIR: src/game/
+ DESC: Gameplay systems module.
+
+FILE: src/game/mod.rs
+ DESC: Game module declaration.
+       Exports: pub mod gameplay
+
+DIR: src/game/gameplay/
+ DESC: Gameplay mechanics subdirectory.
+
+FILE: src/game/gameplay/mod.rs
+ DESC: Gameplay module declaration.
+       Exports: player, movement, stamina modules.
+
+FILE: src/game/gameplay/player.rs
+ DESC: Player system definition.
+       Player state, health management, inventory.
+
+FILE: src/game/gameplay/movement.rs
+ DESC: Movement system implementation.
+       Walk, sprint, dash, jump, wall-run mechanics.
+
+FILE: src/game/gameplay/stamina.rs
+ DESC: Stamina system for combat.
+       StaminaConfig (regen_rate, recovery_delay, depletion)
+       StaminaSystem (current, max, recovery_timer)
+
+--- DATA SUBSYSTEM (src/data/) ---
+
+DIR: src/data/
+ DESC: Data structures module.
+       World, Config data.
+
+FILE: src/data/mod.rs
+ DESC: Data module declaration.
+       Exports: pub mod world, pub mod config
+
+DIR: src/data/config/
+ DESC: Configuration data definitions.
+
+FILE: src/data/config/mod.rs
+ DESC: Config module declaration.
+
+FILE: src/data/config/gameplay.rs
+ DESC: Game configuration structures.
+       - GameConfig: player, movement, camera, physics configs
+       - PlayerConfig: max_health, max_stamina, stamina_regen, walk/sprint speed
+       - MovementConfig: dash_multiplier, stamina_drain, cooldown
+       - PhysicsConfig: gravity, jump_velocity, player_speed
+       - CameraConfig: sensitivity
+       - Key binding parsing from Config.toml
+
+DIR: src/data/world/
+ DESC: World data structures.
+
+FILE: src/data/world/level.rs
+ DESC: Level and prop data structures.
+       - ColliderType: None, Box, Sphere, Mesh
+       - PropData: asset_id, position, rotation, scale, collider_type
+       - LevelData: name, base_map, player_spawn, props
+       - Methods: load(), save(), default_level()
+
+FILE: src/data/world/strata.rs
+ DESC: Stratum (biome) definitions.
+       Vertical biome layers of the Pillar of Regret.
+       - StratumId: AshWalk, WardOfIrons, HangingSlums, Sanctuary, 
+                  GalleryOfWind, MirrorCrust, TheBreach
+       - Stratum: id, display_name, theme, height_range
+       - all() returns Vec<Stratum> with 7 biomes
+
+================================================================================
+KEY CONFIGURATIONS
+================================================================================
+
+Physics Defaults (PhysicsConfig):
+- gravity: -9.8
+- jump_velocity: 5.0
+- player_speed: 5.0
+
+Player Defaults (PlayerConfig):
+- max_health: 100.0
+- max_stamina: 100.0
+- stamina_regen_rate: 10.0/sec
+- stamina_regen_delay: 1.0 sec
+- walk_speed: 3.0 units/sec
+- sprint_speed: 8.0 units/sec
+
+Stamina Defaults (StaminaConfig):
+- regen_rate: 10.0/sec
+- recovery_delay: 1.0 sec
+- depletion_multiplier: 1.0
+
+Movement Defaults (MovementConfig):
+- dash_speed_multiplier: 2.0x
+- sprint_stamina_drain: 20.0/sec
+- dash_stamina_cost: 25.0
+- dash_cooldown: 2.0 sec
+- dash_duration: 0.5 sec
+
+Camera Defaults (CameraConfig):
+- sensitivity: 0.002
+
+Strata Height Ranges:
+1. Ash-Walk: 0-200 (collapse)
+2. Ward of Irons: 200-450 (industrial insanity)
+3. Hanging Slums: 450-700 (precarious life)
+4. Sanctuary: 700-800 (broken divinity)
+5. Gallery of Wind: 800-1050 (breath of the abyss)
+6. Mirror-Crust: 1050-1300 (reality distortion)
+7. The Breach: 1300-1500 (geometric collapse)
+
+================================================================================
+DEPENDENCIES
+================================================================================
+
+- winit 0.30 - Window management and event loop
+- wgpu 28.0.0 - WebGPU graphics API
+- glam 0.32 - 2D/3D math library
+- rapier3d 0.32.0 - 3D physics engine
+- bytemuck 1.16 - Byte casting for memory
+- tobj 4.0 - OBJ model loading
+- serde 1.0 - Serialization framework
+- serde_json 1.0 - JSON parsing
+- toml 0.9.8 - TOML config parsing
+- env_logger 0.11 - Logging
+- pollster 0.4.0 - Async executor
+- image 0.25 - Image loading
+- gltf 1.4 - GLTF model loading
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

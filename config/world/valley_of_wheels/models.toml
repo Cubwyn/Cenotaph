@@ -1,5 +1,0 @@
-# valley_of_wheels/models.toml
-# V0.03 - Minimal static mesh only
-
-[static_meshes]
-level_main = "assets/levels/valley_of_wheels/valley_main.glb"

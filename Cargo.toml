@@ -4,12 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 # ── Feature flags ─────────────────────────────────────────────────────────────
-# `editor` is on by default for development builds.
-# Strip it for ship builds: `cargo build --release --no-default-features`
-[features]
-default = ["editor"]
-editor = []
-
 [dependencies]
 winit = "0.30"
 wgpu = "28.0.0"

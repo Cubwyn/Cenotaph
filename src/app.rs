@@ -9,12 +9,13 @@ use winit::event::{DeviceEvent, DeviceId, ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
-use crate::input::InputManager;
-use crate::render::Renderer;
+use crate::systems::input::manager::InputManager;
+use crate::systems::render::renderer::Renderer;
 
 pub struct App {
     renderer: Option<Renderer>,
     input: InputManager,
+    last_frame: std::time::Instant,
 }
 
 impl App {
@@ -22,6 +23,7 @@ impl App {
         Self {
             renderer: None,
             input: InputManager::new(),
+            last_frame: std::time::Instant::now(),
         }
     }
 }
@@ -36,9 +38,6 @@ impl ApplicationHandler for App {
                     .create_window(window_attrs)
                     .expect("Failed to create window"),
             );
-
-            let _ = window.set_cursor_grab(winit::window::CursorGrabMode::Confined);
-            window.set_cursor_visible(false);
 
             let renderer = pollster::block_on(Renderer::new(
                 window.clone(),
@@ -77,7 +76,14 @@ impl ApplicationHandler for App {
                 WindowEvent::Resized(physical_size) => renderer.resize(physical_size),
 
                 WindowEvent::RedrawRequested => {
-                    renderer.update_physics(&self.input);
+                    let now = std::time::Instant::now();
+                    let dt = now.duration_since(self.last_frame).as_secs_f32();
+                    self.last_frame = now;
+                    
+                    // Cap delta time to prevent physics issues on frame drops
+                    let capped_dt = dt.min(1.0 / 30.0);
+                    
+                    renderer.update_physics(&self.input, capped_dt);
                     renderer.update_visuals(&mut self.input);
 
                     match renderer.render() {

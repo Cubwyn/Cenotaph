@@ -22,20 +22,11 @@
 // - render/renderer.rs → rendering pipeline
 // - gameplay/* → player systems and mechanics
 
-mod config;
-mod input;
-mod world;
-mod gameplay;
-mod physics;
-mod render;
-mod engine;
+mod core;
+mod systems;
+mod game;
+mod data;
 mod app;
-
-// The editor module is compiled only when the `editor` feature is active.
-// Ship builds: `cargo build --release --no-default-features`
-// Editor builds: `cargo build --features editor`
-#[cfg(feature = "editor")]
-mod editor;
 
 use winit::event_loop::{ControlFlow, EventLoop};
 
