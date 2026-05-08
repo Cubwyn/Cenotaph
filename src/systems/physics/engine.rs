@@ -1,5 +1,5 @@
 // src/physics/engine.rs
-// Simplified physics engine for debugging
+// Physics engine using Rapier3D for collision detection and response.
 
 use rapier3d::prelude::*;
 use rapier3d::math::Vec3 as RVec3;
@@ -7,6 +7,15 @@ use glam::Vec3;
 
 use crate::data::config::gameplay::PhysicsConfig;
 use crate::data::world::level::{ColliderType, PropData};
+
+/// How far below the player's centre to cast a ground-detection ray.
+/// The player collider is a sphere of radius 0.6, so a cast distance of
+/// ~0.7 means the ray ends just below the sphere's bottom.
+const GROUND_RAY_LENGTH: f32 = 0.7;
+
+/// Maximum time (seconds) after leaving the ground during which a jump
+/// is still allowed (coyote time).
+const COYOTE_TIME: f32 = 0.1;
 
 pub struct PhysicsEngine {
     pub rigid_body_set: RigidBodySet,
@@ -23,6 +32,10 @@ pub struct PhysicsEngine {
     #[allow(dead_code)]
     pub player_collider_handle: ColliderHandle,
     pub prop_colliders: Vec<ColliderHandle>,
+    /// Tracks whether jump key was held last frame (for edge-triggered jumping).
+    jump_was_pressed: bool,
+    /// Seconds left in the coyote-time window after leaving the ground.
+    coyote_timer: f32,
 }
 
 impl PhysicsEngine {
@@ -35,42 +48,81 @@ impl PhysicsEngine {
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
-        // Create level geometry collider from the actual level mesh data
         // Apply Y offset used in rendering (124.5) to align physics with visuals
         let map_y_offset = 124.5;
-        
+
         if !phys_points.is_empty() && !phys_indices.is_empty() {
             // Offset the mesh vertices by the rendering Y offset so physics aligns with visuals
             let rp: Vec<RVec3> = phys_points
                 .iter()
                 .map(|p| RVec3::new(p.x, p.y + map_y_offset, p.z))
                 .collect();
-            
+
+            // Calculate bounds for safety floor
+            let mut min_y = f32::MAX;
+            let mut max_y = f32::MIN;
+            let mut min_x = f32::MAX;
+            let mut max_x = f32::MIN;
+            let mut min_z = f32::MAX;
+            let mut max_z = f32::MIN;
+            for p in &rp {
+                min_y = min_y.min(p.y);
+                max_y = max_y.max(p.y);
+                min_x = min_x.min(p.x);
+                max_x = max_x.max(p.x);
+                min_z = min_z.min(p.z);
+                max_z = max_z.max(p.z);
+            }
+
+            println!("[DEBUG] Physics mesh bounds: Y=[{:.1}, {:.1}], X=[{:.1}, {:.1}], Z=[{:.1}, {:.1}]",
+                min_y, max_y, min_x, max_x, min_z, max_z);
+
             // Create a static rigid body for the level mesh
             let ground_rb = RigidBodyBuilder::fixed().build();
             let ground_rb_handle = rigid_body_set.insert(ground_rb);
-            
+
             // Create a triangle mesh collider from the actual level geometry
-            let ground_collider = ColliderBuilder::trimesh(rp, phys_indices.to_vec())
+            let ground_collider = ColliderBuilder::trimesh(rp.clone(), phys_indices.to_vec())
                 .unwrap()
-                .friction(0.5)
+                .friction(0.6)
                 .build();
             collider_set.insert_with_parent(ground_collider, ground_rb_handle, &mut rigid_body_set);
-            
-            println!("[DEBUG] Physics: level mesh collider created from {} vertices, {} triangles", 
+
+            println!("[DEBUG] Physics: level mesh collider created from {} vertices, {} triangles",
                 phys_points.len(), phys_indices.len());
+
+            // SAFETY FLOOR: Add a flat floor 2 units below the lowest mesh point.
+            // This catches the player if they fall through the mesh due to
+            // numerical issues with large triangles and a small player collider.
+            let safety_floor_y = min_y - 2.0;
+            let half_width = ((max_x - min_x) * 0.5 + 10.0).max(100.0);
+            let half_depth = ((max_z - min_z) * 0.5 + 10.0).max(100.0);
+            let center_x = (min_x + max_x) * 0.5;
+            let center_z = (min_z + max_z) * 0.5;
+
+            let safety_rb = RigidBodyBuilder::fixed()
+                .translation(RVec3::new(center_x, safety_floor_y, center_z))
+                .build();
+            let safety_rb_handle = rigid_body_set.insert(safety_rb);
+            let safety_collider = ColliderBuilder::cuboid(half_width, 0.5, half_depth)
+                .friction(0.5)
+                .build();
+            collider_set.insert_with_parent(safety_collider, safety_rb_handle, &mut rigid_body_set);
+
+            println!("[DEBUG] Physics: safety floor at Y={}, size {} x {}",
+                safety_floor_y, half_width * 2.0, half_depth * 2.0);
         } else {
             // Fallback: create ground at Y=125 if no level geometry
             let ground_rb = RigidBodyBuilder::fixed()
                 .translation(RVec3::new(0.0, 125.0, 0.0))
                 .build();
             let ground_rb_handle = rigid_body_set.insert(ground_rb);
-            
-            let ground_collider = ColliderBuilder::cuboid(200.0, 0.1, 200.0)
+
+            let ground_collider = ColliderBuilder::cuboid(200.0, 0.5, 200.0)
                 .friction(2.0)
                 .build();
             collider_set.insert_with_parent(ground_collider, ground_rb_handle, &mut rigid_body_set);
-            
+
             println!("[DEBUG] Physics: fallback floor at Y=125");
         }
 
@@ -81,10 +133,12 @@ impl PhysicsEngine {
             .build();
         let player_body_handle = rigid_body_set.insert(player_rb);
 
-        // Player collider - sphere for better collision detection
-        let player_collider = ColliderBuilder::ball(0.5)
+        // Player collider - use a slightly larger sphere (0.6 radius) for better
+        // numerical stability against large mesh triangles. Friction > 0 gives the
+        // player grip on the terrain to walk on slopes and prevents sliding.
+        let player_collider = ColliderBuilder::ball(0.6)
             .restitution(0.0)
-            .friction(0.0)
+            .friction(0.6)
             .build();
         let player_collider_handle = collider_set.insert_with_parent(
             player_collider,
@@ -106,6 +160,8 @@ impl PhysicsEngine {
             player_body_handle,
             player_collider_handle,
             prop_colliders: Vec::new(),
+            jump_was_pressed: false,
+            coyote_timer: 0.0,
         }
     }
 
@@ -165,6 +221,32 @@ impl PhysicsEngine {
         [t.x, t.y, t.z]
     }
 
+    /// Returns `true` if there is ground directly beneath the player, by casting
+    /// a short ray downward using a QueryPipeline built from the broad-phase.
+    fn check_grounded(&self) -> bool {
+        let body = self.rigid_body_set.get(self.player_body_handle).unwrap();
+        let pos = body.translation();
+
+        let ray = Ray::new(
+            pos.into(),
+            RVec3::new(0.0, -1.0, 0.0).into(),
+        );
+
+        // Build a query pipeline that excludes the player's own collider.
+        let filter = QueryFilter::default()
+            .exclude_collider(self.player_collider_handle);
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.rigid_body_set,
+            &self.collider_set,
+            filter,
+        );
+
+        query_pipeline
+            .cast_ray(&ray, GROUND_RAY_LENGTH, true)
+            .is_some()
+    }
+
     pub fn apply_player_movement(
         &mut self,
         intent: [f32; 3],
@@ -172,41 +254,60 @@ impl PhysicsEngine {
         config: &PhysicsConfig,
         dt: f32,
     ) {
+        // Read state BEFORE taking the mutable borrow on the rigid body.
+        let on_ground = self.check_grounded();
+
+        // Update coyote timer:
+        //   - If on ground, reset the timer.
+        //   - If airborne, count down.
+        if on_ground {
+            self.coyote_timer = COYOTE_TIME;
+        } else {
+            self.coyote_timer = (self.coyote_timer - dt).max(0.0);
+        }
+
+        // Edge-triggered jump: only jump on the key-down transition.
+        let jump_just_pressed = is_jumping && !self.jump_was_pressed;
+        self.jump_was_pressed = is_jumping;
+
         let body = self
             .rigid_body_set
             .get_mut(self.player_body_handle)
             .unwrap();
 
         body.set_gravity_scale(1.0, true);
-        
+
         let cur = body.linvel();
-        
-        // Grounded check: if vertical velocity is near zero, we're on the ground
-        // When touching ground, gravity is counteracted by normal force, resulting in ~0 Y velocity
-        let grounded = cur.y.abs() < 0.5;
-        
+
+        // Allow jumping if:
+        //   a) Actually on the ground, OR
+        //   b) Within coyote-time window (just stepped off a ledge).
+        let can_jump = on_ground || self.coyote_timer > 0.0;
+
         let mut vel = RVec3::new(
             intent[0] * config.player_speed,
             cur.y,
             intent[2] * config.player_speed,
         );
-        
-        if is_jumping && grounded {
+
+        if jump_just_pressed && can_jump {
             vel.y = config.jump_velocity;
+            // Clear coyote timer so it's consumed by this jump.
+            self.coyote_timer = 0.0;
         }
-        
+
         body.set_linvel(vel, true);
     }
 
     pub fn step(&mut self, config: &PhysicsConfig, dt: f32) {
         let gravity = RVec3::new(0.0, config.gravity, 0.0);
-        
+
         // Use the passed dt for physics simulation to make it frame-rate independent
         let integration_params = IntegrationParameters {
             dt: dt.clamp(0.001, 0.033), // Clamp to prevent extreme jumps in dt
             ..Default::default()
         };
-        
+
         self.physics_pipeline.step(
             gravity,
             &integration_params,
