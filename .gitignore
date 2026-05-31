@@ -1,1 +1,7 @@
 /target
+*.bin
+textures/*.png
+textures/*.jpg
+textures/*.jpeg
+textures/*.tga
+textures/*.bmp

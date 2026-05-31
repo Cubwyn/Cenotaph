@@ -9,8 +9,8 @@ use crate::data::config::gameplay::PhysicsConfig;
 use crate::data::world::level::{ColliderType, PropData};
 
 /// How far below the player's centre to cast a ground-detection ray.
-/// The player collider is a sphere of radius 0.6, so a cast distance of
-/// ~0.7 means the ray ends just below the sphere's bottom.
+/// The player collider is a sphere of radius 0.6, so the ray length is
+/// 0.7 = 0.6 (sphere radius) + 0.1 (small margin to avoid missed contacts).
 const GROUND_RAY_LENGTH: f32 = 0.7;
 
 /// Maximum time (seconds) after leaving the ground during which a jump

@@ -8,6 +8,7 @@
 // handling and fallback mechanisms to ensure the game can start even with
 // missing or corrupted assets.
 
+use wgpu::util::DeviceExt;
 use std::fs;
 
 use crate::systems::render::assets::{AssetManager, RenderAsset, RenderAssetMeshPart};
@@ -259,5 +260,3 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
     }
 }
 
-// Bring wgpu::util into scope for create_buffer_init convenience function
-use wgpu::util::DeviceExt;

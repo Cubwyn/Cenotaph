@@ -101,11 +101,18 @@ impl InputManager {
                 self.mouse_delta.0 += delta.0;
                 self.mouse_delta.1 += delta.1;
             }
+            // Edge-triggered: only fire on the Pressed transition, not held
             DeviceEvent::Button { button: 0, state: ElementState::Pressed } => {
                 self.fire_primary = true;
             }
+            DeviceEvent::Button { button: 0, state: ElementState::Released } => {
+                self.fire_primary = false;
+            }
             DeviceEvent::Button { button: 1, state: ElementState::Pressed } => {
                 self.fire_secondary = true;
+            }
+            DeviceEvent::Button { button: 1, state: ElementState::Released } => {
+                self.fire_secondary = false;
             }
             _ => {}
         }

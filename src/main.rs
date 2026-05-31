@@ -24,7 +24,6 @@
 
 mod core;
 mod systems;
-mod game;
 mod data;
 mod app;
 
@@ -44,6 +43,11 @@ use winit::event_loop::{ControlFlow, EventLoop};
 /// the application to gracefully handle startup failures and provide
 /// meaningful error messages to users and developers.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Parse optional level name from CLI arguments
+    let level_name = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "ashwalk_01".to_string());
+
     // Create the main event loop that will handle all window and input events
     // This is the core of our application - without it, nothing happens
     let event_loop = EventLoop::new()?;
@@ -54,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize the application with all necessary systems and state
     // This sets up the engine, renderer, input handlers, and game state
-    let mut application = app::App::new();
+    let mut application = app::App::new(level_name);
     
     // Run the application event loop
     // This will handle all window events, input, and rendering until the application exits

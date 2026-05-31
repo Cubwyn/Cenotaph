@@ -10,7 +10,8 @@ pub struct GameConfig {
     pub movement: MovementConfig,
     pub camera: CameraConfig,
     pub physics: PhysicsConfig,
-    // Key bindings (for compatibility with existing code)
+    // Key bindings — manually loaded from config/bindings.toml via load_bindings()
+    // Note: serde skip is required because winit::KeyCode does not implement Serialize/Deserialize
     #[serde(skip_serializing, skip_deserializing)]
     pub keys: std::collections::HashMap<String, Option<winit::keyboard::KeyCode>>,
 }
@@ -75,7 +76,7 @@ impl GameConfig {
             ("left", "A"),
             ("right", "D"),
             ("jump", "SPACE"),
-            ("dash", "SHIFT"),
+            ("dash", "Q"),
             ("sprint", "SHIFT"),
             ("attack", "MOUSE_LEFT"),
             ("interact", "E"),

@@ -28,9 +28,9 @@ fn ray_hits_sphere(origin: Vec3, dir: Vec3, center: Vec3, radius: f32) -> bool {
 impl EngineState {
     // Physics pass: movement intent → physics step → gameplay logic.
     pub fn update_physics(&mut self, input: &InputManager, dt: f32) {
-        // Tick the shared cooldown timer
-        if self.action_cooldown > 0 {
-            self.action_cooldown -= 1;
+        // Tick the shared cooldown timer (time-based, not frame-based)
+        if self.action_cooldown > 0.0 {
+            self.action_cooldown = (self.action_cooldown - dt).max(0.0);
         }
 
         // ── Gameplay movement ─────────────────────────────────────────────────
@@ -50,7 +50,11 @@ impl EngineState {
             dt,
         );
         self.physics.step(&self.config_data.physics, dt);
-        if self.action_cooldown % 60 == 0 {
+
+        // Debug logging: print position every ~1 second (time-based)
+        self.debug_timer += dt;
+        if self.debug_timer >= 1.0 {
+            self.debug_timer -= 1.0;
             let pos = self.physics.get_player_pos();
             println!("[DEBUG] Player pos: ({:.2}, {:.2}, {:.2})", pos[0], pos[1], pos[2]);
         }
@@ -85,7 +89,7 @@ impl EngineState {
 impl EngineState {
     fn handle_gameplay_input(&mut self, input: &InputManager) {
         // Shoot (LMB)
-        if input.is_mouse_down(MouseButton::Left) && self.action_cooldown == 0 {
+        if input.is_mouse_down(MouseButton::Left) && self.action_cooldown <= 0.0 {
             let ray_origin = self.camera.position;
             let ray_dir = self.camera.get_forward();
 
@@ -107,7 +111,8 @@ impl EngineState {
 
             if let Some(_i) = hit {
                 println!("[COMBAT] Hit registered, but combat system is currently disabled.");
-                self.action_cooldown = 10;
+                // ~10 frames at 60fps = 0.167s cooldown
+                self.action_cooldown = 0.167;
             }
         }
 

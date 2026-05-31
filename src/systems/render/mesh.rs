@@ -106,6 +106,14 @@ pub fn load_gltf(
                         });
                 }
 
+                if let Some(normal_iter) = reader.read_normals() {
+                    normal_iter
+                        .enumerate()
+                        .for_each(|(i, n)| {
+                            vertices[start_vert as usize + i].normal = n;
+                        });
+                }
+
                 if let Some(idx_iter) = reader.read_indices() {
                     let local: Vec<u32> = idx_iter.into_u32().collect();
                     for chunk in local.chunks(3) {

@@ -76,7 +76,10 @@ pub struct EngineState {
     pub level_name: String,
 
     // ── Shared frame cooldown (used by update.rs) ─────────────────────────────
-    pub action_cooldown: u32,
+    /// Time remaining (seconds) before the next action is allowed.
+    pub action_cooldown: f32,
+    /// Accumulator for debug logging (seconds since last print).
+    pub debug_timer: f32,
 }
 
 impl EngineState {
@@ -242,8 +245,13 @@ impl EngineState {
 
         // ── Camera ────────────────────────────────────────────────────────────
         // Camera starts slightly above the player spawn height (Y offset + player spawn Y)
+        let map_y_offset_f = 124.5;
         let camera = Camera {
-            position: Vec3::new(-10.0, 156.0, -10.0),
+            position: Vec3::new(
+                level_data.player_spawn[0],
+                level_data.player_spawn[1] + map_y_offset_f + 1.0,
+                level_data.player_spawn[2],
+            ),
             yaw: -1.5,
             pitch: 0.0,
             aspect: config.width as f32 / config.height as f32,
@@ -318,10 +326,15 @@ impl EngineState {
         );
         for prop in &level_data.props {
             let asset_path = format!("assets/{}", prop.asset_id);
-            if let Ok((_v, _p, pp, pi)) = std::panic::catch_unwind(
+            match std::panic::catch_unwind(
                 std::panic::AssertUnwindSafe(|| load_model(&asset_path)),
             ) {
-                physics.add_prop(prop, &pp, &pi);
+                Ok((_v, _p, pp, pi)) => {
+                    physics.add_prop(prop, &pp, &pi);
+                }
+                Err(e) => {
+                    eprintln!("[ERROR] Failed to load prop model '{}': {:?}", asset_path, e);
+                }
             }
         }
 
@@ -351,7 +364,8 @@ impl EngineState {
             config_data,
             level_data,
             level_name,
-            action_cooldown: 0,
+            action_cooldown: 0.0,
+            debug_timer: 0.0,
         };
 
         state.sync_instances();

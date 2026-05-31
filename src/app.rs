@@ -1,6 +1,6 @@
 // src/app.rs
 // Winit ApplicationHandler — the only file that touches the OS event loop.
-// It owns the Renderer and routes window/device events into the engine.
+// It owns the EngineState and routes window/device events into the engine.
 
 use std::sync::Arc;
 
@@ -9,28 +9,30 @@ use winit::event::{DeviceEvent, DeviceId, ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowId};
 
+use crate::core::engine::state::EngineState;
 use crate::systems::input::manager::InputManager;
-use crate::systems::render::renderer::Renderer;
 
 pub struct App {
-    renderer: Option<Renderer>,
+    engine: Option<EngineState>,
     input: InputManager,
     last_frame: std::time::Instant,
+    level_name: String,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(level_name: String) -> Self {
         Self {
-            renderer: None,
+            engine: None,
             input: InputManager::new(),
             last_frame: std::time::Instant::now(),
+            level_name,
         }
     }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.renderer.is_none() {
+        if self.engine.is_none() {
             let window_attrs =
                 Window::default_attributes().with_title("Cenotaph: The Great Omission");
             let window = Arc::new(
@@ -39,11 +41,11 @@ impl ApplicationHandler for App {
                     .expect("Failed to create window"),
             );
 
-            let renderer = pollster::block_on(Renderer::new(
+            let engine = pollster::block_on(EngineState::new(
                 window.clone(),
-                "ashwalk_01".to_string(),
+                self.level_name.clone(),
             ));
-            self.renderer = Some(renderer);
+            self.engine = Some(engine);
         }
     }
 
@@ -53,7 +55,7 @@ impl ApplicationHandler for App {
         _id: WindowId,
         event: WindowEvent,
     ) {
-        let Some(renderer) = self.renderer.as_mut() else {
+        let Some(engine) = self.engine.as_mut() else {
             return;
         };
 
@@ -73,7 +75,7 @@ impl ApplicationHandler for App {
                     ..
                 } => event_loop.exit(),
 
-                WindowEvent::Resized(physical_size) => renderer.resize(physical_size),
+                WindowEvent::Resized(physical_size) => engine.resize(physical_size),
 
                 WindowEvent::RedrawRequested => {
                     let now = std::time::Instant::now();
@@ -83,13 +85,13 @@ impl ApplicationHandler for App {
                     // Cap delta time to prevent physics issues on frame drops
                     let capped_dt = dt.min(1.0 / 30.0);
                     
-                    renderer.update_physics(&self.input, capped_dt);
-                    renderer.update_visuals(&mut self.input);
+                    engine.update_physics(&self.input, capped_dt);
+                    engine.update_visuals(&mut self.input);
 
-                    match renderer.render() {
+                    match engine.render() {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
-                            renderer.resize(renderer.engine.size)
+                            engine.resize(engine.size)
                         }
                         Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
                         Err(e) => eprintln!("[RENDER ERROR] {:?}", e),
@@ -111,8 +113,8 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(renderer) = &self.renderer {
-            renderer.engine.window.request_redraw();
+        if let Some(engine) = &self.engine {
+            engine.window.request_redraw();
         }
     }
 }
