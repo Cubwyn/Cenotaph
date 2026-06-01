@@ -66,7 +66,8 @@ impl InputManager {
                         self.process_combat_keyup(*keycode);
                     }
                 }
-                true
+                // Don't consume Escape so app.rs can handle cursor toggle
+                * keycode != winit::keyboard::KeyCode::Escape
             }
 
             WindowEvent::ModifiersChanged(mods) => {

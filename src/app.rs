@@ -7,7 +7,8 @@ use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
-use winit::window::{Window, WindowId};
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::{CursorGrabMode, Window, WindowId};
 
 use crate::core::engine::state::EngineState;
 use crate::systems::input::manager::InputManager;
@@ -17,6 +18,7 @@ pub struct App {
     input: InputManager,
     last_frame: std::time::Instant,
     level_name: String,
+    cursor_grabbed: bool,
 }
 
 impl App {
@@ -26,6 +28,31 @@ impl App {
             input: InputManager::new(),
             last_frame: std::time::Instant::now(),
             level_name,
+            cursor_grabbed: false,
+        }
+    }
+
+    /// Attempt to grab the cursor (confine to window + hide).
+    fn grab_cursor(window: &Window) {
+        let _ = window.set_cursor_grab(CursorGrabMode::Confined);
+        window.set_cursor_visible(false);
+    }
+
+    /// Release the cursor (un-confine + show).
+    fn release_cursor(window: &Window) {
+        let _ = window.set_cursor_grab(CursorGrabMode::None);
+        window.set_cursor_visible(true);
+    }
+
+    /// Toggle cursor grab state.
+    fn toggle_cursor_grab(&mut self) {
+        let Some(engine) = self.engine.as_ref() else { return };
+        if self.cursor_grabbed {
+            Self::release_cursor(&engine.window);
+            self.cursor_grabbed = false;
+        } else {
+            Self::grab_cursor(&engine.window);
+            self.cursor_grabbed = true;
         }
     }
 }
@@ -40,6 +67,10 @@ impl ApplicationHandler for App {
                     .create_window(window_attrs)
                     .expect("Failed to create window"),
             );
+
+            // Grab cursor immediately on window creation
+            Self::grab_cursor(&window);
+            self.cursor_grabbed = true;
 
             let engine = pollster::block_on(EngineState::new(
                 window.clone(),
@@ -61,19 +92,23 @@ impl ApplicationHandler for App {
 
         if !self.input.process_window_event(&event) {
             match event {
-                WindowEvent::CloseRequested => event_loop.exit(),
+                WindowEvent::CloseRequested => {
+                    Self::release_cursor(&engine.window);
+                    event_loop.exit();
+                }
 
                 WindowEvent::KeyboardInput {
                     event:
                         winit::event::KeyEvent {
-                            physical_key: winit::keyboard::PhysicalKey::Code(
-                                winit::keyboard::KeyCode::Escape,
-                            ),
+                            physical_key: PhysicalKey::Code(KeyCode::Escape),
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
-                } => event_loop.exit(),
+                } => {
+                    // Toggle cursor grab on Escape
+                    self.toggle_cursor_grab();
+                }
 
                 WindowEvent::Resized(physical_size) => engine.resize(physical_size),
 
@@ -109,7 +144,10 @@ impl ApplicationHandler for App {
         _device_id: DeviceId,
         event: DeviceEvent,
     ) {
-        self.input.process_device_event(&event);
+        // Only process mouse motion when cursor is grabbed
+        if self.cursor_grabbed {
+            self.input.process_device_event(&event);
+        }
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {

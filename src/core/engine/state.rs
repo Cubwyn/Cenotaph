@@ -26,6 +26,7 @@ use crate::systems::render::assets::{AssetManager, DrawGroup, RenderAssetMeshPar
 use crate::systems::render::camera::{Camera, CameraController, CameraUniform};
 use crate::systems::render::instance::InstanceRaw;
 use crate::systems::render::lighting::LightingSystem;
+use crate::systems::render::hud::HudSystem;
 use crate::systems::render::mesh::load_model;
 use crate::systems::render::pipeline::RenderPipeline;
 use crate::systems::render::texture::TextureManager;
@@ -67,6 +68,9 @@ pub struct EngineState {
     // ── Lighting system ───────────────────────────────────────────────────────
     pub lighting: LightingSystem,
 
+    // ── HUD system ────────────────────────────────────────────────────────────
+    pub hud: HudSystem,
+
     // ── Subsystems ────────────────────────────────────────────────────────────
     pub physics: PhysicsEngine,
 
@@ -80,6 +84,28 @@ pub struct EngineState {
     pub action_cooldown: f32,
     /// Accumulator for debug logging (seconds since last print).
     pub debug_timer: f32,
+
+    // ── Stamina system ────────────────────────────────────────────────────────
+    /// Current stamina points (0.0 .. max_stamina).
+    pub stamina: f32,
+    /// Time remaining (seconds) before stamina starts regenerating.
+    pub stamina_regen_delay_timer: f32,
+    /// Whether the player is currently sprinting (shift held + moving + has stamina).
+    pub is_sprinting: bool,
+    /// Smoothed speed multiplier (interpolated to avoid sudden jumps).
+    pub speed_multiplier_smoothed: f32,
+    /// Smoothed stamina value for display (avoids visible bar jitter).
+    pub stamina_smoothed: f32,
+
+    // ── Combat system ─────────────────────────────────────────────────────────
+    /// Current player health points.
+    pub player_health: f32,
+    /// Hit flash timer — visual feedback when taking/delivering damage.
+    pub hit_flash_timer: f32,
+
+    // ── Level transitions ──────────────────────────────────────────────────────
+    /// If Some, the engine should load this level on the next frame.
+    pub pending_transition: Option<String>,
 }
 
 impl EngineState {
@@ -338,6 +364,9 @@ impl EngineState {
             }
         }
 
+        let max_stamina = config_data.player.max_stamina;
+        let hud = HudSystem::new(&device, config.format);
+
         let mut state = Self {
             window,
             surface,
@@ -359,6 +388,7 @@ impl EngineState {
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            hud,
             lighting,
             physics,
             config_data,
@@ -366,6 +396,14 @@ impl EngineState {
             level_name,
             action_cooldown: 0.0,
             debug_timer: 0.0,
+            stamina: max_stamina,
+            stamina_regen_delay_timer: 0.0,
+            speed_multiplier_smoothed: 1.0,
+            stamina_smoothed: max_stamina,
+            is_sprinting: false,
+            player_health: 100.0,
+            hit_flash_timer: 0.0,
+            pending_transition: None,
         };
 
         state.sync_instances();
@@ -417,17 +455,18 @@ impl EngineState {
                     label: Some("Render Encoder"),
                 });
 
+        // ── 3D scene pass ───────────────────────────────────────────────────
         {
             let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("3D Scene Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.7,
-                            g: 0.7,
-                            b: 0.8,
+                            r: 0.05,
+                            g: 0.04,
+                            b: 0.04,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -480,19 +519,156 @@ impl EngineState {
             }
         }
 
+        // ── HUD overlay pass (no depth test, alpha blending) ────────────────
+        {
+            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("HUD Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+
+            let max_stamina = self.config_data.player.max_stamina;
+            let health_ratio = (self.player_health / 100.0).clamp(0.0, 1.0);
+            // Use smoothed stamina to avoid visible bar jitter when sprinting
+            let stamina_ratio = if max_stamina > 0.0 { (self.stamina_smoothed / max_stamina).clamp(0.0, 1.0) } else { 0.0 };
+
+            self.hud.draw(
+                &mut rp,
+                &self.queue,
+                health_ratio,
+                stamina_ratio,
+                self.hit_flash_timer,
+            );
+        }
+
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())
     }
 
+    // ── Level loading (runtime) ───────────────────────────────────────────────
+
+    /// Replaces current level data with a new level, rebuilding all map geometry,
+    /// physics colliders, prop instances, and resetting camera position.
+    pub fn load_level(&mut self, new_level_name: &str) {
+        let level_path = format!("levels/{}.json", new_level_name);
+        let level_data = LevelData::load(&level_path);
+        println!("[LEVEL] Loaded '{}': {} props", new_level_name, level_data.props.len());
+
+        // ── Load base map ─────────────────────────────────────────────────────
+        let (map_vertices, map_mesh_parts, phys_points, phys_indices) =
+            load_model(&level_data.base_map);
+
+        let map_vertex_buffer =
+            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Map Vertex Buffer"),
+                contents: bytemuck::cast_slice(&map_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        let mut map_parts = Vec::new();
+        for part in map_mesh_parts {
+            let index_buffer =
+                self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Map Index Buffer"),
+                    contents: bytemuck::cast_slice(&part.indices),
+                    usage: wgpu::BufferUsages::INDEX,
+                });
+            map_parts.push(RenderAssetMeshPart {
+                index_buffer,
+                num_indices: part.indices.len() as u32,
+                texture_name: part.texture_name,
+            });
+        }
+
+        let map_y_offset = 124.5;
+        let map_instance_data = [InstanceRaw {
+            model: [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, map_y_offset, 0.0, 1.0],
+            ],
+        }];
+        let map_instance_buffer =
+            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Map Instance Buffer"),
+                contents: bytemuck::cast_slice(&map_instance_data),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
+        // ── Rebuild physics ───────────────────────────────────────────────────
+        self.physics = PhysicsEngine::new(
+            level_data.player_spawn,
+            phys_points,
+            phys_indices,
+            &self.config_data.physics,
+        );
+        for prop in &level_data.props {
+            let asset_path = format!("assets/{}", prop.asset_id);
+            match std::panic::catch_unwind(
+                std::panic::AssertUnwindSafe(|| load_model(&asset_path)),
+            ) {
+                Ok((_v, _p, pp, pi)) => {
+                    self.physics.add_prop(prop, &pp, &pi);
+                }
+                Err(e) => {
+                    eprintln!("[ERROR] Failed to load prop model '{}': {:?}", asset_path, e);
+                }
+            }
+        }
+
+        // ── Reset camera to new spawn ─────────────────────────────────────────
+        let map_y = 124.5;
+        self.camera.position = Vec3::new(
+            level_data.player_spawn[0],
+            level_data.player_spawn[1] + map_y + 1.0,
+            level_data.player_spawn[2],
+        );
+
+        // ── Swap state ────────────────────────────────────────────────────────
+        self.map_vertex_buffer = map_vertex_buffer;
+        self.map_parts = map_parts;
+        self.map_instance_buffer = map_instance_buffer;
+        self.level_data = level_data;
+        self.level_name = new_level_name.to_string();
+
+        // Reset runtime state
+        self.action_cooldown = 0.0;
+        self.stamina = self.config_data.player.max_stamina;
+        self.stamina_regen_delay_timer = 0.0;
+        self.is_sprinting = false;
+        self.speed_multiplier_smoothed = 1.0;
+        self.stamina_smoothed = self.config_data.player.max_stamina;
+
+        self.sync_instances();
+        println!("[LEVEL] Transition complete: {}", new_level_name);
+    }
+
     // ── Lighting updates ──────────────────────────────────────────────────────
 
     pub fn update_lighting(&mut self) {
-        // Update light position to follow camera
-        let light_pos = [self.camera.position.x, self.camera.position.y + 5.0, self.camera.position.z];
-        self.lighting.update_light(&self.queue, light_pos, [1.0, 0.8, 0.5], 2.0);
+        // Light follows camera with slight offset for more natural feel
+        let light_pos = [
+            self.camera.position.x + 0.5,
+            self.camera.position.y + 4.0,
+            self.camera.position.z + 0.3,
+        ];
+        // Warm torch-like light color with moderate intensity
+        self.lighting.update_light(&self.queue, light_pos, [1.0, 0.85, 0.6], 1.8);
         
-        // Update fog based on environment
-        self.lighting.update_fog(&self.queue, 0.01, [0.1, 0.1, 0.15]);
+        // Atmospheric fog — density tuned for underground cavern feel
+        self.lighting.update_fog(&self.queue, 0.008, [0.08, 0.07, 0.06]);
     }
 }

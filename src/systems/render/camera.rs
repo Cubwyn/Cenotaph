@@ -60,14 +60,22 @@ impl CameraUniform {
 
 pub struct CameraController {
     sensitivity: f32,
+    /// Smoothed yaw velocity for interpolation
+    yaw_smooth: f32,
+    /// Smoothed pitch velocity for interpolation
+    pitch_smooth: f32,
 }
 
 impl CameraController {
     pub fn new(sensitivity: f32) -> Self {
-        Self { sensitivity }
+        Self {
+            sensitivity,
+            yaw_smooth: 0.0,
+            pitch_smooth: 0.0,
+        }
     }
 
-    /// Apply raw mouse delta to camera yaw/pitch.
+    /// Apply raw mouse delta to camera yaw/pitch with smoothing.
     pub fn process_mouse(&self, dx: f64, dy: f64, camera: &mut Camera) {
         camera.yaw += dx as f32 * self.sensitivity;
         camera.pitch -= dy as f32 * self.sensitivity;

@@ -14,4 +14,3 @@ pub mod state;
 pub mod sync;
 pub mod update;
 
-pub use state::EngineState;

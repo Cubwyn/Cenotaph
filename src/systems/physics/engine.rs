@@ -253,6 +253,7 @@ impl PhysicsEngine {
         is_jumping: bool,
         config: &PhysicsConfig,
         dt: f32,
+        speed_multiplier: f32,
     ) {
         // Read state BEFORE taking the mutable borrow on the rigid body.
         let on_ground = self.check_grounded();
@@ -284,10 +285,12 @@ impl PhysicsEngine {
         //   b) Within coyote-time window (just stepped off a ledge).
         let can_jump = on_ground || self.coyote_timer > 0.0;
 
+        let effective_speed = config.player_speed * speed_multiplier;
+
         let mut vel = RVec3::new(
-            intent[0] * config.player_speed,
+            intent[0] * effective_speed,
             cur.y,
-            intent[2] * config.player_speed,
+            intent[2] * effective_speed,
         );
 
         if jump_just_pressed && can_jump {

@@ -1,6 +1,6 @@
 // src/render/texture.rs
 // TextureManager holds GPU bind groups keyed by filename.
-// Missing textures fall back to a magenta/black checkerboard so broken
+// Missing textures fall back to a small magenta/black checkerboard so broken
 // assets are immediately visible without crashing.
 
 use std::collections::HashMap;
@@ -39,23 +39,19 @@ impl TextureManager {
         queue: &wgpu::Queue,
         layout: &wgpu::BindGroupLayout,
     ) -> wgpu::BindGroup {
-        // 4x4 light gray/dark gray checkerboard
-        let light = [200u8, 200, 200, 255];
-        let dark = [100u8, 100, 100, 255];
-        let mut data = Vec::new();
-        for y in 0..4 {
-            for x in 0..4 {
-                if (x + y) % 2 == 0 {
-                    data.extend_from_slice(&light);
-                } else {
-                    data.extend_from_slice(&dark);
-                }
-            }
-        }
+        // 2x2 single-pixel checkerboard. Combined with Linear filtering,
+        // the GPU interpolates between pixels, producing a smooth, fine-grained
+        // pattern that is much less visually distracting than a sharp checker.
+        let light = [180u8, 180, 180, 255];
+        let dark  = [ 90u8,  90,  90, 255];
+        let data = [
+            light, dark,
+            dark,  light,
+        ].concat();
 
         let size = wgpu::Extent3d {
-            width: 4,
-            height: 4,
+            width: 2,
+            height: 2,
             depth_or_array_layers: 1,
         };
 
@@ -80,8 +76,8 @@ impl TextureManager {
             &data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(16),
-                rows_per_image: Some(4),
+                bytes_per_row: Some(8),  // 2 pixels * 4 bytes
+                rows_per_image: Some(2),
             },
             size,
         );
@@ -91,8 +87,10 @@ impl TextureManager {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
+            // Linear filtering smooths the 2x2 pixels into a fine pattern
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
 
