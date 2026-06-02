@@ -22,6 +22,7 @@ use wgpu::util::DeviceExt;
 use crate::data::config::gameplay::GameConfig;
 use crate::core::engine::loader::{load_prop_assets, load_textures_from_disk};
 use crate::systems::physics::engine::PhysicsEngine;
+use crate::systems::audio::AudioSystem;
 use crate::systems::render::assets::{AssetManager, DrawGroup, RenderAssetMeshPart};
 use crate::systems::render::camera::{Camera, CameraController, CameraUniform};
 use crate::systems::render::instance::InstanceRaw;
@@ -70,6 +71,7 @@ pub struct EngineState {
 
     // ── HUD system ────────────────────────────────────────────────────────────
     pub hud: HudSystem,
+    pub audio: Option<AudioSystem>,
 
     // ── Subsystems ────────────────────────────────────────────────────────────
     pub physics: PhysicsEngine,
@@ -102,6 +104,14 @@ pub struct EngineState {
     pub player_health: f32,
     /// Hit flash timer — visual feedback when taking/delivering damage.
     pub hit_flash_timer: f32,
+    /// Damage accumulation cooldown for hurtbox props.
+    pub hurtbox_cooldown: f32,
+
+    // ── Death & respawn ───────────────────────────────────────────────────────
+    /// If > 0, player is in death/respawn state counting down.
+    pub respawn_timer: f32,
+    /// Whether the player is currently dead (controls locked).
+    pub is_dead: bool,
 
     // ── Level transitions ──────────────────────────────────────────────────────
     /// If Some, the engine should load this level on the next frame.
@@ -366,6 +376,10 @@ impl EngineState {
 
         let max_stamina = config_data.player.max_stamina;
         let hud = HudSystem::new(&device, config.format);
+        let mut audio = AudioSystem::new();
+        if let Some(audio_system) = audio.as_mut() {
+            audio_system.start_ambient();
+        }
 
         let mut state = Self {
             window,
@@ -389,6 +403,7 @@ impl EngineState {
             camera_buffer,
             camera_bind_group,
             hud,
+            audio,
             lighting,
             physics,
             config_data,
@@ -403,6 +418,9 @@ impl EngineState {
             is_sprinting: false,
             player_health: 100.0,
             hit_flash_timer: 0.0,
+            hurtbox_cooldown: 0.0,
+            respawn_timer: 0.0,
+            is_dead: false,
             pending_transition: None,
         };
 

@@ -262,7 +262,7 @@ impl Default for PlayerConfig {
             stamina_regen_rate: 10.0,
             stamina_regen_delay: 1.0,
             walk_speed: 3.0,
-            sprint_speed: 8.0,
+            sprint_speed: 10.0,
         }
     }
 }

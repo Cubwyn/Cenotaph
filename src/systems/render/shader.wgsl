@@ -107,7 +107,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let lighting = diffuse * light_contrib + ambient + bounce + rim;
 
     // ── 3. Texture sampling ──────────────────────────────────────────────────
-    let tex_color = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    // Scale tex coords by 8 so the fallback checker appears as 8x8 tiles
+    // (only matters for the fallback pattern; real textures tile naturally)
+    let scaled_uv = in.tex_coords * 8.0;
+    let tex_color = textureSample(t_diffuse, s_diffuse, scaled_uv);
 
     // ── 4. Combine with light color ──────────────────────────────────────────
     var base_color = tex_color.rgb * lighting * light.color;

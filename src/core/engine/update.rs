@@ -42,6 +42,11 @@ impl EngineState {
         let has_movement = (intent[0] * intent[0] + intent[2] * intent[2]) > 0.001;
         let sprint_held = input.is_key_down(self.config_data.key("sprint"));
 
+        if let Some(audio) = self.audio.as_mut() {
+            let movement_mag = (intent[0] * intent[0] + intent[2] * intent[2]).sqrt();
+            audio.tick_footsteps(dt, movement_mag, sprint_held);
+        }
+
         // ── Sprint logic (dash removed) ──────────────────────────────────────
         self.is_sprinting = sprint_held && has_movement && self.stamina > 0.0;
 
@@ -99,20 +104,82 @@ impl EngineState {
         // Process pending level transition
         if let Some(ref next_level) = self.pending_transition.clone() {
             println!("[LEVEL] Loading level: {}", next_level);
+            if let Some(audio) = self.audio.as_ref() {
+                audio.play(crate::systems::audio::SoundEffect::LevelTransition);
+            }
             self.load_level(next_level);
             self.pending_transition = None;
         }
 
-        self.handle_gameplay_input(input);
+        // Skip movement + combat if player is dead
+        if !self.is_dead {
+            self.handle_gameplay_input(input);
 
-        self.physics.apply_player_movement(
-            intent,
-            is_jumping,
-            &self.config_data.physics,
-            dt,
-            speed_multiplier,
-        );
-        self.physics.step(&self.config_data.physics, dt);
+            self.physics.apply_player_movement(
+                intent,
+                is_jumping,
+                &self.config_data.physics,
+                dt,
+                speed_multiplier,
+            );
+            self.physics.step(&self.config_data.physics, dt);
+        } else {
+            // Dead state: process respawn timer
+            self.respawn_timer -= dt;
+            if self.respawn_timer <= 0.0 {
+                // Respawn
+                println!("[RESPAWN] Player respawned");
+                if let Some(audio) = self.audio.as_ref() {
+                    audio.play(crate::systems::audio::SoundEffect::Pickup);
+                }
+                self.player_health = 100.0;
+                self.stamina = self.config_data.player.max_stamina;
+                self.stamina_smoothed = self.config_data.player.max_stamina;
+                self.is_dead = false;
+                self.respawn_timer = 0.0;
+                // Reset physics body to spawn position
+                let spawn = self.level_data.player_spawn;
+                if let Some(body) = self.physics.rigid_body_set.get_mut(self.physics.player_body_handle) {
+                    use rapier3d::na::Translation3;
+                    let id = rapier3d::na::Isometry3::from_parts(
+                        Translation3::new(spawn[0], spawn[1], spawn[2]),
+                        rapier3d::na::UnitQuaternion::identity(),
+                    );
+                    body.set_position(id.into(), true);
+                    body.set_linvel(rapier3d::math::Vec3::splat(0.0), true);
+                }
+            }
+        }
+
+        // ── Hurtbox proximity damage ───────────────────────────────────────────
+        if !self.is_dead && self.player_health > 0.0 {
+            self.hurtbox_cooldown = (self.hurtbox_cooldown - dt).max(0.0);
+            if self.hurtbox_cooldown <= 0.0 {
+                let player_pos = self.physics.get_player_pos();
+                let player_v = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
+                for prop in &self.level_data.props {
+                    if prop.is_hurtbox {
+                        let prop_pos = Vec3::new(prop.position[0], prop.position[1], prop.position[2]);
+                        if player_v.distance(prop_pos) < 3.0 {
+                            // 15 damage per second
+                            self.player_health -= 15.0 * dt;
+                            self.hit_flash_timer = 0.2;
+                            self.hurtbox_cooldown = 0.5; // Tick every 0.5s
+                            if self.player_health <= 0.0 {
+                                self.player_health = 0.0;
+                                self.is_dead = true;
+                                self.respawn_timer = 3.0;
+                                println!("[DEATH] Player defeated");
+                                if let Some(audio) = self.audio.as_ref() {
+                                    audio.play(crate::systems::audio::SoundEffect::DeathSting);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         // Debug logging: print position every ~5 seconds (time-based, reduced frequency)
         self.debug_timer += dt;
@@ -214,6 +281,9 @@ impl EngineState {
 
                 if prop.enemy_health <= 0.0 {
                     self.remove_prop(idx);
+                    if let Some(audio) = self.audio.as_ref() {
+                        audio.play(crate::systems::audio::SoundEffect::Hit);
+                    }
                 }
                 self.action_cooldown = 0.25; // 4 shots per second
             } else {
