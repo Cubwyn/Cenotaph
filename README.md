@@ -248,24 +248,12 @@ Do not build forever content until the core can survive expansion.
 
 ## Future Additions
 
-Use this section to track major README-level additions that do not yet belong in the deeper documents.
-
-### Pending Questions
-
-- [ ] What engine/framework will the project use?
-- [ ] What is the exact camera/combat perspective?
-- [ ] What is the target platform for the first playable build?
-- [ ] How much procedural layout generation is needed for the first milestone?
-- [ ] What is the minimum acceptable visual style for prototype builds?
-
-### Future README Sections
-
 - [ ] Screenshots
 - [ ] Build instructions
 - [ ] Controls
 - [ ] Current playable version
 - [ ] Known issues
-- [ ] Contribution rules, if the project ever opens to collaborators
+
 
 ---
 
@@ -286,3 +274,6 @@ The player remembers.
 The relics remember incorrectly.
 
 And every ascent becomes another version of the same impossible dream.
+
+---
+A solo project by Cubwyn
