@@ -62,6 +62,20 @@ This does not need to be the literal crate structure at the start.
 
 It is the mental model for keeping the project clean.
 
+Current implementation snapshot:
+
+- One Rust crate using winit, wgpu, Rapier3D, rodio, serde, TOML, and JSON.
+- Runtime orchestration lives under `src/core/engine`.
+- Engine subsystems live under `src/systems`.
+- Gameplay state and rules live under `src/game`, including player state,
+  prototype combat math, baseline enemy behavior, and lightweight run
+  progression.
+- Level/config data structures live under `src/data`.
+- Authored level placement currently uses `levels/*.json`.
+- Enemy definitions currently use `data/enemies/*.toml`.
+- Designer tuning currently uses `config/tuning.toml` and
+  `config/bindings.toml`, including lightweight console debug controls.
+
 ---
 
 # Core Rust Rule
@@ -190,7 +204,7 @@ Does every route have at least one encounter or reward?
 
 ## MVP Requirement
 
-- Startup validation for core content tables
+- Non-window validation for current authored level/config/enemy/model data
 - Clear error messages
 
 ## Expansion
@@ -201,6 +215,33 @@ Does every route have at least one encounter or reward?
 - Missing asset checks
 - Broken reference detection
 - Automated test runs
+
+## Current Validation Status
+
+`cargo run -- validate` currently checks:
+
+- all level JSON files under `levels/`
+- level base map references
+- prop asset references
+- referenced model asset extensions
+- referenced model asset loadability
+- referenced model asset render and physics geometry
+- enemy definition parseability
+- enemy definition stat sanity
+- enemy definition visual tell presence
+- enemy activation range versus attack range sanity
+- level enemy_type references
+- runtime enemy prop materialization from enemy definitions
+- prop transforms and scale values
+- enemy health values are non-negative before materialization
+- transition target references
+- light color/intensity consistency
+- `config/tuning.toml` parseability and numeric ranges
+- `config/bindings.toml` required actions, valid tokens, and duplicate bindings
+- level resource/Anchor metadata sanity
+
+Future validation should add relic data, loot tables, hazards, encounter tables,
+and behavior-specific enemy requirements.
 
 ---
 
@@ -421,12 +462,14 @@ MVP requirement:
 
 ## Early
 
-- [ ] Decide engine/framework.
-- [ ] Define content data format.
-- [ ] Create typed ID pattern.
+- [x] Decide engine/framework.
+- [x] Define current level/config/enemy content formats.
+- [ ] Create typed ID pattern beyond normalized enemy IDs.
 - [ ] Create simple registry.
-- [ ] Create simple validation pass.
-- [ ] Create debug test map.
+- [x] Create simple validation pass.
+- [x] Create debug test map.
+- [x] Create foundation check script.
+- [x] Create manual foundation smoke checklist.
 - [ ] Create spawn enemy command.
 - [ ] Create spawn relic command.
 - [ ] Create basic save format.
@@ -453,11 +496,11 @@ MVP requirement:
 
 # Open Technical Questions
 
-- [ ] What Rust game engine or framework will be used?
-- [ ] Should content files use RON, TOML, JSON, YAML, or custom format?
+- [x] Current framework choice: custom winit/wgpu/Rapier3D runtime.
+- [x] Current content format: JSON for level placement, TOML for tuning and bindings.
 - [ ] Should save data use binary, RON, JSON, or another format?
 - [ ] Should the content registry load everything at startup?
 - [ ] Should debug tools exist in release builds behind a flag?
 - [ ] Should procedural generation be deterministic by default?
-- [ ] How should physics and recoil movement be implemented safely?
+- [x] Current physics implementation: Rapier3D wrapper with config-driven movement.
 - [ ] How much of the game should be ECS-driven?

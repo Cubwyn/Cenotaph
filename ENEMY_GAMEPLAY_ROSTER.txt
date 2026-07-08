@@ -1,0 +1,425 @@
+CENOTAPH ENEMY GAMEPLAY ROSTER
+
+Purpose
+
+This file rethinks Cenotaph enemies by gameplay role first.
+The goal is not "many monsters." The goal is a readable enemy ecosystem where
+each enemy asks the player a different survival question during the climb.
+
+Core Rule
+
+Every enemy must have:
+- A clear combat job.
+- A clear silhouette.
+- A clear warning tell.
+- A clear counterplay option.
+- A reason to exist in an encounter group.
+
+If two enemies create the same player response, merge them or turn one into a
+modifier instead of a base enemy.
+
+Recommended Core Roster
+
+1. Grunt: Ashbound
+
+Gameplay role:
+Basic melee enemy and baseline combat test.
+
+Player question:
+Can you move, aim, manage distance, and finish a simple threat cleanly?
+
+Behavior:
+- Walks or jogs toward the player.
+- Uses a short melee swipe.
+- Low health, low damage, low complexity.
+- Dangerous in groups, weak alone.
+
+Counterplay:
+- Backpedal, sidestep, shoot, dash away, use terrain.
+
+Encounter use:
+- Spawn in groups of 2 to 5.
+- Use as filler pressure around stronger enemies.
+- Best for early Ash-Walk and tutorial combat.
+
+Model read:
+Thin pilgrim shape, ash-covered, hunched, simple weapon or clawed hands.
+
+2. Tank: Burdened
+
+Gameplay role:
+Slow durable route blocker.
+
+Player question:
+Can you reposition before the heavy enemy closes the space?
+
+Behavior:
+- Moves slowly.
+- Has high health.
+- Uses heavy melee swings or body pressure.
+- Occupies routes, chokepoints, bridges, and doorways.
+- Should feel impossible to ignore but easy to outmaneuver in open space.
+
+Counterplay:
+- Kite it, dash around it, use elevation, kill smaller threats first.
+
+Encounter use:
+- One Burdened plus several grunts is a clean early encounter.
+- Two Burdened should be rare and deliberate.
+- Armored Burdened can be an elite modifier later.
+
+Model read:
+Large hunched body, heavy back burden, stone/iron weight, slow stance.
+
+3. Glass Cannon: Censer
+
+Gameplay role:
+Fragile high-damage attacker.
+
+Player question:
+Can you identify and kill the dangerous fragile target before it fires?
+
+Behavior:
+- Low health.
+- Slow or medium movement.
+- Long wind-up before a high-damage attack.
+- Can use projectile, beam, explosive ash burst, or line attack.
+- Very dangerous if ignored.
+
+Counterplay:
+- Break line of sight, focus fire, interrupt during wind-up, dash sideways.
+
+Encounter use:
+- Place behind grunts or a Burdened.
+- Do not spam them early.
+- Works well in overlooks, ledges, ruins, and long corridors.
+
+Model read:
+Thin body carrying a smoking censer, cracked lamp, ritual firearm, or ash focus.
+
+4. High-Speed: Chainrunner
+
+Gameplay role:
+Fast flanker and panic enemy.
+
+Player question:
+Can you track a fast threat without losing awareness of the arena?
+
+Behavior:
+- Fast movement.
+- Low to medium health.
+- Dashes or lunges in short bursts.
+- Circles the player instead of walking straight in.
+- Attacks, retreats, then attacks again.
+
+Counterplay:
+- Listen for audio tell, dodge the lunge, punish recovery, use close-range burst.
+
+Encounter use:
+- Add one Chainrunner to make a simple fight nervous.
+- Pairs well with Burdened because the tank holds attention.
+- Avoid large packs until movement and camera feel very stable.
+
+Model read:
+Lean chained pilgrim, long legs, wrapped limbs, loose chain trails.
+
+5. Aerial: Harpy
+
+Gameplay role:
+Vertical threat and anti-climb pressure.
+
+Player question:
+Can you look up, use cover, and manage vertical danger while climbing?
+
+Behavior:
+- Flies, perches, or leaps between high points.
+- Uses dive attacks, ranged screeches, or claw passes.
+- Punishes exposed bridges, ledges, and open climbs.
+- Should retreat upward after attacking.
+
+Counterplay:
+- Use cover, wait for dive, shoot during approach or recovery.
+
+Encounter use:
+- First appears alone in Ash-Walk.
+- Later appears in pairs or with ground pressure.
+- Essential for Hanging Slums and exposed high routes.
+
+Model read:
+Lean winged or climbing body, hooked feet, clear airborne silhouette.
+
+6. Ranged Harasser: Bellworn
+
+Gameplay role:
+Persistent ranged chip damage.
+
+Player question:
+Can you close distance or use cover without becoming reckless?
+
+Behavior:
+- Medium health.
+- Medium range.
+- Fires repeated low-to-medium damage shots.
+- Repositions slowly between attacks.
+- Less bursty than the Censer, but more consistent.
+
+Counterplay:
+- Break line of sight, close distance, stagger it, use terrain.
+
+Encounter use:
+- Good for teaching cover and route choice.
+- Pairs well with grunts.
+- Should not be used too much in cramped rooms.
+
+Model read:
+Bell-mask or old pilgrim shooter, shoulder-mounted chime weapon, clear ranged pose.
+
+7. Suppressor: Silencer
+
+Gameplay role:
+Disables or weakens player tools.
+
+Player question:
+Can you adapt when your preferred tool is unreliable?
+
+Behavior:
+- Creates a suppression field or targeted silence effect.
+- May weaken dash, sprint, relic effects, healing, or UI certainty.
+- Low to medium health.
+- Tries to stay behind other enemies.
+
+Counterplay:
+- Leave the field, focus the Silencer, use basic movement and weapon skill.
+
+Encounter use:
+- Introduce only after the player understands the suppressed tool.
+- Best as a rare priority target, not common filler.
+- Strong in Ward of Irons and Mirror-Crust.
+
+Model read:
+Tall narrow body, sealed mouth or mask, muted cloth, quiet posture.
+
+8. Escalator: Paranoiac
+
+Gameplay role:
+Alarm enemy that makes fights worse over time.
+
+Player question:
+Can you prioritize a non-lethal but strategically dangerous target?
+
+Behavior:
+- Scans, shrieks, rings, signals, or reveals the player.
+- Calls reinforcements or buffs nearby enemies if not stopped.
+- Low to medium health.
+- Avoids direct combat when possible.
+
+Counterplay:
+- Kill quickly, interrupt alarm, break line of sight before it signals.
+
+Encounter use:
+- Great for route-risk rooms and hidden dwellings.
+- One Paranoiac changes a fight; multiple should be rare.
+- Strong fit for Hanging Slums and alarm-chain events.
+
+Model read:
+Angular restless body, repeated eyes or split mask, alarm shapes.
+
+9. Swarmer: Anchor Parasite
+
+Gameplay role:
+Small pressure enemy that punishes tunnel vision.
+
+Player question:
+Can you clear small threats before they drain health or block movement?
+
+Behavior:
+- Small, quick, low health.
+- Attacks in packs.
+- May cling, slow, bite, or explode after a delay.
+- Not individually scary, but dangerous while fighting bigger enemies.
+
+Counterplay:
+- Area attacks, quick melee, movement, target switching.
+
+Encounter use:
+- Use around Anchors, roots, dead relics, and corrupted machinery.
+- Good as a supporting enemy, not a main duel.
+
+Model read:
+Small hooked parasite, tendrils, root-stone body, clinging posture.
+
+10. Controller: Root-Machine Hybrid
+
+Gameplay role:
+Zone denial and arena control.
+
+Player question:
+Can you move through a changing space without getting trapped?
+
+Behavior:
+- Creates roots, slows, barricades, shock lines, steam vents, or hazard patches.
+- Medium to high health.
+- Low movement.
+- Dangerous because it changes the terrain problem.
+
+Counterplay:
+- Watch ground tells, relocate, destroy the core, use vertical routes.
+
+Encounter use:
+- Use in machinery rooms, root halls, and Breach spaces.
+- Pairs well with ranged enemies because it limits movement.
+- Should be uncommon because it changes encounter complexity.
+
+Model read:
+Organic root mass fused into machinery, visible core, pipes and branches.
+
+11. Duelist: Mirror of the Player
+
+Gameplay role:
+Late-game mimic and skill check.
+
+Player question:
+Can you fight a corrupted version of your own movement and attack rhythm?
+
+Behavior:
+- Copies broad player behavior without matching every build detail.
+- Uses dash, ranged attack, and retreat patterns.
+- Medium health, high threat.
+- Should feel uncanny, not unfair.
+
+Counterplay:
+- Bait dash, punish recovery, break rhythm, use terrain.
+
+Encounter use:
+- Save for Mirror-Crust or special events.
+- Works best as a solo or elite encounter.
+- Do not use as common filler.
+
+Model read:
+Humanoid reflection, cracked glass, almost-player silhouette, wrong proportions.
+
+12. Elite Frame: Bell-Headed
+
+Gameplay role:
+Elite shell applied to another role.
+
+Player question:
+Can you handle a familiar enemy after one rule changes?
+
+Behavior:
+- Not a basic enemy role by itself.
+- Use as an elite modifier carrier.
+- Can add armor, aura, command, stagger resistance, or a special attack.
+
+Counterplay:
+- Depends on the base enemy.
+- Must have a stronger tell than the normal version.
+
+Encounter use:
+- Bell-Headed Burdened: elite tank.
+- Bell-Headed Silencer: stronger suppression elite.
+- Bell-Headed Paranoiac: dangerous alarm elite.
+
+Model read:
+Ceremonial bell head, stronger posture, more metal, clear elite silhouette.
+
+Role Matrix
+
+Enemy                  Role                 Health   Damage   Speed    Priority
+Ashbound               Grunt                Low      Low      Medium   Low
+Burdened               Tank                 High     Medium   Slow     Medium
+Censer                 Glass cannon         Low      High     Slow     High
+Chainrunner            High-speed flanker   Low-Med  Medium   High     High
+Harpy                  Aerial               Medium   Medium   High     High
+Bellworn               Ranged harasser      Medium   Low-Med  Medium   Medium
+Silencer               Suppressor           Low-Med  Low      Slow     High
+Paranoiac              Escalator            Low-Med  Low      Medium   Very High
+Anchor Parasite        Swarmer              Very Low Low      High     Low-Med
+Root-Machine Hybrid    Controller           Med-High Medium   Slow     High
+Mirror of the Player   Duelist              Medium   High     High     Very High
+Bell-Headed            Elite modifier       Varies   Varies   Varies   Varies
+
+Recommended Implementation Order
+
+1. Ashbound
+Basic grunt. This gives combat a default enemy that is easier to tune than the
+Burdened.
+
+2. Burdened
+Tank and route blocker. Already named in current content and should become the
+first strong identity enemy.
+
+3. Censer
+Glass cannon. Adds target priority and line-of-sight play.
+
+4. Chainrunner
+High-speed flanker. Tests movement, dash, audio tells, and camera feel.
+
+5. Harpy
+Aerial enemy. Turns the vertical climb into combat, not just scenery.
+
+6. Paranoiac
+Escalator. Makes encounter priority matter.
+
+7. Silencer
+Suppression. Add this after dash, stamina, relics, and healing are stable enough
+that disabling or weakening them is meaningful.
+
+First Ash-Walk Enemy Set
+
+For the first complete playable Ash-Walk slice, use:
+- Ashbound as the common grunt.
+- Burdened as the tank.
+- Censer as the fragile high-damage enemy.
+- Harpy as the first vertical threat.
+- One elite variant, preferably Armored Burdened or Burning Burdened.
+
+Avoid adding Silencer, Mirror of the Player, and Root-Machine Hybrid too early.
+They depend on systems that should be stable first.
+
+Encounter Recipes
+
+Simple pressure:
+- 3 Ashbound.
+
+Route blocker:
+- 1 Burdened.
+- 2 Ashbound.
+
+Priority target:
+- 1 Censer.
+- 3 Ashbound.
+
+Movement stress:
+- 1 Chainrunner.
+- 2 Ashbound.
+
+Vertical stress:
+- 1 Harpy.
+- 1 Burdened.
+
+Alarm room:
+- 1 Paranoiac.
+- 2 Ashbound.
+- 1 Burdened if the room is large.
+
+Suppression room:
+- 1 Silencer.
+- 2 Ashbound.
+- 1 Censer or Bellworn.
+
+Design Warnings
+
+- Do not make every enemy fast. Speed loses meaning if everything rushes.
+- Do not make every enemy durable. Health should communicate role.
+- Do not add suppression before the player has tools worth suppressing.
+- Do not add aerial packs until aiming and cover feel fair.
+- Do not use glass cannons without readable wind-up tells.
+- Do not make elites by only adding health. Change one behavior rule.
+
+Naming Notes
+
+These names are working names except for Burdened, Harpy, Silencer, Paranoiac,
+and Mirror of the Player, which already exist in the project docs.
+Rename freely if a better Cenotaph name appears, but keep the gameplay roles
+stable so the combat ecosystem remains understandable.

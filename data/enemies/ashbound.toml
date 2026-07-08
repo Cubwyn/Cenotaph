@@ -1,0 +1,14 @@
+id = "ashbound"
+display_name = "Ashbound"
+role = "grunt"
+behavior_tag = "chase_melee"
+model_asset = "enemies/ashbound.obj"
+collider_type = "Sphere"
+visual_tell = "lean forward shard-body silhouette for fast direct melee pressure"
+health = 35.0
+damage = 8.0
+move_speed = 3.2
+activation_range = 16.0
+attack_range = 1.4
+attack_windup = 0.35
+attack_cooldown = 1.0

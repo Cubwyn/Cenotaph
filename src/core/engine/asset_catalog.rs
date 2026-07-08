@@ -1,12 +1,12 @@
-/* 
+/*
 src/engine/asset_catalog.rs
 Scans the assets/ directory (and subdirectories) for available 3D models.
 Generates a JSON catalog that can be used by level editors or referenced
 when designing levels.
 */
 
-use std::fs;
 use serde::{Deserialize, Serialize};
+use std::fs;
 
 /// Represents a single model asset found in the assets directory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,8 +108,7 @@ impl AssetCatalog {
     pub fn save(&self, path: &str) -> Result<(), String> {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize catalog: {}", e))?;
-        fs::write(path, json)
-            .map_err(|e| format!("Failed to write catalog file: {}", e))
+        fs::write(path, json).map_err(|e| format!("Failed to write catalog file: {}", e))
     }
 }
 

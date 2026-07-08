@@ -401,45 +401,26 @@ What is trying to stop the player?
 
 ## Core Enemy Roles
 
-### Burdened
+The full gameplay-first roster lives in `ENEMY_GAMEPLAY_ROSTER.txt`.
 
-Slow, durable pressure enemy.
+Core combat jobs:
 
-Purpose:
+- Ashbound: grunt and baseline melee pressure.
+- Burdened: tank and route blocker.
+- Censer: glass cannon and priority target.
+- Chainrunner: high-speed flanker.
+- Harpy: aerial and vertical threat.
+- Bellworn: ranged harasser.
+- Silencer: suppression enemy.
+- Paranoiac: encounter escalator.
+- Anchor Parasite: swarmer.
+- Root-Machine Hybrid: arena controller.
+- Mirror of the Player: late-game duelist.
+- Bell-Headed: elite modifier frame.
 
-- Forces repositioning
-- Blocks routes
-- Punishes careless close combat
-
-### Silencer
-
-Ability suppression enemy.
-
-Purpose:
-
-- Disables or weakens player advantages
-- Creates panic
-- Makes builds temporarily unreliable
-
-### Paranoiac
-
-Encounter escalation enemy.
-
-Purpose:
-
-- Alerts other enemies
-- Increases pressure
-- Punishes slow response
-
-### Harpy
-
-Vertical and aerial threat.
-
-Purpose:
-
-- Controls high routes
-- Punishes exposed climbing
-- Forces anti-air awareness
+The early Ash-Walk slice should focus on Ashbound, Burdened, Censer, Harpy, and
+one elite Burdened-style modifier before adding suppression or late-game mirror
+enemies.
 
 ## Enemy Modifier Structure
 
@@ -489,7 +470,7 @@ Suppression may affect:
 
 ## MVP Requirement
 
-- One enemy
+- One enemy from the gameplay roster
 - One elite modifier
 - One environmental hazard
 - One suppression or pressure mechanic

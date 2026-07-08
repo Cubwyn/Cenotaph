@@ -1,0 +1,14 @@
+id = "harpy"
+display_name = "Harpy"
+role = "aerial"
+behavior_tag = "aerial_dive"
+model_asset = "enemies/harpy.obj"
+collider_type = "Sphere"
+visual_tell = "wide wing span over a small body for aerial dive pressure"
+health = 55.0
+damage = 14.0
+move_speed = 4.4
+activation_range = 22.0
+attack_range = 2.0
+attack_windup = 0.45
+attack_cooldown = 1.5

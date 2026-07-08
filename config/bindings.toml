@@ -14,7 +14,7 @@ jump = "SPACE"
 sprint = "SHIFT"
 
 # Actions
-dash = "SHIFT"
+dash = "Q"
 attack = "MOUSE_LEFT"
 interact = "E"
 inventory = "I"

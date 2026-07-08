@@ -19,13 +19,14 @@ impl EngineState {
         let mut groupings: HashMap<String, Vec<Instance>> = HashMap::new();
 
         for prop in &self.level_data.props {
+            let rotation = prop.rotation_radians();
             let instance = Instance {
                 position: Vec3::new(prop.position[0], prop.position[1], prop.position[2]),
                 rotation: Quat::from_euler(
                     glam::EulerRot::XYZ,
-                    prop.rotation[0],
-                    prop.rotation[1],
-                    prop.rotation[2],
+                    rotation[0],
+                    rotation[1],
+                    rotation[2],
                 ),
                 scale: Vec3::new(prop.scale[0], prop.scale[1], prop.scale[2]),
             };

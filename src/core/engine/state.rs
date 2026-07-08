@@ -15,23 +15,33 @@
 use std::sync::Arc;
 
 use glam::Vec3;
+use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
-use wgpu::util::DeviceExt;
 
-use crate::data::config::gameplay::GameConfig;
 use crate::core::engine::loader::{load_prop_assets, load_textures_from_disk};
-use crate::systems::physics::engine::PhysicsEngine;
+use crate::data::config::gameplay::GameConfig;
+use crate::data::enemy::EnemyRegistry;
+use crate::data::world::level::LevelData;
+use crate::game::enemy::EnemyRuntimeState;
+use crate::game::player::PlayerState;
+use crate::game::progression::RunProgress;
 use crate::systems::audio::AudioSystem;
+use crate::systems::physics::engine::PhysicsEngine;
 use crate::systems::render::assets::{AssetManager, DrawGroup, RenderAssetMeshPart};
 use crate::systems::render::camera::{Camera, CameraController, CameraUniform};
+use crate::systems::render::hud::HudSystem;
 use crate::systems::render::instance::InstanceRaw;
 use crate::systems::render::lighting::LightingSystem;
-use crate::systems::render::hud::HudSystem;
-use crate::systems::render::mesh::load_model;
+use crate::systems::render::mesh::{empty_model, try_load_model, ModelData};
 use crate::systems::render::pipeline::RenderPipeline;
 use crate::systems::render::texture::TextureManager;
-use crate::data::world::level::LevelData;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameMode {
+    Playing,
+    Paused,
+}
 
 // ── EngineState ───────────────────────────────────────────────────────────────
 
@@ -72,46 +82,26 @@ pub struct EngineState {
     // ── HUD system ────────────────────────────────────────────────────────────
     pub hud: HudSystem,
     pub audio: Option<AudioSystem>,
+    pub game_mode: GameMode,
 
     // ── Subsystems ────────────────────────────────────────────────────────────
     pub physics: PhysicsEngine,
 
     // ── Game data ─────────────────────────────────────────────────────────────
     pub config_data: GameConfig,
+    pub enemy_registry: EnemyRegistry,
     pub level_data: LevelData,
     pub level_name: String,
+    pub player: PlayerState,
+    pub progress: RunProgress,
 
     // ── Shared frame cooldown (used by update.rs) ─────────────────────────────
     /// Time remaining (seconds) before the next action is allowed.
     pub action_cooldown: f32,
+    /// Per-prop enemy runtime state, aligned with `level_data.props`.
+    pub enemy_runtime: Vec<EnemyRuntimeState>,
     /// Accumulator for debug logging (seconds since last print).
     pub debug_timer: f32,
-
-    // ── Stamina system ────────────────────────────────────────────────────────
-    /// Current stamina points (0.0 .. max_stamina).
-    pub stamina: f32,
-    /// Time remaining (seconds) before stamina starts regenerating.
-    pub stamina_regen_delay_timer: f32,
-    /// Whether the player is currently sprinting (shift held + moving + has stamina).
-    pub is_sprinting: bool,
-    /// Smoothed speed multiplier (interpolated to avoid sudden jumps).
-    pub speed_multiplier_smoothed: f32,
-    /// Smoothed stamina value for display (avoids visible bar jitter).
-    pub stamina_smoothed: f32,
-
-    // ── Combat system ─────────────────────────────────────────────────────────
-    /// Current player health points.
-    pub player_health: f32,
-    /// Hit flash timer — visual feedback when taking/delivering damage.
-    pub hit_flash_timer: f32,
-    /// Damage accumulation cooldown for hurtbox props.
-    pub hurtbox_cooldown: f32,
-
-    // ── Death & respawn ───────────────────────────────────────────────────────
-    /// If > 0, player is in death/respawn state counting down.
-    pub respawn_timer: f32,
-    /// Whether the player is currently dead (controls locked).
-    pub is_dead: bool,
 
     // ── Level transitions ──────────────────────────────────────────────────────
     /// If Some, the engine should load this level on the next frame.
@@ -124,6 +114,7 @@ impl EngineState {
     pub async fn new(window: Arc<Window>, level_name: String) -> Self {
         // Load configuration from config/bindings.toml and config/tuning.toml
         let config_data = GameConfig::load();
+        let enemy_registry = EnemyRegistry::load_dir("data/enemies");
         let size = window.inner_size();
 
         // ── wgpu device setup ─────────────────────────────────────────────────
@@ -211,39 +202,54 @@ impl EngineState {
             });
 
         // ── Texture manager ───────────────────────────────────────────────────
-        let mut texture_manager =
-            TextureManager::new(&device, &queue, &texture_bind_group_layout);
-        load_textures_from_disk(&device, &queue, &texture_bind_group_layout, &mut texture_manager);
+        let mut texture_manager = TextureManager::new(&device, &queue, &texture_bind_group_layout);
+        load_textures_from_disk(
+            &device,
+            &queue,
+            &texture_bind_group_layout,
+            &mut texture_manager,
+        );
 
         // ── Level data ────────────────────────────────────────────────────────
         let level_path = format!("levels/{}.json", level_name);
-        let level_data = LevelData::load(&level_path);
-        println!("[DEBUG] Level loaded: {}, props: {}", level_path, level_data.props.len());
+        let mut level_data = LevelData::load(&level_path);
+        Self::apply_enemy_definitions(&mut level_data, &enemy_registry, &level_path);
+        Self::report_level_validation(&level_data, &level_path);
+        println!(
+            "[DEBUG] Level loaded: {}, props: {}",
+            level_path,
+            level_data.props.len()
+        );
 
         // ── Base map ──────────────────────────────────────────────────────────
         let (map_vertices, map_mesh_parts, phys_points, phys_indices) =
-            load_model(&level_data.base_map);
-        
-        println!("[DEBUG] Render: {} map vertices, {} mesh parts", map_vertices.len(), map_mesh_parts.len());
-        if map_vertices.len() > 0 {
-            println!("[DEBUG] Render: First vertex pos: {:?}", map_vertices[0].position);
+            Self::load_map_model(&level_data);
+
+        println!(
+            "[DEBUG] Render: {} map vertices, {} mesh parts",
+            map_vertices.len(),
+            map_mesh_parts.len()
+        );
+        if !map_vertices.is_empty() {
+            println!(
+                "[DEBUG] Render: First vertex pos: {:?}",
+                map_vertices[0].position
+            );
         }
 
-        let map_vertex_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Map Vertex Buffer"),
-                contents: bytemuck::cast_slice(&map_vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+        let map_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Map Vertex Buffer"),
+            contents: bytemuck::cast_slice(&map_vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         let mut map_parts = Vec::new();
         for part in map_mesh_parts {
-            let index_buffer =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Map Index Buffer"),
-                    contents: bytemuck::cast_slice(&part.indices),
-                    usage: wgpu::BufferUsages::INDEX,
-                });
+            let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Map Index Buffer"),
+                contents: bytemuck::cast_slice(&part.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
             map_parts.push(RenderAssetMeshPart {
                 index_buffer,
                 num_indices: part.indices.len() as u32,
@@ -263,12 +269,11 @@ impl EngineState {
             ],
         }];
         println!("[DEBUG] Map rendered at Y offset: {}", map_y_offset);
-        let map_instance_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Map Instance Buffer"),
-                contents: bytemuck::cast_slice(&map_instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+        let map_instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Map Instance Buffer"),
+            contents: bytemuck::cast_slice(&map_instance_data),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         // ── Prop assets ───────────────────────────────────────────────────────
         let mut assets = AssetManager::new();
@@ -299,12 +304,11 @@ impl EngineState {
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
 
-        let camera_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Camera Buffer"),
+            contents: bytemuck::cast_slice(&[camera_uniform]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -320,7 +324,9 @@ impl EngineState {
         // ── Shader + pipeline ─────────────────────────────────────────────────
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../systems/render/shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("../../systems/render/shader.wgsl").into(),
+            ),
         });
         let render_pipeline = RenderPipeline::new(
             &device,
@@ -346,12 +352,10 @@ impl EngineState {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
-        let depth_view =
-            depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // ── Physics ───────────────────────────────────────────────────────────
         let mut physics = PhysicsEngine::new(
@@ -362,25 +366,26 @@ impl EngineState {
         );
         for prop in &level_data.props {
             let asset_path = format!("assets/{}", prop.asset_id);
-            match std::panic::catch_unwind(
-                std::panic::AssertUnwindSafe(|| load_model(&asset_path)),
-            ) {
+            match try_load_model(&asset_path) {
                 Ok((_v, _p, pp, pi)) => {
                     physics.add_prop(prop, &pp, &pi);
                 }
                 Err(e) => {
-                    eprintln!("[ERROR] Failed to load prop model '{}': {:?}", asset_path, e);
+                    eprintln!("[ERROR] Failed to load prop model '{}': {}", asset_path, e);
+                    physics.add_prop(prop, &[], &[]);
                 }
             }
         }
 
-        let max_stamina = config_data.player.max_stamina;
         let hud = HudSystem::new(&device, config.format);
         let mut audio = AudioSystem::new();
         if let Some(audio_system) = audio.as_mut() {
             audio_system.start_ambient();
         }
 
+        let player = PlayerState::new(&config_data.player);
+        let progress = RunProgress::new();
+        let enemy_runtime = Self::enemy_runtime_for_level(&level_data);
         let mut state = Self {
             window,
             surface,
@@ -404,23 +409,18 @@ impl EngineState {
             camera_bind_group,
             hud,
             audio,
+            game_mode: GameMode::Playing,
             lighting,
             physics,
             config_data,
+            enemy_registry,
             level_data,
             level_name,
+            player,
+            progress,
             action_cooldown: 0.0,
+            enemy_runtime,
             debug_timer: 0.0,
-            stamina: max_stamina,
-            stamina_regen_delay_timer: 0.0,
-            speed_multiplier_smoothed: 1.0,
-            stamina_smoothed: max_stamina,
-            is_sprinting: false,
-            player_health: 100.0,
-            hit_flash_timer: 0.0,
-            hurtbox_cooldown: 0.0,
-            respawn_timer: 0.0,
-            is_dead: false,
             pending_transition: None,
         };
 
@@ -431,7 +431,9 @@ impl EngineState {
     // ── Resize ────────────────────────────────────────────────────────────────
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if new_size.width == 0 || new_size.height == 0 { return; }
+        if new_size.width == 0 || new_size.height == 0 {
+            return;
+        }
         self.size = new_size;
         self.config.width = new_size.width;
         self.config.height = new_size.height;
@@ -449,8 +451,7 @@ impl EngineState {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
         self.depth_view = self
@@ -467,11 +468,11 @@ impl EngineState {
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder =
-            self.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Render Encoder"),
-                });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
 
         // ── 3D scene pass ───────────────────────────────────────────────────
         {
@@ -527,10 +528,7 @@ impl EngineState {
                     for part in &asset.parts {
                         let bg = self.texture_manager.get(&part.texture_name);
                         rp.set_bind_group(1, bg, &[]);
-                        rp.set_index_buffer(
-                            part.index_buffer.slice(..),
-                            wgpu::IndexFormat::Uint32,
-                        );
+                        rp.set_index_buffer(part.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         rp.draw_indexed(0..part.num_indices, 0, 0..group.num_instances);
                     }
                 }
@@ -556,17 +554,16 @@ impl EngineState {
                 multiview_mask: None,
             });
 
-            let max_stamina = self.config_data.player.max_stamina;
-            let health_ratio = (self.player_health / 100.0).clamp(0.0, 1.0);
-            // Use smoothed stamina to avoid visible bar jitter when sprinting
-            let stamina_ratio = if max_stamina > 0.0 { (self.stamina_smoothed / max_stamina).clamp(0.0, 1.0) } else { 0.0 };
+            let health_ratio = self.player.health.ratio();
+            let stamina_ratio = self.player.stamina.display_ratio();
 
             self.hud.draw(
                 &mut rp,
                 &self.queue,
                 health_ratio,
                 stamina_ratio,
-                self.hit_flash_timer,
+                self.player.hit_flash_timer,
+                self.game_mode == GameMode::Paused,
             );
         }
 
@@ -581,15 +578,22 @@ impl EngineState {
     /// physics colliders, prop instances, and resetting camera position.
     pub fn load_level(&mut self, new_level_name: &str) {
         let level_path = format!("levels/{}.json", new_level_name);
-        let level_data = LevelData::load(&level_path);
-        println!("[LEVEL] Loaded '{}': {} props", new_level_name, level_data.props.len());
+        let mut level_data = LevelData::load(&level_path);
+        Self::apply_enemy_definitions(&mut level_data, &self.enemy_registry, &level_path);
+        Self::report_level_validation(&level_data, &level_path);
+        println!(
+            "[LEVEL] Loaded '{}': {} props",
+            new_level_name,
+            level_data.props.len()
+        );
 
         // ── Load base map ─────────────────────────────────────────────────────
         let (map_vertices, map_mesh_parts, phys_points, phys_indices) =
-            load_model(&level_data.base_map);
+            Self::load_map_model(&level_data);
 
-        let map_vertex_buffer =
-            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let map_vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Map Vertex Buffer"),
                 contents: bytemuck::cast_slice(&map_vertices),
                 usage: wgpu::BufferUsages::VERTEX,
@@ -597,8 +601,9 @@ impl EngineState {
 
         let mut map_parts = Vec::new();
         for part in map_mesh_parts {
-            let index_buffer =
-                self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            let index_buffer = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Map Index Buffer"),
                     contents: bytemuck::cast_slice(&part.indices),
                     usage: wgpu::BufferUsages::INDEX,
@@ -620,11 +625,12 @@ impl EngineState {
             ],
         }];
         let map_instance_buffer =
-            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Map Instance Buffer"),
-                contents: bytemuck::cast_slice(&map_instance_data),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Map Instance Buffer"),
+                    contents: bytemuck::cast_slice(&map_instance_data),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
 
         // ── Rebuild physics ───────────────────────────────────────────────────
         self.physics = PhysicsEngine::new(
@@ -635,14 +641,13 @@ impl EngineState {
         );
         for prop in &level_data.props {
             let asset_path = format!("assets/{}", prop.asset_id);
-            match std::panic::catch_unwind(
-                std::panic::AssertUnwindSafe(|| load_model(&asset_path)),
-            ) {
+            match try_load_model(&asset_path) {
                 Ok((_v, _p, pp, pi)) => {
                     self.physics.add_prop(prop, &pp, &pi);
                 }
                 Err(e) => {
-                    eprintln!("[ERROR] Failed to load prop model '{}': {:?}", asset_path, e);
+                    eprintln!("[ERROR] Failed to load prop model '{}': {}", asset_path, e);
+                    self.physics.add_prop(prop, &[], &[]);
                 }
             }
         }
@@ -656,19 +661,19 @@ impl EngineState {
         );
 
         // ── Swap state ────────────────────────────────────────────────────────
+        let enemy_runtime = Self::enemy_runtime_for_level(&level_data);
         self.map_vertex_buffer = map_vertex_buffer;
         self.map_parts = map_parts;
         self.map_instance_buffer = map_instance_buffer;
         self.level_data = level_data;
         self.level_name = new_level_name.to_string();
+        self.enemy_runtime = enemy_runtime;
 
         // Reset runtime state
         self.action_cooldown = 0.0;
-        self.stamina = self.config_data.player.max_stamina;
-        self.stamina_regen_delay_timer = 0.0;
-        self.is_sprinting = false;
-        self.speed_multiplier_smoothed = 1.0;
-        self.stamina_smoothed = self.config_data.player.max_stamina;
+        self.progress.clear_anchor();
+        self.player
+            .reset_for_level_transition(&self.config_data.player);
 
         self.sync_instances();
         println!("[LEVEL] Transition complete: {}", new_level_name);
@@ -680,13 +685,203 @@ impl EngineState {
         // Light follows camera with slight offset for more natural feel
         let light_pos = [
             self.camera.position.x + 0.5,
-            self.camera.position.y + 4.0,
+            self.camera.position.y + self.config_data.lighting.sun_position_offset,
             self.camera.position.z + 0.3,
         ];
         // Warm torch-like light color with moderate intensity
-        self.lighting.update_light(&self.queue, light_pos, [1.0, 0.85, 0.6], 1.8);
-        
+        self.lighting.update_light(
+            &self.queue,
+            light_pos,
+            self.config_data.lighting.sun_color,
+            self.config_data.lighting.sun_intensity,
+        );
+
         // Atmospheric fog — density tuned for underground cavern feel
-        self.lighting.update_fog(&self.queue, 0.008, [0.08, 0.07, 0.06]);
+        self.lighting.update_fog(
+            &self.queue,
+            self.config_data.world.fog_density,
+            self.config_data.lighting.ambient_color,
+        );
+    }
+
+    fn report_level_validation(level_data: &LevelData, level_path: &str) {
+        if let Err(errors) = level_data.validate() {
+            eprintln!(
+                "[LEVEL VALIDATION] {} has {} issue(s):",
+                level_path,
+                errors.len()
+            );
+            for error in errors {
+                eprintln!("  - {}", error);
+            }
+        }
+    }
+
+    fn apply_enemy_definitions(
+        level_data: &mut LevelData,
+        enemy_registry: &EnemyRegistry,
+        level_path: &str,
+    ) {
+        for prop in &mut level_data.props {
+            let Some(enemy_type) = prop.enemy_type.as_deref() else {
+                continue;
+            };
+
+            let Some(enemy) = enemy_registry.get(enemy_type) else {
+                eprintln!(
+                    "[ENEMY DATA] Level '{}' references unknown enemy_type '{}'",
+                    level_path, enemy_type
+                );
+                continue;
+            };
+
+            prop.asset_id = enemy.model_asset.clone();
+            prop.collider_type = enemy.collider_type.clone();
+            prop.enemy_health = enemy.health;
+        }
+    }
+
+    fn enemy_runtime_for_level(level_data: &LevelData) -> Vec<EnemyRuntimeState> {
+        vec![EnemyRuntimeState::default(); level_data.props.len()]
+    }
+
+    fn load_map_model(level_data: &LevelData) -> ModelData {
+        match try_load_model(&level_data.base_map) {
+            Ok(model) => model,
+            Err(error) => {
+                eprintln!(
+                    "[ERROR] Failed to load base map '{}': {}",
+                    level_data.base_map, error
+                );
+                let fallback = LevelData::default_level();
+                match try_load_model(&fallback.base_map) {
+                    Ok(model) => {
+                        eprintln!(
+                            "[LEVEL] Falling back to default base map '{}'",
+                            fallback.base_map
+                        );
+                        model
+                    }
+                    Err(fallback_error) => {
+                        eprintln!(
+                            "[ERROR] Failed to load fallback base map '{}': {}",
+                            fallback.base_map, fallback_error
+                        );
+                        eprintln!("[LEVEL] Using empty render model and physics fallback floor.");
+                        empty_model()
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::data::enemy::EnemyDefinition;
+    use crate::data::world::level::{ColliderType, PropData};
+
+    #[test]
+    fn enemy_definitions_materialize_level_props() {
+        let enemy_registry = EnemyRegistry::from_definitions(vec![EnemyDefinition {
+            id: "burdened".to_string(),
+            display_name: "Burdened".to_string(),
+            role: "tank".to_string(),
+            behavior_tag: "slow_chase_melee".to_string(),
+            model_asset: "enemies/burdened.obj".to_string(),
+            collider_type: ColliderType::Sphere,
+            visual_tell: "wide tank silhouette".to_string(),
+            health: 120.0,
+            damage: 18.0,
+            move_speed: 1.4,
+            activation_range: 14.0,
+            attack_range: 1.8,
+            attack_windup: 0.75,
+            attack_cooldown: 1.8,
+        }])
+        .unwrap();
+        let mut level = LevelData {
+            name: "Materialize Test".to_string(),
+            base_map: "assets/Cube.obj".to_string(),
+            player_spawn: [0.0, 0.0, 0.0],
+            props: vec![PropData {
+                asset_id: "Cube.obj".to_string(),
+                position: [0.0, 0.0, 0.0],
+                rotation: [0.0, 0.0, 0.0],
+                scale: [1.0, 1.0, 1.0],
+                collider_type: ColliderType::None,
+                is_climbable: false,
+                is_hurtbox: false,
+                item_id: None,
+                resource_value: 0,
+                anchor_id: None,
+                enemy_type: Some("Burdened".to_string()),
+                enemy_health: 0.0,
+                light_color: None,
+                light_intensity: 0.0,
+                ambient_sound_id: None,
+                trigger_level_id: None,
+            }],
+        };
+
+        EngineState::apply_enemy_definitions(&mut level, &enemy_registry, "test");
+
+        let prop = &level.props[0];
+        assert_eq!(prop.asset_id, "enemies/burdened.obj");
+        assert_eq!(prop.collider_type, ColliderType::Sphere);
+        assert_eq!(prop.enemy_health, 120.0);
+    }
+
+    #[test]
+    fn enemy_runtime_state_matches_prop_slots() {
+        let level = LevelData {
+            name: "Cooldown Test".to_string(),
+            base_map: "assets/Cube.obj".to_string(),
+            player_spawn: [0.0, 0.0, 0.0],
+            props: vec![
+                PropData {
+                    asset_id: "Cube.obj".to_string(),
+                    position: [0.0, 0.0, 0.0],
+                    rotation: [0.0, 0.0, 0.0],
+                    scale: [1.0, 1.0, 1.0],
+                    collider_type: ColliderType::None,
+                    is_climbable: false,
+                    is_hurtbox: false,
+                    item_id: None,
+                    resource_value: 0,
+                    anchor_id: None,
+                    enemy_type: None,
+                    enemy_health: 0.0,
+                    light_color: None,
+                    light_intensity: 0.0,
+                    ambient_sound_id: None,
+                    trigger_level_id: None,
+                },
+                PropData {
+                    asset_id: "Cube.obj".to_string(),
+                    position: [1.0, 0.0, 0.0],
+                    rotation: [0.0, 0.0, 0.0],
+                    scale: [1.0, 1.0, 1.0],
+                    collider_type: ColliderType::Sphere,
+                    is_climbable: false,
+                    is_hurtbox: false,
+                    item_id: None,
+                    resource_value: 0,
+                    anchor_id: None,
+                    enemy_type: Some("Ashbound".to_string()),
+                    enemy_health: 40.0,
+                    light_color: None,
+                    light_intensity: 0.0,
+                    ambient_sound_id: None,
+                    trigger_level_id: None,
+                },
+            ],
+        };
+
+        assert_eq!(
+            EngineState::enemy_runtime_for_level(&level),
+            vec![EnemyRuntimeState::default(), EnemyRuntimeState::default()]
+        );
     }
 }

@@ -1,340 +1,369 @@
 PROJECT DOCUMENTATION - CENOTAPH: THE GREAT OMISSION
-================================================
+====================================================
 
-Version: 0.33
-Last Updated: May 6, 2026
-Project Type: First-Person Action RPG/Shooter with Vertical Metroidvania Structure
+Version: Foundation Documentation Pass
+Last Updated: July 1, 2026
+Project Type: First-Person Vertical Looter RPG Prototype
+
+NOTE:
+This file is a practical current-project inventory. The high-level vision lives
+in README.md. The active foundation contract lives in FOUNDATION.md. The source
+tree map lives in layout_guide.txt.
 
 ================================================================================
 PROJECT OVERVIEW
 ================================================================================
 
-Cenotaph: The Great Omission is a first-person action RPG/shooter built with Rust, 
-wgpu, and Rapier3D. The game takes place in "The Pillar of Regret" - a 
-vertical mountain formed from crushed architecture where players must climb through 
-layered strata to discover why reality has ended.
+Cenotaph: The Great Omission is a surreal vertical looter RPG about repeated
+ascents through a hostile mountain that changes, forgets, and rewards adaptation.
 
-Genre: First-Person Action RPG / Shooter
-Structure: Vertical Metroidvania with modular loot
-Tone: Surreal decay, existential grandeur, tragic beauty
+Current implementation status:
+- Rust 2021 single-crate prototype.
+- winit application loop.
+- wgpu rendering.
+- Rapier3D physics.
+- rodio-backed audio.
+- JSON level data.
+- TOML tuning and bindings.
+- Foundation gameplay: movement, jump, sprint, dash, pause, HUD, prototype
+  shooting, baseline enemy chase/attack, hurtboxes, death, respawn, prototype
+  resource pickup/Anchor banking, and project content validation.
+
+Current north star:
+First Ascent Prototype.
 
 ================================================================================
-FILE STRUCTURE & DESCRIPTIONS
+ROOT DOCUMENTS
 ================================================================================
 
---- ROOT FILES ---
+README.md
+  Master overview, project identity, current build commands, documentation map,
+  and high-level systems.
 
-FILE: Cargo.toml
-DESC: Rust package manifest defining project metadata and dependencies.
-      Key dependencies: winit, wgpu, glam, rapier3d, tobj, serde, etc.
+FOUNDATION.md
+  Current stable groundwork: runtime shape, level/config contracts, validation,
+  test map, current non-goals, and next stability targets.
 
-FILE: Cargo.lock
-DESC: Auto-generated dependency lock file ensuring reproducible builds.
+FOUNDATION_SMOKE_CHECKLIST.md
+  Manual GPU/play smoke checklist for the foundation build.
 
-FILE: README.md
-DESC: Main project documentation containing executive summary,
-      architecture overview, strata definitions, and development roadmap.
+ASSET_GUIDE.md
+  Model scale, export, naming, directory, and replacement rules.
 
-FILE: readme.txt
-DESC: Text version of project readme.
+MODEL_RESET_PLAN.md
+  Incremental plan for rebuilding placeholder and production models from
+  scratch.
 
-FILE: .gitignore
-DESC: Git ignore file specifying files/directories to exclude from version control.
+layout_guide.txt
+  Current source tree and dependency rules.
 
-FILE: task_progress.md
-DESC: Development task tracking file.
+SYSTEMS.md
+  Gameplay and technical systems design: ascent, relics, builds, threats,
+  cycles, and support systems.
 
---- ASSETS DIRECTORY (assets/) ---
+CONTENT_GUIDE.md
+  Content templates and rules for strata, relics, enemies, events, and cycle
+  mutations.
 
-FILE: assets/ashwalk_001.mtl
-DESC: Wavefront MTL material file for the ashwalk_001 3D model.
-      Contains material definitions like diffuse, specular, ambient properties.
+LORE.md
+  Lore, tone, dream logic, recurring symbols, and writing rules.
 
-FILE: assets/ashwalk_001.obj
-DESC: Wavefront OBJ 3D model file for the Ash-Walk level area.
-      Contains vertex positions, normals, texture coordinates.
+ROADMAP.md
+  Staged development plan from foundation prototype through forever expansion.
 
-FILE: assets/Cube.mtl
-DESC: MTL material file for the generic Cube model.
-      Standard cube material properties.
+TECHNICAL_NOTES.md
+  Architecture direction, validation, save system, data registry, developer
+  tools, and technical backlog.
 
-FILE: assets/Cube.obj
-DESC: OBJ format generic cube model.
-      Used as placeholder or primitive object.
+ENEMY_GAMEPLAY_ROSTER.txt
+  Gameplay-first enemy roles, counterplay, encounter recipes, and implementation
+  order.
 
-FILE: assets/map_001.blend
-DESC: Blender source file (.blend) containing the base map 3D model.
-      Can be edited in Blender for level geometry changes.
+ENEMY_MODEL_GENERATOR_BRIEF.txt
+  3D model generator brief for enemy silhouettes, materials, and visual identity.
 
-FILE: assets/map_001.glb
-DESC: GLTF binary format of the base map model.
-      The main level geometry that players walk on.
-      Loaded directly by the game engine via gltf crate.
-
-FILE: assets/props.json
-DESC: JSON file defining all props (objects) in the game.
-      Contains prop IDs, positions, scales, types.
-
---- LEVELS DIRECTORY (levels/) ---
-
-FILE: levels/ashwalk_001.blend
-DESC: Blender source file for the "Ash-Walk" level.
-      The first playable stratum/biome.
-
-FILE: levels/ashwalk_01.json
-DESC: JSON level data file for Ash-Walk.
-      Contains: name, base_map path, player_spawn position, props array.
-      Current content: player spawns at [0.0, 5.0, 0.0], base map "assets/map_001.glb"
-
-FILE: levels/ashwalk_001.mtl
-DESC: Material definitions for the Ash-Walk level model.
-
-FILE: levels/ashwalk_001.obj
-DESC: OBJ format 3D model for the Ash-Walk level.
-
---- CONFIG DIRECTORY (config/) ---
-
-FILE: config/
-DESC: Directory for configuration files. Currently empty.
-      Intended for Config.toml with keybindings.
-
---- TEXTURES DIRECTORY (textures/) ---
-
-FILE: textures/
- DESC: Directory for texture image files.
-       Referenced by material files and render system.
-
---- SOURCE CODE (src/) ---
-
-DIR: src/
- DESC: Main Rust source code directory.
-
-FILE: src/main.rs
- DESC: Application entry point.
-       Creates event loop with winit, initializes App, runs main loop.
-       Entry point: main() -> Result<(), Box<dyn Error>>
-
-FILE: src/app.rs
- DESC: Winit ApplicationHandler implementation.
-       Owns the Renderer and routes OS events into the engine.
-       Handles window creation, events, input processing, render loop.
-       Key struct: App { renderer: Option<Renderer>, input: InputManager }
-
---- CORE SUBSYSTEM (src/core/) ---
-
-DIR: src/core/
- DESC: Core engine systems module.
-       Owns runtime: GPU state, subsystems, update/render loop.
-
-FILE: src/core/mod.rs
- DESC: Core module declaration.
-       Exports: pub mod engine;
-
-DIR: src/core/engine/
- DESC: Engine core implementation directory.
-
-FILE: src/core/engine/mod.rs
- DESC: Engine module root.
-       Sub-modules: asset_catalog, loader, state, sync, update
-       Exports: pub use state::EngineState;
-
-FILE: src/core/engine/state.rs
- DESC: EngineState struct definition.
-       Maintains GPU state, manages all game subsystems.
-       Handles construction, resize, and render orchestration.
-
-FILE: src/core/engine/loader.rs
- DESC: Asset loader implementation.
-       Disk I/O helpers for textures and prop assets.
-       Handles reading OBJ, GLB, and other asset formats.
-
-FILE: src/core/engine/sync.rs
- DESC: Instance buffer synchronization.
-       Instance buffer rebuild functionality for rendering.
-
-FILE: src/core/engine/update.rs
- DESC: Per-frame update logic.
-       Physics step, gameplay updates, game state advancement.
-
-FILE: src/core/engine/asset_catalog.rs
- DESC: Asset catalog management.
-       Tracks and organizes all loaded game assets.
-
---- SYSTEMS SUBSYSTEM (src/systems/) ---
-
-DIR: src/systems/
- DESC: Game subsystems module.
-       Input, Physics, Rendering.
-
-FILE: src/systems/mod.rs
- DESC: Systems module declaration.
-       Exports: pub mod input, pub mod physics, pub mod render
-
-DIR: src/systems/input/
- DESC: Input handling system.
-
-FILE: src/systems/input/mod.rs
- DESC: Input module declaration.
-       Exports: pub mod manager, pub use manager::InputManager
-
-FILE: src/systems/input/manager.rs
- DESC: InputManager implementation.
-       Raw input capture and query interface.
-       Processes keyboard/mouse events from OS.
-
-DIR: src/systems/physics/
- DESC: Physics simulation system using Rapier3D.
-
-FILE: src/systems/physics/engine.rs
- DESC: PhysicsEngine wrapper around Rapier3D.
-       Thin wrapper owning simulation state.
-       - rigid_body_set, collider_set
-       - physics_pipeline, integration_parameters
-       - player movement, collision detection
-       - prop colliders and terrain mesh
-
-DIR: src/systems/render/
- DESC: Rendering system using WGPU.
-
-FILE: src/systems/render/mod.rs
- DESC: Render module declaration.
-       Exports: renderer, pipeline, camera, mesh, instance, texture, assets, lighting
-       Exports: pub use renderer::Renderer
-
-FILE: src/systems/render/shader.wgsl
- DESC: WGSL shader code for GPU rendering pipeline.
-       Custom shader for 3D rendering in WebGPU style.
-
---- GAMEPLAY SUBSYSTEM (src/game/) ---
-
-DIR: src/game/
- DESC: Gameplay systems module.
-
-FILE: src/game/mod.rs
- DESC: Game module declaration.
-       Exports: pub mod gameplay
-
-DIR: src/game/gameplay/
- DESC: Gameplay mechanics subdirectory.
-
-FILE: src/game/gameplay/mod.rs
- DESC: Gameplay module declaration.
-       Exports: player, movement, stamina modules.
-
-FILE: src/game/gameplay/player.rs
- DESC: Player system definition.
-       Player state, health management, inventory.
-
-FILE: src/game/gameplay/movement.rs
- DESC: Movement system implementation.
-       Walk, sprint, dash, jump, wall-run mechanics.
-
-FILE: src/game/gameplay/stamina.rs
- DESC: Stamina system for combat.
-       StaminaConfig (regen_rate, recovery_delay, depletion)
-       StaminaSystem (current, max, recovery_timer)
-
---- DATA SUBSYSTEM (src/data/) ---
-
-DIR: src/data/
- DESC: Data structures module.
-       World, Config data.
-
-FILE: src/data/mod.rs
- DESC: Data module declaration.
-       Exports: pub mod world, pub mod config
-
-DIR: src/data/config/
- DESC: Configuration data definitions.
-
-FILE: src/data/config/mod.rs
- DESC: Config module declaration.
-
-FILE: src/data/config/gameplay.rs
- DESC: Game configuration structures.
-       - GameConfig: player, movement, camera, physics configs
-       - PlayerConfig: max_health, max_stamina, stamina_regen, walk/sprint speed
-       - MovementConfig: dash_multiplier, stamina_drain, cooldown
-       - PhysicsConfig: gravity, jump_velocity, player_speed
-       - CameraConfig: sensitivity
-       - Key binding parsing from Config.toml
-
-DIR: src/data/world/
- DESC: World data structures.
-
-FILE: src/data/world/level.rs
- DESC: Level and prop data structures.
-       - ColliderType: None, Box, Sphere, Mesh
-       - PropData: asset_id, position, rotation, scale, collider_type
-       - LevelData: name, base_map, player_spawn, props
-       - Methods: load(), save(), default_level()
-
-FILE: src/data/world/strata.rs
- DESC: Stratum (biome) definitions.
-       Vertical biome layers of the Pillar of Regret.
-       - StratumId: AshWalk, WardOfIrons, HangingSlums, Sanctuary, 
-                  GalleryOfWind, MirrorCrust, TheBreach
-       - Stratum: id, display_name, theme, height_range
-       - all() returns Vec<Stratum> with 7 biomes
+readme.txt
+  Plain-text short summary of the current project state.
 
 ================================================================================
-KEY CONFIGURATIONS
+RUNTIME COMMANDS
 ================================================================================
 
-Physics Defaults (PhysicsConfig):
-- gravity: -9.8
-- jump_velocity: 5.0
-- player_speed: 5.0
+Run Ash-Walk:
+  cargo run -- ashwalk_01
 
-Player Defaults (PlayerConfig):
-- max_health: 100.0
-- max_stamina: 100.0
-- stamina_regen_rate: 10.0/sec
-- stamina_regen_delay: 1.0 sec
-- walk_speed: 3.0 units/sec
-- sprint_speed: 8.0 units/sec
+Run the foundation smoke-test level:
+  cargo run -- foundation_test
 
-Stamina Defaults (StaminaConfig):
-- regen_rate: 10.0/sec
-- recovery_delay: 1.0 sec
-- depletion_multiplier: 1.0
+Validate authored project content:
+  cargo run -- validate
 
-Movement Defaults (MovementConfig):
-- dash_speed_multiplier: 2.0x
-- sprint_stamina_drain: 20.0/sec
-- dash_stamina_cost: 25.0
-- dash_cooldown: 2.0 sec
-- dash_duration: 0.5 sec
+Core checks:
+  powershell -ExecutionPolicy Bypass -File scripts/foundation_check.ps1
+  cargo fmt --check
+  cargo clippy -- -D warnings
+  cargo test
 
-Camera Defaults (CameraConfig):
-- sensitivity: 0.002
+Manual smoke checks:
+  Follow FOUNDATION_SMOKE_CHECKLIST.md after automated checks pass.
 
-Strata Height Ranges:
-1. Ash-Walk: 0-200 (collapse)
-2. Ward of Irons: 200-450 (industrial insanity)
-3. Hanging Slums: 450-700 (precarious life)
-4. Sanctuary: 700-800 (broken divinity)
-5. Gallery of Wind: 800-1050 (breath of the abyss)
-6. Mirror-Crust: 1050-1300 (reality distortion)
-7. The Breach: 1300-1500 (geometric collapse)
+================================================================================
+CONTENT DIRECTORIES
+================================================================================
+
+config/
+  bindings.toml
+    User-editable keybindings. Current core controls include WASD, Space, Shift,
+    Q dash, left mouse attack, and Escape pause.
+
+  tuning.toml
+    Designer-tweakable gameplay constants for player, movement, camera, physics,
+    combat, world, lighting, and debug logging.
+
+levels/
+  ashwalk_01.json
+    Current Ash-Walk level shell. Uses assets/ashwalk_001.obj as its base map.
+
+  foundation_test.json
+    Foundation smoke-test level. Contains decorative, resource, Anchor, static
+    collider, enemy, hurtbox, and transition prop examples.
+
+  ashwalk_001.blend / .obj / .mtl
+    Source/exported Ash-Walk level geometry.
+
+assets/
+  Cube.obj / Cube.mtl
+    Placeholder primitive used by test props.
+
+  enemies/*.obj
+    Low-poly authored enemy silhouettes referenced by data/enemies/*.toml.
+
+  ashwalk_001.obj / ashwalk_001.mtl
+    Ash-Walk level geometry assets.
+
+  map_001.glb / map_001.blend
+    Foundation/default map assets.
+
+  props.json
+    Legacy/source prop data. Current level placement is driven by levels/*.json.
+
+textures/
+  Texture directory. PNG/JPG/JPEG files are loaded by filename when present;
+  a checkerboard fallback is used when no texture is available.
+
+data/
+  enemies/*.toml
+    Gameplay-first enemy definitions. Current starter definitions are Ashbound,
+    Burdened, Censer, Chainrunner, and Harpy. They reference low-poly enemy
+    silhouettes under assets/enemies until production enemy models are generated.
+
+scripts/
+  foundation_check.ps1
+    Runs the full non-interactive foundation check: format, clippy, tests, and
+    content validation.
+
+================================================================================
+SOURCE TREE
+================================================================================
+
+src/main.rs
+  Entry point. Handles validation CLI arguments and starts the winit app.
+
+src/app.rs
+  winit ApplicationHandler. Owns EngineState and routes window/input events.
+
+src/core/
+  Engine orchestration.
+
+src/core/engine/state.rs
+  EngineState fields, GPU setup, runtime construction, resize, and rendering.
+
+src/core/engine/update.rs
+  Per-frame movement, stamina, dash, gameplay orchestration, hurtbox,
+  death/respawn, resource/Anchor checks, debug logging, and transition logic.
+
+src/core/engine/loader.rs
+  Asset and texture loading. Handles OBJ/GLB model paths and non-panicking
+  fallback behavior.
+
+src/core/engine/sync.rs
+  Render instance buffer rebuilds after prop changes.
+
+src/core/engine/asset_catalog.rs
+  Scans model assets.
+
+src/core/engine/validation.rs
+  Non-window content validation for level JSON and core config TOML.
+
+src/data/
+  Pure data definitions.
+
+src/data/enemy.rs
+  EnemyDefinition loading and validation helpers for data/enemies/*.toml.
+
+src/data/config/gameplay.rs
+  GameConfig plus PlayerConfig, MovementConfig, CameraConfig, PhysicsConfig,
+  CombatConfig, WorldConfig, LightingConfig, DebugConfig, and keybinding parsing.
+
+src/data/world/level.rs
+  LevelData, PropData, ColliderType, level loading, save helpers, defaults, and
+  validation rules.
+
+src/game/
+  Gameplay-owned state and rules.
+
+src/game/combat.rs
+  Prototype combat math, including ray/sphere hit checks for primary fire.
+
+src/game/enemy.rs
+  Baseline enemy runtime state, chase/attack intent, and attack windup/cooldown
+  rules.
+
+src/game/player.rs
+  PlayerState, HealthState, StaminaState, dash timers, hit feedback, death, and
+  respawn helpers.
+
+src/game/progression.rs
+  RunProgress for unsecured resource, banked resource, Anchor activation, local
+  Anchor respawn, and death loss rules.
+
+src/systems/
+  Engine subsystems.
+
+src/systems/input/
+  Keyboard/mouse input capture and query helpers.
+
+src/systems/physics/
+  Rapier3D physics wrapper, player movement, coyote-time jumping, prop
+  colliders, enemy prop position/velocity helpers, and prop removal.
+
+src/systems/render/
+  WGPU render pipeline, camera, mesh/model data, instances, textures, lighting,
+  HUD, shaders, and render asset grouping.
+
+src/systems/audio/
+  rodio-backed procedural ambient audio, footsteps, one-shot effects, and
+  pause/resume behavior.
+
+================================================================================
+CURRENT DATA CONTRACTS
+================================================================================
+
+Level JSON required fields:
+- name
+- base_map
+- player_spawn
+- props
+
+Prop JSON required field:
+- asset_id
+
+Prop JSON fields with defaults:
+- position
+- rotation
+- scale
+- collider_type
+- is_climbable
+- is_hurtbox
+- item_id
+- resource_value
+- anchor_id
+- enemy_type
+- enemy_health
+- light_color
+- light_intensity
+- ambient_sound_id
+- trigger_level_id
+
+Validation currently checks:
+- level JSON files can be read and parsed
+- level name/base_map/player_spawn are usable
+- prop assets exist under assets/
+- prop transforms are finite
+- prop scale does not contain zero
+- enemy props do not have negative health
+- anchor IDs cannot be empty
+- resource pickups cannot also be enemies
+- level transitions point at existing level files
+- lit props include light color
+- enemy definition TOML files parse
+- enemy definition IDs are unique
+- enemy definitions include a readable visual tell
+- level enemy_type values match enemy definition IDs
+- runtime level loading fills enemy prop model/collider/health from enemy
+  definitions
+- enemy activation ranges cannot be smaller than attack ranges
+- referenced model assets use supported extensions
+- referenced model assets load successfully
+- referenced model assets contain render and physics geometry
+- tuning.toml parses and uses sane numeric ranges
+- bindings.toml has required actions, valid tokens, and no duplicate bindings
+
+================================================================================
+ENEMY DESIGN STATUS
+================================================================================
+
+Implemented in content:
+- Burdened is the only current enemy_type used by levels/foundation_test.json.
+- It is represented by an authored low-poly Burdened silhouette.
+- Its runtime health/collider/model are now supplied by
+  data/enemies/burdened.toml.
+- Starter enemy definitions now reference role-shaped low-poly silhouettes for
+  Ashbound, Burdened, Censer, Chainrunner, and Harpy.
+- Baseline enemy chase/attack reads activation range, movement, attack range,
+  wind-up, damage, and cooldown from enemy definitions.
+
+Gameplay roster direction:
+- Ashbound: grunt
+- Burdened: tank
+- Censer: glass cannon
+- Chainrunner: high-speed flanker
+- Harpy: aerial threat
+- Bellworn: ranged harasser
+- Silencer: suppressor
+- Paranoiac: escalator
+- Anchor Parasite: swarmer
+- Root-Machine Hybrid: controller
+- Mirror of the Player: late-game duelist
+- Bell-Headed: elite modifier frame
+
+See ENEMY_GAMEPLAY_ROSTER.txt and ENEMY_MODEL_GENERATOR_BRIEF.txt.
+
+================================================================================
+CURRENT NON-GOALS
+================================================================================
+
+Not implemented yet:
+- Advanced enemy AI and role-specific behaviors
+- Relic generation
+- Inventory
+- Save/load
+- Full Anchor UI/persistence
+- Sanctuary UI
+- Cycle Director
+- Procedural route generation
+- Full content registry
+
+These are planned after the foundation remains stable and easy to validate.
 
 ================================================================================
 DEPENDENCIES
 ================================================================================
 
-- winit 0.30 - Window management and event loop
-- wgpu 28.0.0 - WebGPU graphics API
-- glam 0.32 - 2D/3D math library
-- rapier3d 0.32.0 - 3D physics engine
-- bytemuck 1.16 - Byte casting for memory
-- tobj 4.0 - OBJ model loading
-- serde 1.0 - Serialization framework
-- serde_json 1.0 - JSON parsing
-- toml 0.9.8 - TOML config parsing
-- env_logger 0.11 - Logging
-- pollster 0.4.0 - Async executor
-- image 0.25 - Image loading
-- gltf 1.4 - GLTF model loading
+- winit 0.30
+- wgpu 28.0.0
+- glam 0.32
+- rapier3d 0.32.0
+- bytemuck 1.16
+- tobj 4.0
+- serde 1.0
+- serde_json 1.0
+- toml 0.9.8
+- env_logger 0.11
+- pollster 0.4.0
+- image 0.25
+- gltf 1.4
+- rodio 0.20
 
 ================================================================================
 END OF DOCUMENTATION

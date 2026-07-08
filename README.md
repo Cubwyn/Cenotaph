@@ -135,11 +135,83 @@ This README is the master overview.
 
 Detailed documents live in the following files:
 
+- `FOUNDATION.md` — current stable groundwork, runtime shape, content contracts, and validation checklist.
+- `FOUNDATION_SMOKE_CHECKLIST.md` — manual GPU/play smoke checklist for the foundation build.
+- `ASSET_GUIDE.md` — model scale, export, naming, directory, and replacement rules.
+- `MODEL_RESET_PLAN.md` — incremental plan for rebuilding placeholder and production models.
+- `layout_guide.txt` — current physical source layout and module dependency rules.
+- `PROJECT_DOCUMENTATION.txt` — current file-by-file project inventory.
+- `ENEMY_GAMEPLAY_ROSTER.txt` — gameplay-first enemy roles, counterplay, encounter recipes, and implementation order.
+- `ENEMY_MODEL_GENERATOR_BRIEF.txt` — enemy model reference for 3D generators and future roster planning.
 - `SYSTEMS.md` — the mechanical and technical systems map.
 - `CONTENT_GUIDE.md` — rules and templates for adding new content.
 - `LORE.md` — mythology, tone, dream logic, and narrative rules.
 - `ROADMAP.md` — staged development plan and milestone definitions.
 - `TECHNICAL_NOTES.md` — Rust architecture direction, data registry, validation, save structure, and developer tools.
+- `readme.txt` — short plain-text project summary.
+
+---
+
+## Current Foundation Build
+
+The current codebase is a foundation prototype built on:
+
+- Rust 2021
+- winit
+- wgpu
+- Rapier3D
+- rodio
+- JSON level data
+- TOML tuning and bindings
+- TOML enemy definitions
+
+Run the current Ash-Walk test map:
+
+```powershell
+cargo run -- ashwalk_01
+```
+
+Run the foundation systems smoke-test map:
+
+```powershell
+cargo run -- foundation_test
+```
+
+Validate authored level, config, enemy, and referenced model data without
+opening a game window:
+
+```powershell
+cargo run -- validate
+```
+
+Run the full foundation check:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/foundation_check.ps1
+```
+
+Then use `FOUNDATION_SMOKE_CHECKLIST.md` for manual launch/play validation.
+
+Or run the core checks individually:
+
+```powershell
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+cargo run -- validate
+```
+
+Core controls:
+
+- `WASD` move
+- `Space` jump
+- `Shift` sprint
+- `Q` dash
+- mouse look
+- left mouse primary fire
+- `Escape` pause/unpause
+
+See `FOUNDATION.md` for the current runtime contracts and stable groundwork checklist.
 
 ---
 
@@ -246,13 +318,23 @@ Do not build forever content until the core can survive expansion.
 
 ---
 
-## Future Additions
+## Current Limits
 
-- [ ] Screenshots
-- [ ] Build instructions
-- [ ] Controls
-- [ ] Current playable version
-- [ ] Known issues
+The current build is still a foundation prototype, not the First Ascent
+Prototype.
+
+Implemented now:
+
+- movement, sprint, dash, pause, HUD, audio feedback, level loading, config
+  loading, hurtbox damage, death/respawn, prototype prop shooting, and
+  baseline data-driven enemy chase/attack, prototype resource pickup/Anchor
+  banking, and level/config validation
+
+Not implemented yet:
+
+- advanced enemy AI, role-specific enemy behavior, production enemy models,
+  relic drops, inventory, save/load, full Anchor/Sanctuary UI, Cycle Director,
+  and procedural route generation
 
 
 ---

@@ -4,6 +4,7 @@
 // physics-ready data (point cloud + triangle indices).
 
 use glam::Vec3;
+use std::path::Path;
 
 // ── Vertex ────────────────────────────────────────────────────────────────────
 
@@ -50,35 +51,46 @@ pub struct RenderMeshPart {
     pub texture_name: String,
 }
 
+pub type ModelData = (Vec<Vertex>, Vec<RenderMeshPart>, Vec<Vec3>, Vec<[u32; 3]>);
+
 // ── Model loading ─────────────────────────────────────────────────────────────
 
-/// Dispatch loader based on file extension.
-pub fn load_model(
-    path: &str,
-) -> (Vec<Vertex>, Vec<RenderMeshPart>, Vec<Vec3>, Vec<[u32; 3]>) {
-    println!("[DEBUG] Loading model: {}", path);
-    if path.ends_with(".glb") || path.ends_with(".gltf") {
-        load_gltf(path)
-    } else if path.ends_with(".obj") {
-        load_obj(path)
-    } else {
-        panic!("Unsupported model format: {}", path);
+pub fn try_load_model(path: &str) -> Result<ModelData, String> {
+    let extension = Path::new(path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_lowercase());
+
+    match extension.as_deref() {
+        Some("glb" | "gltf") => load_gltf(path),
+        Some("obj") => load_obj(path),
+        Some(ext) => Err(format!("Unsupported model format '.{}': {}", ext, path)),
+        None => Err(format!("Model path has no extension: {}", path)),
     }
 }
 
+pub fn empty_model() -> ModelData {
+    (
+        vec![Vertex {
+            position: [0.0, 0.0, 0.0],
+            tex_coords: [0.0, 0.0],
+            normal: [0.0, 1.0, 0.0],
+        }],
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    )
+}
+
 /// Load a GLTF / GLB model.
-pub fn load_gltf(
-    path: &str,
-) -> (Vec<Vertex>, Vec<RenderMeshPart>, Vec<Vec3>, Vec<[u32; 3]>) {
-    let (document, buffers, _) = gltf::import(path).expect("Failed to load GLB/GLTF");
+pub fn load_gltf(path: &str) -> Result<ModelData, String> {
+    let (document, buffers, _) =
+        gltf::import(path).map_err(|e| format!("Failed to load GLB/GLTF '{}': {}", path, e))?;
 
     let mut vertices = Vec::new();
     let mut parts = Vec::new();
     let mut phys_points = Vec::new();
     let mut phys_indices = Vec::new();
-    
-    let num_nodes = document.nodes().count();
-    println!("[DEBUG] GLTF: {} nodes found", num_nodes);
 
     for node in document.nodes() {
         if let Some(mesh) = node.mesh() {
@@ -98,20 +110,15 @@ pub fn load_gltf(
                 }
 
                 if let Some(uv_iter) = reader.read_tex_coords(0) {
-                    uv_iter
-                        .into_f32()
-                        .enumerate()
-                        .for_each(|(i, uv)| {
-                            vertices[start_vert as usize + i].tex_coords = uv;
-                        });
+                    uv_iter.into_f32().enumerate().for_each(|(i, uv)| {
+                        vertices[start_vert as usize + i].tex_coords = uv;
+                    });
                 }
 
                 if let Some(normal_iter) = reader.read_normals() {
-                    normal_iter
-                        .enumerate()
-                        .for_each(|(i, n)| {
-                            vertices[start_vert as usize + i].normal = n;
-                        });
+                    normal_iter.enumerate().for_each(|(i, n)| {
+                        vertices[start_vert as usize + i].normal = n;
+                    });
                 }
 
                 if let Some(idx_iter) = reader.read_indices() {
@@ -134,15 +141,13 @@ pub fn load_gltf(
         }
     }
 
-    (vertices, parts, phys_points, phys_indices)
+    Ok((vertices, parts, phys_points, phys_indices))
 }
 
 /// Load an OBJ model.
-pub fn load_obj(
-    path: &str,
-) -> (Vec<Vertex>, Vec<RenderMeshPart>, Vec<Vec3>, Vec<[u32; 3]>) {
-    let (models, _) =
-        tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS).expect("Failed to load OBJ");
+pub fn load_obj(path: &str) -> Result<ModelData, String> {
+    let (models, _) = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS)
+        .map_err(|e| format!("Failed to load OBJ '{}': {}", path, e))?;
 
     let mut vertices = Vec::new();
     let mut parts = Vec::new();
@@ -196,5 +201,5 @@ pub fn load_obj(
         });
     }
 
-    (vertices, parts, phys_points, phys_indices)
+    Ok((vertices, parts, phys_points, phys_indices))
 }

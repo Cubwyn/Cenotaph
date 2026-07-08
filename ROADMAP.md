@@ -20,6 +20,19 @@ A stage is complete when the game proves the design question for that stage, not
 
 # Stage 0: Foundation Prototype
 
+Status: In progress as the current foundation build.
+
+Current notes:
+
+- Movement, camera, jump, sprint, dash, pause, HUD, hurtbox damage, death,
+  respawn, prototype prop shooting, baseline enemy chase/attack, and
+  level/config validation exist.
+- Starter enemy definitions now have authored low-poly silhouette assets.
+- A minimal resource pickup and Anchor banking/respawn stub exists in
+  `foundation_test`.
+- Advanced enemy AI, role-specific enemy behavior, and production enemy models
+  do not exist yet.
+
 ## Goal
 
 Prove basic feel.
@@ -31,7 +44,7 @@ Prove basic feel.
 - Jumping
 - Falling
 - One weapon
-- One enemy
+- One authored baseline enemy role
 - Health
 - Damage
 - Death
@@ -55,7 +68,9 @@ Does it feel good to move, shoot, get hit, and defeat an enemy?
 
 ## Future Notes
 
-Add notes here during implementation.
+Use `levels/foundation_test.json` as the permanent Stage 0 smoke-test arena.
+Do not promote Stage 0 to complete until the authored enemy can be manually
+smoke-tested as readable model/collider/tuning inside the arena.
 
 ---
 
@@ -75,7 +90,7 @@ Prove the core loop.
 - Basic relic generation
 - Basic loot drop
 - Equip / replace relic
-- One enemy
+- One authored baseline enemy role
 - One elite modifier
 - One hazard
 - One resource
@@ -105,7 +120,9 @@ Is it fun to climb, survive, find a relic, adapt, and try again?
 
 ## Future Notes
 
-Add notes here during implementation.
+The foundation now has a resource pickup and Anchor trigger stub. Next add one
+route choice, one hazard, one loot/relic stub, and make the Anchor part of a
+small repeatable climb.
 
 ---
 
@@ -194,10 +211,14 @@ Make the mountain mechanically oppressive.
 
 ## Required
 
+- Ashbound
 - Burdened
+- Censer
+- Chainrunner
 - Silencer
 - Paranoiac
 - Harpy
+- Bellworn
 - Enemy modifiers
 - Elite variants
 - Suppression
@@ -237,7 +258,7 @@ Create the first true vertical slice.
 - Sanctuary prototype
 - Multiple routes
 - Three weapon families
-- Three enemy types
+- Four Ash-Walk enemy roles: Ashbound, Burdened, Censer, Harpy
 - One boss or named elite
 - World event table
 - Cycle reset

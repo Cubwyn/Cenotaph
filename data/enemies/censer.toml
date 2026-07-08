@@ -1,0 +1,14 @@
+id = "censer"
+display_name = "Censer"
+role = "glass_cannon"
+behavior_tag = "ranged_windup"
+model_asset = "enemies/censer.obj"
+collider_type = "Sphere"
+visual_tell = "thin caster frame with a hanging censer core for ranged wind-up threat"
+health = 28.0
+damage = 28.0
+move_speed = 1.8
+activation_range = 18.0
+attack_range = 14.0
+attack_windup = 1.0
+attack_cooldown = 2.2

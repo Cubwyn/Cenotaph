@@ -37,7 +37,9 @@ impl AudioSystem {
 
     /// Start the ambient drone loop. Idempotent.
     pub fn start_ambient(&mut self) {
-        if self.ambient_sink.is_some() { return; }
+        if self.ambient_sink.is_some() {
+            return;
+        }
         let sink = Sink::try_new(&self.stream_handle).ok();
         if let Some(s) = sink {
             s.append(AmbientDrone::new(44100));
@@ -46,15 +48,29 @@ impl AudioSystem {
         }
     }
 
+    pub fn pause_ambient(&self) {
+        if let Some(sink) = self.ambient_sink.as_ref() {
+            sink.pause();
+        }
+    }
+
+    pub fn resume_ambient(&self) {
+        if let Some(sink) = self.ambient_sink.as_ref() {
+            sink.play();
+        }
+    }
+
     /// One-shot effect: play a short procedural sound.
     pub fn play(&self, effect: SoundEffect) {
-        let Ok(sink) = Sink::try_new(&self.stream_handle) else { return };
+        let Ok(sink) = Sink::try_new(&self.stream_handle) else {
+            return;
+        };
         let source: OneShot = match effect {
             SoundEffect::Footstep => OneShot::new(0.12, 0.5, footstep_wave, 44100),
-            SoundEffect::Hit        => OneShot::new(0.08, 0.4, hit_wave,         44100),
+            SoundEffect::Hit => OneShot::new(0.08, 0.4, hit_wave, 44100),
             SoundEffect::LevelTransition => OneShot::new(0.45, 0.35, whoosh_wave, 44100),
-            SoundEffect::DeathSting => OneShot::new(0.6, 0.5,  death_wave,    44100),
-            SoundEffect::Pickup     => OneShot::new(0.2, 0.4,  pickup_wave,   44100),
+            SoundEffect::DeathSting => OneShot::new(0.6, 0.5, death_wave, 44100),
+            SoundEffect::Pickup => OneShot::new(0.2, 0.4, pickup_wave, 44100),
         };
         sink.append(source);
         sink.detach();
@@ -112,12 +128,7 @@ pub struct OneShot {
 }
 
 impl OneShot {
-    pub fn new(
-        duration_s: f32,
-        volume: f32,
-        wave_fn: fn(f32) -> f32,
-        sample_rate: u32,
-    ) -> Self {
+    pub fn new(duration_s: f32, volume: f32, wave_fn: fn(f32) -> f32, sample_rate: u32) -> Self {
         Self {
             sample_rate,
             total_samples: (duration_s * sample_rate as f32) as u32 * 2, // stereo frames * 2
@@ -145,10 +156,16 @@ impl Source for OneShot {
     fn current_frame_len(&self) -> Option<usize> {
         Some(self.total_samples.saturating_sub(self.sample_idx) as usize)
     }
-    fn channels(&self) -> u16 { 2 }
-    fn sample_rate(&self) -> u32 { self.sample_rate }
+    fn channels(&self) -> u16 {
+        2
+    }
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
     fn total_duration(&self) -> Option<Duration> {
-        Some(Duration::from_secs_f32(self.total_samples as f32 / 2.0 / self.sample_rate as f32))
+        Some(Duration::from_secs_f32(
+            self.total_samples as f32 / 2.0 / self.sample_rate as f32,
+        ))
     }
 }
 
@@ -162,7 +179,11 @@ pub struct AmbientDrone {
 
 impl AmbientDrone {
     pub fn new(sample_rate: u32) -> Self {
-        Self { sample_rate, sample_idx: 0, channels: 2 }
+        Self {
+            sample_rate,
+            sample_idx: 0,
+            channels: 2,
+        }
     }
 }
 
@@ -178,8 +199,16 @@ impl Iterator for AmbientDrone {
 }
 
 impl Source for AmbientDrone {
-    fn current_frame_len(&self) -> Option<usize> { None }
-    fn channels(&self) -> u16 { self.channels }
-    fn sample_rate(&self) -> u32 { self.sample_rate }
-    fn total_duration(&self) -> Option<Duration> { None }
+    fn current_frame_len(&self) -> Option<usize> {
+        None
+    }
+    fn channels(&self) -> u16 {
+        self.channels
+    }
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        None
+    }
 }

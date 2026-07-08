@@ -10,7 +10,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowId};
 
-use crate::core::engine::state::EngineState;
+use crate::core::engine::state::{EngineState, GameMode};
 use crate::systems::input::manager::InputManager;
 
 pub struct App {
@@ -44,15 +44,33 @@ impl App {
         window.set_cursor_visible(true);
     }
 
-    /// Toggle cursor grab state.
-    fn toggle_cursor_grab(&mut self) {
-        let Some(engine) = self.engine.as_ref() else { return };
-        if self.cursor_grabbed {
-            Self::release_cursor(&engine.window);
-            self.cursor_grabbed = false;
-        } else {
-            Self::grab_cursor(&engine.window);
-            self.cursor_grabbed = true;
+    /// Toggle pause state. Escape now pauses/unpauses the game,
+    /// and cursor visibility follows the game state.
+    fn toggle_pause_state(&mut self) {
+        let Some(engine) = self.engine.as_mut() else {
+            return;
+        };
+
+        self.input.reset_combat_inputs();
+        self.input.reset_mouse_delta();
+
+        match engine.game_mode {
+            GameMode::Playing => {
+                engine.game_mode = GameMode::Paused;
+                Self::release_cursor(&engine.window);
+                self.cursor_grabbed = false;
+                if let Some(audio) = engine.audio.as_ref() {
+                    audio.pause_ambient();
+                }
+            }
+            GameMode::Paused => {
+                engine.game_mode = GameMode::Playing;
+                Self::grab_cursor(&engine.window);
+                self.cursor_grabbed = true;
+                if let Some(audio) = engine.audio.as_ref() {
+                    audio.resume_ambient();
+                }
+            }
         }
     }
 }
@@ -72,20 +90,13 @@ impl ApplicationHandler for App {
             Self::grab_cursor(&window);
             self.cursor_grabbed = true;
 
-            let engine = pollster::block_on(EngineState::new(
-                window.clone(),
-                self.level_name.clone(),
-            ));
+            let engine =
+                pollster::block_on(EngineState::new(window.clone(), self.level_name.clone()));
             self.engine = Some(engine);
         }
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         let Some(engine) = self.engine.as_mut() else {
             return;
         };
@@ -106,8 +117,8 @@ impl ApplicationHandler for App {
                         },
                     ..
                 } => {
-                    // Toggle cursor grab on Escape
-                    self.toggle_cursor_grab();
+                    // Toggle pause on Escape
+                    self.toggle_pause_state();
                 }
 
                 WindowEvent::Resized(physical_size) => engine.resize(physical_size),
@@ -116,18 +127,16 @@ impl ApplicationHandler for App {
                     let now = std::time::Instant::now();
                     let dt = now.duration_since(self.last_frame).as_secs_f32();
                     self.last_frame = now;
-                    
+
                     // Cap delta time to prevent physics issues on frame drops
                     let capped_dt = dt.min(1.0 / 30.0);
-                    
+
                     engine.update_physics(&self.input, capped_dt);
                     engine.update_visuals(&mut self.input);
 
                     match engine.render() {
                         Ok(_) => {}
-                        Err(wgpu::SurfaceError::Lost) => {
-                            engine.resize(engine.size)
-                        }
+                        Err(wgpu::SurfaceError::Lost) => engine.resize(engine.size),
                         Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
                         Err(e) => eprintln!("[RENDER ERROR] {:?}", e),
                     }

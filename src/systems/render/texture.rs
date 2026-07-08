@@ -11,11 +11,7 @@ pub struct TextureManager {
 }
 
 impl TextureManager {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        layout: &wgpu::BindGroupLayout,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout) -> Self {
         let fallback = Self::create_fallback(device, queue, layout);
         Self {
             textures: HashMap::new(),
@@ -43,11 +39,8 @@ impl TextureManager {
         // the GPU interpolates between pixels, producing a smooth, fine-grained
         // pattern that is much less visually distracting than a sharp checker.
         let light = [180u8, 180, 180, 255];
-        let dark  = [ 90u8,  90,  90, 255];
-        let data = [
-            light, dark,
-            dark,  light,
-        ].concat();
+        let dark = [90u8, 90, 90, 255];
+        let data = [light, dark, dark, light].concat();
 
         let size = wgpu::Extent3d {
             width: 2,
@@ -76,7 +69,7 @@ impl TextureManager {
             &data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(8),  // 2 pixels * 4 bytes
+                bytes_per_row: Some(8), // 2 pixels * 4 bytes
                 rows_per_image: Some(2),
             },
             size,

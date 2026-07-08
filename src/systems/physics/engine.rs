@@ -1,9 +1,9 @@
 // src/physics/engine.rs
 // Physics engine using Rapier3D for collision detection and response.
 
-use rapier3d::prelude::*;
-use rapier3d::math::Vec3 as RVec3;
 use glam::Vec3;
+use rapier3d::math::Vec3 as RVec3;
+use rapier3d::prelude::*;
 
 use crate::data::config::gameplay::PhysicsConfig;
 use crate::data::world::level::{ColliderType, PropData};
@@ -20,7 +20,6 @@ const COYOTE_TIME: f32 = 0.1;
 pub struct PhysicsEngine {
     pub rigid_body_set: RigidBodySet,
     pub collider_set: ColliderSet,
-    pub integration_parameters: IntegrationParameters,
     pub physics_pipeline: PhysicsPipeline,
     pub island_manager: IslandManager,
     pub broad_phase: BroadPhaseBvh,
@@ -31,7 +30,8 @@ pub struct PhysicsEngine {
     pub player_body_handle: RigidBodyHandle,
     #[allow(dead_code)]
     pub player_collider_handle: ColliderHandle,
-    pub prop_colliders: Vec<ColliderHandle>,
+    pub prop_bodies: Vec<RigidBodyHandle>,
+    pub prop_colliders: Vec<Option<ColliderHandle>>,
     /// Tracks whether jump key was held last frame (for edge-triggered jumping).
     jump_was_pressed: bool,
     /// Seconds left in the coyote-time window after leaving the ground.
@@ -74,8 +74,10 @@ impl PhysicsEngine {
                 max_z = max_z.max(p.z);
             }
 
-            println!("[DEBUG] Physics mesh bounds: Y=[{:.1}, {:.1}], X=[{:.1}, {:.1}], Z=[{:.1}, {:.1}]",
-                min_y, max_y, min_x, max_x, min_z, max_z);
+            println!(
+                "[DEBUG] Physics mesh bounds: Y=[{:.1}, {:.1}], X=[{:.1}, {:.1}], Z=[{:.1}, {:.1}]",
+                min_y, max_y, min_x, max_x, min_z, max_z
+            );
 
             // Create a static rigid body for the level mesh
             let ground_rb = RigidBodyBuilder::fixed().build();
@@ -88,8 +90,11 @@ impl PhysicsEngine {
                 .build();
             collider_set.insert_with_parent(ground_collider, ground_rb_handle, &mut rigid_body_set);
 
-            println!("[DEBUG] Physics: level mesh collider created from {} vertices, {} triangles",
-                phys_points.len(), phys_indices.len());
+            println!(
+                "[DEBUG] Physics: level mesh collider created from {} vertices, {} triangles",
+                phys_points.len(),
+                phys_indices.len()
+            );
 
             // SAFETY FLOOR: Add a flat floor 2 units below the lowest mesh point.
             // This catches the player if they fall through the mesh due to
@@ -109,8 +114,12 @@ impl PhysicsEngine {
                 .build();
             collider_set.insert_with_parent(safety_collider, safety_rb_handle, &mut rigid_body_set);
 
-            println!("[DEBUG] Physics: safety floor at Y={}, size {} x {}",
-                safety_floor_y, half_width * 2.0, half_depth * 2.0);
+            println!(
+                "[DEBUG] Physics: safety floor at Y={}, size {} x {}",
+                safety_floor_y,
+                half_width * 2.0,
+                half_depth * 2.0
+            );
         } else {
             // Fallback: create ground at Y=125 if no level geometry
             let ground_rb = RigidBodyBuilder::fixed()
@@ -149,7 +158,6 @@ impl PhysicsEngine {
         Self {
             rigid_body_set,
             collider_set,
-            integration_parameters: IntegrationParameters::default(),
             physics_pipeline: PhysicsPipeline::new(),
             island_manager: IslandManager::new(),
             broad_phase: BroadPhaseBvh::new(),
@@ -159,34 +167,27 @@ impl PhysicsEngine {
             ccd_solver: CCDSolver::new(),
             player_body_handle,
             player_collider_handle,
+            prop_bodies: Vec::new(),
             prop_colliders: Vec::new(),
             jump_was_pressed: false,
             coyote_timer: 0.0,
         }
     }
 
-    pub fn add_prop(
-        &mut self,
-        prop: &PropData,
-        phys_points: &[Vec3],
-        phys_indices: &[[u32; 3]],
-    ) {
+    pub fn add_prop(&mut self, prop: &PropData, phys_points: &[Vec3], phys_indices: &[[u32; 3]]) {
         let is_dynamic = prop.enemy_type.is_some();
         let rb_builder = if is_dynamic {
-            RigidBodyBuilder::dynamic()
+            RigidBodyBuilder::dynamic().lock_rotations()
         } else {
             RigidBodyBuilder::fixed()
         };
 
-        let t = rapier3d::na::Translation3::new(
-            prop.position[0],
-            prop.position[1],
-            prop.position[2],
-        );
+        let t =
+            rapier3d::na::Translation3::new(prop.position[0], prop.position[1], prop.position[2]);
         let q = rapier3d::na::UnitQuaternion::identity();
         let pose = rapier3d::na::Isometry3::from_parts(t, q);
         let rb = rb_builder.pose(pose.into()).build();
-        let handle = self.rigid_body_set.insert(rb);
+        let body_handle = self.rigid_body_set.insert(rb);
 
         let collider_builder = match prop.collider_type {
             ColliderType::Box => Some(ColliderBuilder::cuboid(
@@ -196,22 +197,58 @@ impl PhysicsEngine {
             )),
             ColliderType::Sphere => Some(ColliderBuilder::ball(prop.scale[0] * 0.5)),
             ColliderType::Mesh => {
-                let rp: Vec<RVec3> = phys_points
-                    .iter()
-                    .map(|p| RVec3::new(p.x, p.y, p.z))
-                    .collect();
-                Some(ColliderBuilder::trimesh(rp, phys_indices.to_vec()).unwrap())
+                if phys_points.is_empty() || phys_indices.is_empty() {
+                    eprintln!(
+                        "[PHYSICS] Mesh collider for '{}' skipped because mesh data is empty.",
+                        prop.asset_id
+                    );
+                    None
+                } else {
+                    let rp: Vec<RVec3> = phys_points
+                        .iter()
+                        .map(|p| RVec3::new(p.x, p.y, p.z))
+                        .collect();
+                    match ColliderBuilder::trimesh(rp, phys_indices.to_vec()) {
+                        Ok(builder) => Some(builder),
+                        Err(e) => {
+                            eprintln!(
+                                "[PHYSICS] Mesh collider for '{}' failed: {}",
+                                prop.asset_id, e
+                            );
+                            None
+                        }
+                    }
+                }
             }
             ColliderType::None => None,
         };
 
-        if let Some(builder) = collider_builder {
-            #[allow(unused_mut)]
+        let collider_handle = collider_builder.map(|builder| {
             let col = builder.sensor(prop.is_hurtbox).build();
-            let col_handle =
-                self.collider_set
-                    .insert_with_parent(col, handle, &mut self.rigid_body_set);
-            self.prop_colliders.push(col_handle);
+            self.collider_set
+                .insert_with_parent(col, body_handle, &mut self.rigid_body_set)
+        });
+        self.prop_bodies.push(body_handle);
+        self.prop_colliders.push(collider_handle);
+    }
+
+    pub fn remove_prop(&mut self, index: usize) {
+        if index >= self.prop_bodies.len() {
+            return;
+        }
+
+        let body_handle = self.prop_bodies.remove(index);
+        self.rigid_body_set.remove(
+            body_handle,
+            &mut self.island_manager,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            true,
+        );
+
+        if index < self.prop_colliders.len() {
+            self.prop_colliders.remove(index);
         }
     }
 
@@ -221,20 +258,35 @@ impl PhysicsEngine {
         [t.x, t.y, t.z]
     }
 
+    pub fn get_prop_pos(&self, index: usize) -> Option<[f32; 3]> {
+        let handle = *self.prop_bodies.get(index)?;
+        let body = self.rigid_body_set.get(handle)?;
+        let t = body.translation();
+        Some([t.x, t.y, t.z])
+    }
+
+    pub fn set_prop_horizontal_velocity(&mut self, index: usize, x: f32, z: f32) {
+        let Some(handle) = self.prop_bodies.get(index).copied() else {
+            return;
+        };
+        let Some(body) = self.rigid_body_set.get_mut(handle) else {
+            return;
+        };
+
+        let current = body.linvel();
+        body.set_linvel(RVec3::new(x, current.y, z), true);
+    }
+
     /// Returns `true` if there is ground directly beneath the player, by casting
     /// a short ray downward using a QueryPipeline built from the broad-phase.
     fn check_grounded(&self) -> bool {
         let body = self.rigid_body_set.get(self.player_body_handle).unwrap();
         let pos = body.translation();
 
-        let ray = Ray::new(
-            pos.into(),
-            RVec3::new(0.0, -1.0, 0.0).into(),
-        );
+        let ray = Ray::new(pos, RVec3::new(0.0, -1.0, 0.0));
 
         // Build a query pipeline that excludes the player's own collider.
-        let filter = QueryFilter::default()
-            .exclude_collider(self.player_collider_handle);
+        let filter = QueryFilter::default().exclude_collider(self.player_collider_handle);
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
             &self.rigid_body_set,
@@ -325,5 +377,51 @@ impl PhysicsEngine {
             &(),
             &(),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn enemy_prop() -> PropData {
+        PropData {
+            asset_id: "Cube.obj".to_string(),
+            position: [1.0, 126.0, -2.0],
+            rotation: [0.0, 0.0, 0.0],
+            scale: [1.0, 1.0, 1.0],
+            collider_type: ColliderType::Sphere,
+            is_climbable: false,
+            is_hurtbox: false,
+            item_id: None,
+            resource_value: 0,
+            anchor_id: None,
+            enemy_type: Some("ashbound".to_string()),
+            enemy_health: 40.0,
+            light_color: None,
+            light_intensity: 0.0,
+            ambient_sound_id: None,
+            trigger_level_id: None,
+        }
+    }
+
+    #[test]
+    fn dynamic_prop_position_and_velocity_are_exposed() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        let prop = enemy_prop();
+
+        engine.add_prop(&prop, &[], &[]);
+        assert_eq!(engine.get_prop_pos(0), Some(prop.position));
+
+        engine.set_prop_horizontal_velocity(0, 2.0, -1.0);
+        let body = engine.rigid_body_set.get(engine.prop_bodies[0]).unwrap();
+        let velocity = body.linvel();
+        assert_eq!(velocity.x, 2.0);
+        assert_eq!(velocity.z, -1.0);
     }
 }

@@ -1,0 +1,297 @@
+CENOTAPH SOURCE LAYOUT GUIDE
+=============================
+Version: 0.33
+Purpose: Maps the physical source layout to the mental architecture model.
+
+==============================================================================
+PROJECT STRUCTURE
+==============================================================================
+
+cenotaph/
+├── Cargo.toml              # Package manifest. One crate. No workspaces.
+├── Cargo.lock             # Dependency lock file
+├── .gitignore             # Excludes textures/, target/, etc.
+│
+├── README.md              # Master project documentation
+├── readme.txt             # Plain-text project summary
+├── PROJECT_DOCUMENTATION.txt  # File-by-file documentation
+├── SYSTEMS.md             # Gameplay and technical systems design
+├── CONTENT_GUIDE.md       # Templates and rules for adding content
+├── LORE.md                # Mythology, tone, narrative rules
+├── ROADMAP.md             # Staged development plan
+├── TECHNICAL_NOTES.md     # Rust architecture, data registry, validation
+├── FOUNDATION.md          # Current stable groundwork and runtime contracts
+├── FOUNDATION_SMOKE_CHECKLIST.md # Manual GPU/play smoke checklist
+├── ASSET_GUIDE.md         # Model scale, export, naming, and replacement rules
+├── MODEL_RESET_PLAN.md    # Scratch model rebuild sequence
+├── ENEMY_GAMEPLAY_ROSTER.txt # Enemy gameplay roles and encounter recipes
+├── ENEMY_MODEL_GENERATOR_BRIEF.txt # Enemy 3D model generator guidance
+├── layout_guide.txt       # This file. Source tree explanation.
+│
+├── config/                # Designer-tweakable data files
+│   ├── bindings.toml      # Input keybindings
+│   └── tuning.toml        # Gameplay constants (speeds, damage, physics, debug)
+│
+├── data/
+│   └── enemies/*.toml     # Enemy definitions: role, stats, model, behavior tag
+│
+├── assets/                # Raw 3D assets (gitignored binaries)
+│   │                      # Note: props.json is source data and should be
+│   │                      # explicitly unignored in .gitignore, e.g.:
+│   │                      #   assets/*
+│   │                      #   !assets/props.json
+│   ├── *.obj / *.mtl      # Wavefront geometry and materials
+│   ├── *.glb              # GLTF binary scenes
+│   ├── *.blend            # Blender source files
+│   ├── enemies/*.obj      # Low-poly enemy silhouettes
+│   └── props.json         # Prop placement definitions
+│
+├── levels/                # Level data files
+│   ├── *.json             # Level metadata (spawn, props, base_map)
+│   ├── foundation_test.json # Groundwork smoke-test level
+│   ├── *.obj / *.mtl      # Exported level geometry
+│   └── *.blend            # Blender level sources
+│
+├── textures/              # Image textures (gitignored)
+│   └── *.png, *.jpg       # Loaded at startup by filename match
+│
+├── scripts/
+│   └── foundation_check.ps1 # Format, clippy, test, and validate.
+│
+└── src/                   # Rust source tree (see below)
+
+==============================================================================
+RUST SOURCE TREE
+==============================================================================
+
+src/
+├── main.rs                # Entry point. Creates winit event loop, launches App.
+│
+├── app.rs                 # winit::ApplicationHandler implementation.
+│                          # Owns EngineState. Routes OS/window events into engine.
+│
+├── core/                  # Engine core. Owns runtime state and orchestrates subsystems.
+│   ├── mod.rs             # pub mod engine;
+│   └── engine/
+│       ├── mod.rs         # pub use state::EngineState;
+│       ├── state.rs       # EngineState: owns GPU state and runtime subsystems,
+│       │                  # handles resize, update, and render orchestration.
+│       ├── update.rs      # Per-frame update: physics step + gameplay updates.
+│       ├── loader.rs      # Disk I/O: loads OBJ, GLB, textures, JSON.
+│       ├── sync.rs        # Instance buffer rebuild for rendering.
+│       ├── validation.rs  # Non-window project content validation.
+│       └── asset_catalog.rs  # Scans model assets.
+│
+├── systems/               # Engine subsystems (not gameplay logic).
+│   │                      # Must not depend on game/.
+│   ├── mod.rs             # pub mod input, physics, render;
+│   ├── input/
+│   │   ├── mod.rs         # pub use manager::InputManager;
+│   │   └── manager.rs     # Keyboard/mouse event capture and query.
+│   ├── physics/
+│   │   └── engine.rs      # Rapier3D wrapper: rigid bodies, colliders,
+│   │                      # physics pipeline, player movement physics.
+│   ├── render/
+│   │   ├── mod.rs         # Module root. Exports render subsystems.
+│   │   ├── pipeline.rs    # Render pipeline creation (shaders, layouts).
+│   │   ├── shader.wgsl    # Main WGSL vertex/fragment shader.
+│   │   ├── hud.wgsl       # WGSL shader for HUD overlay.
+│   │   ├── mesh.rs        # Mesh data structures (vertices, indices).
+│   │   ├── instance.rs    # Instance buffer for prop rendering.
+│   │   ├── texture.rs     # Texture loading and GPU upload.
+│   │   ├── camera.rs      # Camera state (view/projection matrices).
+│   │   ├── lighting.rs    # Light definitions and uniforms.
+│   │   ├── hud.rs         # HUD rendering framework (placeholder health/stamina bars).
+│   │   └── assets.rs      # Render-specific asset helpers.
+│   └── audio/
+│       └── mod.rs         # Audio system stub (rodio backend).
+│
+├── game/                  # Gameplay-owned state and rules.
+│   ├── mod.rs             # pub mod combat, enemy, player, progression;
+│   ├── combat.rs          # Prototype combat math.
+│   ├── enemy.rs           # Baseline enemy runtime/AI rules.
+│   ├── player.rs          # PlayerState, HealthState, StaminaState.
+│   └── progression.rs     # RunProgress resource and Anchor state.
+│
+└── data/                  # Pure data structures. No game logic.
+    │                      # Must not depend on core, systems, or game.
+    ├── mod.rs             # pub mod config, world;
+    ├── enemy.rs           # EnemyDefinition for data/enemies/*.toml.
+    ├── config/
+    │   ├── mod.rs
+    │   └── gameplay.rs    # Config structs loaded from tuning.toml:
+    │                      #   GameConfig, PlayerConfig, MovementConfig,
+    │                      #   PhysicsConfig, CameraConfig, CombatConfig,
+    │                      #   WorldConfig, LightingConfig, DebugConfig,
+    │                      #   and keybindings.
+    └── world/
+        ├── mod.rs
+        └── level.rs       # LevelData, PropData, ColliderType, validation.
+
+==============================================================================
+MODULE DEPENDENCY RULES
+==============================================================================
+
+1. main.rs → app.rs → core::engine::state
+2. core orchestrates systems, data, and game
+3. game may depend on data and selected systems APIs
+4. systems must not depend on game
+5. data must not depend on core, systems, or game
+
+This preserves a no-cycle architecture.
+
+Flow:
+  main
+    app
+      EngineState
+        ├── systems::input
+        ├── systems::physics
+        ├── systems::render
+        ├── game::player
+        └── data::*          (for config-driven values)
+
+==============================================================================
+DATA FLOW
+==============================================================================
+
+STARTUP:
+  main.rs
+    → App::new(level_name)
+      → EngineState::new()
+        → load tuning.toml  (data::config)
+        → load enemy TOML   (data::enemy)
+        → load level JSON   (data::world)
+        → materialize enemy props from enemy definitions
+        → load OBJ/GLB      (core::engine::loader)
+        → build GPU buffers (systems::render)
+        → build physics     (systems::physics)
+
+FRAME:
+  update()
+    → physics step
+    → EngineState gameplay bridge
+      → game::player state
+      → game::combat prototype hit math
+      → game::enemy baseline chase/attack
+      → game::progression resource/Anchor state
+      → hurtbox/death/respawn
+
+  render()
+    → systems::render
+
+EVENT:
+  keyboard/mouse
+    → systems::input
+    → EngineState gameplay bridge
+
+LEVEL LOAD:
+  levels/*.json
+    → data/enemies/*.toml materializes enemy props
+    → physics/render/combat receive concrete model, collider, and health values
+
+==============================================================================
+NAMING CONVENTIONS
+==============================================================================
+
+Files:       snake_case.rs
+Structs:     PascalCase
+Functions:   snake_case
+Constants:   SCREAMING_SNAKE_CASE
+Modules:     lowercase, one word per file
+Types:       prefer semantic suffixes such as State, Config, Data, Id, Type, System
+
+Examples:
+  PlayerState
+  StaminaConfig
+  RelicSuffixId
+  BurdenedArchetype
+
+==============================================================================
+WHERE THINGS LIVE
+==============================================================================
+
+Engine plumbing:       src/core/
+Input/Physics/Render:  src/systems/
+Gameplay logic:        src/game/
+Data definitions:      src/data/
+Asset I/O:             src/core/engine/loader.rs
+GPU buffers:           src/systems/render/
+Configuration:         config/tuning.toml → src/data/config/
+Level data:            levels/*.json → src/data/world/
+Prop data:             assets/props.json → src/data/world/
+3D models:             assets/, levels/
+Textures:              textures/
+
+Note on assets/props.json:
+  If assets/ is gitignored, ensure .gitignore contains:
+    assets/*
+    !assets/props.json
+  Alternatively, move prop source data to levels/props.json or
+  src/data/world/props.json.
+
+==============================================================================
+CURRENT BUILD STATUS
+==============================================================================
+
+COMPLETE:
+  - Rendering pipeline (WGPU + WGSL)
+  - Physics (Rapier3D)
+  - Basic movement controller in physics system
+  - Sprint and dash stamina groundwork
+  - Level loading (OBJ, GLB, JSON)
+  - Level validation for base maps, prop assets, transforms, enemies, triggers
+  - Enemy definition data and reference validation
+  - Project content validation for level JSON, config TOML, enemy TOML,
+    and referenced models
+  - Config loading (TOML) for player, movement, camera, physics, combat, world,
+    lighting, and debug logging
+  - HUD health/stamina bars, crosshair, hit flash, pause overlay
+  - Pause mode with cursor release and ambient pause/resume
+  - Audio system stub/procedural backend (rodio)
+  - PlayerState, HealthState, StaminaState
+  - Foundation test level
+  - Prototype resource pickup and Anchor banking/respawn
+
+MISSING (Stage 1 MVP):
+  - Combat and weapons beyond prototype prop shooting
+  - Advanced enemy AI and role-specific behavior
+  - Production enemy models
+  - Relic system
+  - Save/load
+  - Full Anchors and Sanctuary
+
+STAGE 1 ACCEPTANCE NOTE:
+  - Keep PlayerState as the source for health/stamina/death state.
+
+NEXT BUILD TARGET:
+  Convert the foundation into the First Ascent Prototype loop.
+
+FILES:
+  src/game/mod.rs
+  src/game/combat.rs
+  src/game/enemy.rs
+  src/game/player.rs
+  src/game/progression.rs
+
+IMPLEMENT:
+  - Anchor checkpoint and resource banking
+  - one route choice
+  - one enemy encounter with authored placement
+  - one loot/relic stub
+  - one run modifier stub
+
+DO NOT IMPLEMENT YET:
+  - inventory
+  - save/load
+  - full relic system
+  - full enemy roster
+  - full sanctuary
+  - wall-run
+  - procedural systems
+
+ACCEPTANCE:
+  - cargo fmt passes
+  - cargo test passes
+  - systems/ does not import game/
+  - data/ remains logic-free
+  - core can later own PlayerState without dependency cycles

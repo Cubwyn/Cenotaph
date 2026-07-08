@@ -2,8 +2,8 @@
 // Constructs the wgpu render pipeline from the shader and bind group layouts.
 // Kept separate so the pipeline can be rebuilt on resize or shader hot-reload.
 
-use crate::systems::render::mesh::Vertex;
 use crate::systems::render::instance::InstanceRaw;
+use crate::systems::render::mesh::Vertex;
 
 pub struct RenderPipeline {
     pub pipeline: wgpu::RenderPipeline,

@@ -2,9 +2,9 @@
 // First-person camera: position, orientation, view-projection matrix,
 // mouse-look controller, and movement-intent extraction.
 
-use glam::{Mat4, Vec3};
 use crate::data::config::gameplay::GameConfig;
 use crate::systems::input::manager::InputManager;
+use glam::{Mat4, Vec3};
 
 // ── Camera ────────────────────────────────────────────────────────────────────
 
@@ -60,19 +60,11 @@ impl CameraUniform {
 
 pub struct CameraController {
     sensitivity: f32,
-    /// Smoothed yaw velocity for interpolation
-    yaw_smooth: f32,
-    /// Smoothed pitch velocity for interpolation
-    pitch_smooth: f32,
 }
 
 impl CameraController {
     pub fn new(sensitivity: f32) -> Self {
-        Self {
-            sensitivity,
-            yaw_smooth: 0.0,
-            pitch_smooth: 0.0,
-        }
+        Self { sensitivity }
     }
 
     /// Apply raw mouse delta to camera yaw/pitch with smoothing.

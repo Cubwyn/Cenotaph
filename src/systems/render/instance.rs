@@ -12,8 +12,7 @@ pub struct Instance {
 
 impl Instance {
     pub fn to_raw(&self) -> InstanceRaw {
-        let model =
-            Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position);
+        let model = Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position);
         InstanceRaw {
             model: model.to_cols_array_2d(),
         }

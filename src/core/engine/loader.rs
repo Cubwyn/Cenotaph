@@ -8,27 +8,27 @@
 // handling and fallback mechanisms to ensure the game can start even with
 // missing or corrupted assets.
 
-use wgpu::util::DeviceExt;
 use std::fs;
+use wgpu::util::DeviceExt;
 
 use crate::systems::render::assets::{AssetManager, RenderAsset, RenderAssetMeshPart};
-use crate::systems::render::mesh::load_model;
+use crate::systems::render::mesh::try_load_model;
 use crate::systems::render::texture::TextureManager;
 
 // ── Texture loading ───────────────────────────────────────────────────────────
 
 /// Scans `textures/` directory and uploads every PNG/JPG to the TextureManager.
-/// 
+///
 /// This function automatically discovers texture files and uploads them to the GPU
 /// as texture resources with appropriate bind groups for shader access. It handles
 /// various image formats and provides fallback mechanisms for corrupted files.
-/// 
+///
 /// # Parameters
 /// - `device`: GPU device for creating texture resources
 /// - `queue`: GPU command queue for uploading texture data
 /// - `layout`: Bind group layout for texture and sampler bindings
 /// - `manager`: Texture manager to store the created bind groups
-/// 
+///
 /// # Process
 /// 1. Creates textures/ directory if it doesn't exist
 /// 2. Scans for PNG and JPG files
@@ -39,7 +39,7 @@ use crate::systems::render::texture::TextureManager;
 /// 7. Creates texture view and sampler
 /// 8. Creates bind group combining texture and sampler
 /// 9. Stores bind group in manager with filename as key
-/// 
+///
 /// # Error Handling
 /// - Missing files are skipped with warning messages
 /// - Corrupted images are skipped with detailed error reporting
@@ -53,43 +53,62 @@ pub fn load_textures_from_disk(
 ) {
     // Ensure textures directory exists, create if missing
     std::fs::create_dir_all("textures").unwrap_or_default();
-    let Ok(entries) = fs::read_dir("textures") else { return };
+    let Ok(entries) = fs::read_dir("textures") else {
+        return;
+    };
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let Some(ext) = path.extension().and_then(|s| s.to_str()) else { continue };
-        if !matches!(ext, "png" | "jpg") { continue; }
+        let Some(ext) = path.extension().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let ext = ext.to_ascii_lowercase();
+        if !matches!(ext.as_str(), "png" | "jpg" | "jpeg") {
+            continue;
+        }
 
         // Extract filename safely, skip if invalid UTF-8
         let file_name = match path.file_name().and_then(|name| name.to_str()) {
             Some(name) => name.to_string(),
             None => continue,
         };
-        
+
         // Load image file data with error handling
         let img_data = match fs::read(&path) {
             Ok(data) => data,
             Err(e) => {
-                eprintln!("Warning: Failed to read texture file {}: {}", path.display(), e);
+                eprintln!(
+                    "Warning: Failed to read texture file {}: {}",
+                    path.display(),
+                    e
+                );
                 continue;
             }
         };
-        
+
         // Decode image from memory with error handling
         let img = match image::load_from_memory(&img_data) {
             Ok(img) => img,
             Err(e) => {
-                eprintln!("Warning: Failed to decode texture file {}: {}", path.display(), e);
+                eprintln!(
+                    "Warning: Failed to decode texture file {}: {}",
+                    path.display(),
+                    e
+                );
                 continue;
             }
         };
-        
+
         // Convert to RGBA8 format for GPU compatibility
         let img_rgba = img.to_rgba8();
         let (w, h) = img_rgba.dimensions();
 
         // Create GPU texture with appropriate parameters
-        let tex_size = wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 };
+        let tex_size = wgpu::Extent3d {
+            width: w,
+            height: h,
+            depth_or_array_layers: 1,
+        };
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             size: tex_size,
             mip_level_count: 1,
@@ -100,7 +119,7 @@ pub fn load_textures_from_disk(
             label: Some(&file_name),
             view_formats: &[],
         });
-        
+
         // Upload image data to GPU texture
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -112,7 +131,7 @@ pub fn load_textures_from_disk(
             &img_rgba,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some((4 * w + 255) & !255),
+                bytes_per_row: Some(4 * w),
                 rows_per_image: Some(h),
             },
             tex_size,
@@ -120,7 +139,7 @@ pub fn load_textures_from_disk(
 
         // Create texture view for shader access
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        
+
         // Create sampler with repeat addressing and linear filtering
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -131,7 +150,7 @@ pub fn load_textures_from_disk(
             mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
-        
+
         // Create bind group combining texture and sampler for shader access
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
@@ -147,7 +166,7 @@ pub fn load_textures_from_disk(
             ],
             label: Some(&file_name),
         });
-        
+
         // Store bind group in manager for later use by shaders
         manager.insert(&file_name, bind_group);
     }
@@ -157,15 +176,15 @@ pub fn load_textures_from_disk(
 
 /// Scans `assets/` directory (including subdirectories) and uploads every GLB/GLTF/OBJ (except the base map) to
 /// the AssetManager as GPU vertex + index buffers.
-/// 
+///
 /// This function loads 3D model files and converts them into GPU-ready vertex and index
 /// buffers for rendering. It handles multiple model formats and provides error recovery
 /// for corrupted or unsupported files.
-/// 
+///
 /// # Parameters
 /// - `device`: GPU device for creating buffer resources
 /// - `assets`: Asset manager to store the created render assets
-/// 
+///
 /// # Process
 /// 1. Scans assets/ directory for model files
 /// 2. Skips the base map file (handled separately)
@@ -173,12 +192,12 @@ pub fn load_textures_from_disk(
 /// 4. Creates vertex buffer with vertex data
 /// 5. Creates index buffer for each mesh part
 /// 6. Stores render assets with filename as key
-/// 
+///
 /// # Supported Formats
 /// - GLB (Binary glTF)
 /// - GLTF (glTF JSON format)
 /// - OBJ (Wavefront OBJ format)
-/// 
+///
 /// # Error Handling
 /// - Missing assets directory prints warning and returns early
 /// - Unsupported file formats are skipped
@@ -194,7 +213,7 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
     // Recursively scan assets directory including subdirectories
     let mut found_any = false;
     let mut pending: Vec<std::path::PathBuf> = entries.flatten().map(|e| e.path()).collect();
-    
+
     while let Some(path) = pending.pop() {
         if path.is_dir() {
             // Add directory contents to pending queue
@@ -203,54 +222,84 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
             }
             continue;
         }
-        
-        if !path.is_file() { continue; }
-        
-        let Some(ext) = path.extension().and_then(|e| e.to_str()) else { continue };
-        if !matches!(ext, "glb" | "gltf" | "obj") { continue; }
 
-        // Extract filename safely, skip if invalid UTF-8
-        let file_name = match path.file_name().and_then(|name| name.to_str()) {
-            Some(name) => name.to_string(),
-            None => continue,
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+            continue;
         };
-        
+        let ext = ext.to_ascii_lowercase();
+        if !matches!(ext.as_str(), "glb" | "gltf" | "obj") {
+            continue;
+        }
+
+        let relative_asset_id = path
+            .strip_prefix("assets")
+            .ok()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .or_else(|| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+            });
+
+        let Some(asset_id) = relative_asset_id else {
+            continue;
+        };
+
         // Skip the base map file as it's handled separately by the level system
-        if file_name == "map_001.glb" { continue; }
+        if asset_id == "map_001.glb" {
+            continue;
+        }
 
         found_any = true;
-        
-        // Load model with panic handling to catch parsing errors
-        if let Ok((vertices, parts, _pp, _pi)) = std::panic::catch_unwind(
-            std::panic::AssertUnwindSafe(|| load_model(path.to_str().unwrap())),
-        ) {
+
+        // Load model with explicit error handling so one bad asset does not
+        // prevent the rest of the catalog from being usable.
+        if let Some(path_str) = path.to_str() {
+            let (vertices, parts, _pp, _pi) = match try_load_model(path_str) {
+                Ok(model) => model,
+                Err(error) => {
+                    eprintln!(
+                        "WARNING: Failed to load model asset {}: {}",
+                        path.display(),
+                        error
+                    );
+                    continue;
+                }
+            };
+
             // Create vertex buffer with all vertex data
-            let vertex_buffer =
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Asset Vertex Buffer"),
-                    contents: bytemuck::cast_slice(&vertices),
-                    usage: wgpu::BufferUsages::VERTEX,
-                });
-            
+            let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Asset Vertex Buffer"),
+                contents: bytemuck::cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
             // Create index buffers for each mesh part
             let mut render_parts = Vec::new();
             for part in parts {
-                let index_buffer =
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("Asset Index Buffer"),
-                        contents: bytemuck::cast_slice(&part.indices),
-                        usage: wgpu::BufferUsages::INDEX,
-                    });
+                let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Asset Index Buffer"),
+                    contents: bytemuck::cast_slice(&part.indices),
+                    usage: wgpu::BufferUsages::INDEX,
+                });
                 render_parts.push(RenderAssetMeshPart {
                     index_buffer,
                     num_indices: part.indices.len() as u32,
                     texture_name: part.texture_name,
                 });
             }
-            
-            // Store complete render asset in manager using filename as key
-            // (allows referencing by filename in level JSON regardless of subfolder)
-            assets.insert(file_name, RenderAsset { vertex_buffer, parts: render_parts });
+
+            // Store by the same relative path used by level JSON `asset_id`.
+            assets.insert(
+                asset_id,
+                RenderAsset {
+                    vertex_buffer,
+                    parts: render_parts,
+                },
+            );
         }
     }
 
@@ -259,4 +308,3 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
         eprintln!("WARNING: No prop model files (.obj, .glb, .gltf) found in assets/");
     }
 }
-

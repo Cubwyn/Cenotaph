@@ -1,0 +1,14 @@
+id = "burdened"
+display_name = "Burdened"
+role = "tank"
+behavior_tag = "slow_chase_melee"
+model_asset = "enemies/burdened.obj"
+collider_type = "Sphere"
+visual_tell = "wide hunched body with an oversized rear load for slow tank pressure"
+health = 120.0
+damage = 18.0
+move_speed = 1.4
+activation_range = 14.0
+attack_range = 1.8
+attack_windup = 0.75
+attack_cooldown = 1.8

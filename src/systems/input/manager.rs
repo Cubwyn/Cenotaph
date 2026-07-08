@@ -4,7 +4,9 @@
 #![allow(dead_code)]
 
 use std::collections::HashSet;
-use winit::event::{DeviceEvent, ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    DeviceEvent, ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent,
+};
 use winit::keyboard::{KeyCode, ModifiersState, PhysicalKey};
 
 pub struct InputManager {
@@ -18,7 +20,6 @@ pub struct InputManager {
     pub fire_primary: bool,
     pub fire_secondary: bool,
     pub reload: bool,
-    pub dash: bool,
     pub aim: bool,
     pub weapon_swap: bool,
     pub selected_art: Option<u8>, // 1-4
@@ -35,7 +36,6 @@ impl InputManager {
             fire_primary: false,
             fire_secondary: false,
             reload: false,
-            dash: false,
             aim: false,
             weapon_swap: false,
             selected_art: None,
@@ -57,17 +57,17 @@ impl InputManager {
                 ..
             } => {
                 match state {
-                    ElementState::Pressed => { 
+                    ElementState::Pressed => {
                         self.keys_pressed.insert(*keycode);
                         self.process_combat_keydown(*keycode);
                     }
-                    ElementState::Released => { 
+                    ElementState::Released => {
                         self.keys_pressed.remove(keycode);
                         self.process_combat_keyup(*keycode);
                     }
                 }
                 // Don't consume Escape so app.rs can handle cursor toggle
-                * keycode != winit::keyboard::KeyCode::Escape
+                *keycode != winit::keyboard::KeyCode::Escape
             }
 
             WindowEvent::ModifiersChanged(mods) => {
@@ -77,8 +77,12 @@ impl InputManager {
 
             WindowEvent::MouseInput { state, button, .. } => {
                 match state {
-                    ElementState::Pressed  => { self.mouse_pressed.insert(*button); }
-                    ElementState::Released => { self.mouse_pressed.remove(button); }
+                    ElementState::Pressed => {
+                        self.mouse_pressed.insert(*button);
+                    }
+                    ElementState::Released => {
+                        self.mouse_pressed.remove(button);
+                    }
                 }
                 true
             }
@@ -103,16 +107,28 @@ impl InputManager {
                 self.mouse_delta.1 += delta.1;
             }
             // Edge-triggered: only fire on the Pressed transition, not held
-            DeviceEvent::Button { button: 0, state: ElementState::Pressed } => {
+            DeviceEvent::Button {
+                button: 0,
+                state: ElementState::Pressed,
+            } => {
                 self.fire_primary = true;
             }
-            DeviceEvent::Button { button: 0, state: ElementState::Released } => {
+            DeviceEvent::Button {
+                button: 0,
+                state: ElementState::Released,
+            } => {
                 self.fire_primary = false;
             }
-            DeviceEvent::Button { button: 1, state: ElementState::Pressed } => {
+            DeviceEvent::Button {
+                button: 1,
+                state: ElementState::Pressed,
+            } => {
                 self.fire_secondary = true;
             }
-            DeviceEvent::Button { button: 1, state: ElementState::Released } => {
+            DeviceEvent::Button {
+                button: 1,
+                state: ElementState::Released,
+            } => {
                 self.fire_secondary = false;
             }
             _ => {}
@@ -122,7 +138,7 @@ impl InputManager {
     // ── Query interface ───────────────────────────────────────────────────────
 
     pub fn is_key_down(&self, keycode: Option<KeyCode>) -> bool {
-        keycode.map_or(false, |k| self.keys_pressed.contains(&k))
+        keycode.is_some_and(|k| self.keys_pressed.contains(&k))
     }
 
     pub fn is_mouse_down(&self, button: MouseButton) -> bool {
@@ -148,7 +164,6 @@ impl InputManager {
     fn process_combat_keydown(&mut self, keycode: KeyCode) {
         match keycode {
             KeyCode::KeyR => self.reload = true,
-            KeyCode::ShiftLeft => self.dash = true,
             KeyCode::ControlLeft => self.aim = true,
             KeyCode::Tab => self.weapon_swap = true,
             KeyCode::Digit1 => self.selected_art = Some(1),
@@ -162,7 +177,6 @@ impl InputManager {
     fn process_combat_keyup(&mut self, keycode: KeyCode) {
         match keycode {
             KeyCode::KeyR => self.reload = false,
-            KeyCode::ShiftLeft => self.dash = false,
             KeyCode::ControlLeft => self.aim = false,
             KeyCode::Tab => self.weapon_swap = false,
             _ => {}
@@ -173,7 +187,6 @@ impl InputManager {
         self.fire_primary = false;
         self.fire_secondary = false;
         self.reload = false;
-        self.dash = false;
         self.aim = false;
         self.weapon_swap = false;
         self.selected_art = None;

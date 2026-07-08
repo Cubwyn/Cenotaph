@@ -1,0 +1,50 @@
+{
+  "name": "Foundation Test",
+  "base_map": "assets/map_001.glb",
+  "player_spawn": [0.0, 130.0, 0.0],
+  "props": [
+    {
+      "asset_id": "Cube.obj",
+      "position": [4.0, 130.0, 0.0],
+      "scale": [1.0, 1.0, 1.0]
+    },
+    {
+      "asset_id": "Cube.obj",
+      "position": [2.0, 130.0, -2.0],
+      "scale": [0.4, 0.4, 0.4],
+      "resource_value": 25
+    },
+    {
+      "asset_id": "Cube.obj",
+      "position": [0.0, 130.0, -4.0],
+      "scale": [0.8, 2.5, 0.8],
+      "anchor_id": "foundation_anchor"
+    },
+    {
+      "asset_id": "Cube.obj",
+      "position": [0.0, 128.5, 4.0],
+      "scale": [4.0, 1.0, 4.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "Cube.obj",
+      "position": [6.0, 130.0, 0.0],
+      "scale": [1.5, 1.5, 1.5],
+      "collider_type": "Sphere",
+      "enemy_type": "Burdened"
+    },
+    {
+      "asset_id": "Cube.obj",
+      "position": [-6.0, 130.0, 0.0],
+      "scale": [1.5, 1.5, 1.5],
+      "collider_type": "Sphere",
+      "is_hurtbox": true
+    },
+    {
+      "asset_id": "Cube.obj",
+      "position": [0.0, 130.0, 8.0],
+      "scale": [1.0, 2.0, 1.0],
+      "trigger_level_id": "ashwalk_01"
+    }
+  ]
+}

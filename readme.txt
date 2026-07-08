@@ -1,102 +1,45 @@
 CENOTAPH: THE GREAT OMISSION
 ============================
-Project Document
 
-Version: 0.33
-Start Date: 2026-01-29
-Status: Architectural Refactoring Complete
+Short Project Summary
+Last Updated: July 1, 2026
 
+Cenotaph is a surreal vertical looter RPG about surviving repeated ascents
+through a hostile mountain that changes, forgets, and rewards adaptation.
 
-EXECUTIVE SUMMARY
------------------
-Genre: First-Person Action RPG / Shooter
-Structure: Vertical Metroidvania with modular loot systems
-Tone: Surreal decay, existential grandeur, tragic beauty
-Core Fantasy: Climb a dead kingdom's corpse to discover why reality forgot it.
+Current state:
+- Rust 2021 prototype.
+- winit, wgpu, Rapier3D, and rodio.
+- JSON level data and TOML config data.
+- TOML enemy definition data under data/enemies.
+- Foundation gameplay includes movement, jump, sprint, dash, pause, HUD,
+  prototype shooting, baseline enemy chase/attack, hurtbox damage, death,
+  respawn, prototype resource pickup/Anchor banking, and content validation.
 
+Run commands:
+- cargo run -- ashwalk_01
+- cargo run -- foundation_test
+- cargo run -- validate
 
-ELEVATOR PITCH
---------------
-A modular loot shooter set inside a sunken mountain made of crushed cathedrals and machine remains. 
+Core checks:
+- powershell -ExecutionPolicy Bypass -File scripts/foundation_check.ps1
+- cargo fmt --check
+- cargo clippy -- -D warnings
+- cargo test
 
-Players ascend through layered strata of forgotten architecture while manipulating memory and causality. The higher they climb, the more reality destabilizes—until they breach the surface and discover the universe has already ended.
+Current north star:
+First Ascent Prototype.
 
+Current enemy direction:
+The implemented content currently has a Burdened enemy prop backed by authored
+low-poly enemy silhouettes under assets/enemies. Runtime loading fills enemy
+health/collider/model data from data/enemies. The baseline enemy loop reads
+activation range, movement, attack range, wind-up, damage, and cooldown from
+the same data. The gameplay-first enemy roster is documented in
+ENEMY_GAMEPLAY_ROSTER.txt, and the 3D model generator brief is documented in
+ENEMY_MODEL_GENERATOR_BRIEF.txt.
 
-PROJECT STRUCTURE (0.33)
-------------------------
-
-The project has been refactored for clarity and maintainability:
-
-src/
-├── app.rs            # Application entry point & Event loop
-├── main.rs           # Module orchestration
-├── core/             # Engine core (State, Loader, etc.)
-├── systems/          # Subsystems (Input, Physics, Render)
-├── game/             # Gameplay systems (Stamina, Player)
-├── data/             # World, Textures, Config
-└── dev/              # Development tools (Editor)
-
-
-CORE ARCHITECTURE
------------------
-
-1. World Structure
-The Great Omission: A tectonic shaft of impossible depth.
-The Pillar of Regret: A mountain formed from crushed architecture, petrified roots, and ancient machinery.
-The Obsidian Spire: A black glass tower piercing the cavern ceiling into the dead world above.
-
-2. Strata Overview (Playable Biomes)
-(Retained from previous versions: The Ash-Walk, The Ward of Irons, The Hanging Slums, The Sanctuary, The Gallery of Wind, The Mirror-Crust, The Breach)
-
-
-CORE GAMEPLAY SYSTEMS
----------------------
-
-1. Combat Philosophy
-Fast, responsive FPS combat with vertical mobility.
-
-2. Modular Relic Weapons
-(Schizoid, Moonchild, Sovereign parts)
-
-3. Resonance System
-The Bell-Clapper: Ringing the Great Bell unlocks previously "silenced" areas, reveals omitted objects, and changes enemy behavior in lower strata.
-
-4. Vertical Traversal
-Movement Toolkit: Combat dodge, rope/chain swinging, and chain, rock, and building climbing.
-
-
-ENEMY FACTIONS
---------------
-(Burdened, Silencers, Paranoiacs, Harpies)
-
-
-DEVELOPMENT PRIORITIES
-----------------------
-
-Phase 1: Foundation (Complete)
-- [x] Engine rendering pipeline (WGPU)
-- [x] Physics integration (Rapier3D)
-- [x] Basic movement and vertical traversal 
-- [x] Configuration handling and generic inputs
-- [x] Architectural refactoring (v0.33)
-- [x] Polish player physics controller
-
-Phase 2: Core Gameplay Mechanics (In-Progress)
-- [ ] Enemy AI and basic combat loop
-- [ ] Save features
-- [ ] Modular weapon generation
-- [ ] Bell resonance progression mechanic
-
-Phase 3: Content Creation (Planned)
-- [ ] Complete all 7 strata
-- [ ] Boss encounters and enemy factions
-- [ ] Audio, music, and atmosphere integration
-
-
-CONCLUSION
-----------
-
-Cenotaph: The Great Omission (v0.33) has transitioned from a monolithic foundation to a modular, tree-based architecture, significantly improving code readability and maintainability. The core engine and traversal systems are stable, and the project is now well-positioned for the intensive content-creation phase.
-
-Document Maintained By: _Cubwyn
-Last Updated: May 5, 2026
+Best source of truth:
+- README.md for the master overview.
+- FOUNDATION.md for the current stable groundwork.
+- layout_guide.txt for the source tree.

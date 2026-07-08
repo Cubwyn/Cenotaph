@@ -201,7 +201,9 @@ The player sees the scale of the mountain and understands that the climb will no
 
 ### Primary Threats
 
+- Ashbound
 - Burdened
+- Censer
 - Basic Harpies
 - Early elite variants
 
@@ -275,6 +277,7 @@ The player feels trapped inside a system that continues operating after meaning 
 ### Primary Threats
 
 - Burdened
+- Bellworn
 - Silencers
 - Armored enemy variants
 
@@ -349,6 +352,7 @@ The player sees that people once tried to live inside the climb.
 
 - Harpies
 - Paranoiacs
+- Chainrunners
 - Fast enemy variants
 
 ### Route Style
@@ -749,7 +753,8 @@ Use this when designing new enemies.
 
 ### Role
 
-Pressure / Suppression / Escalation / Aerial / Ambush / Boss / Other
+Grunt / Tank / Glass Cannon / High-Speed / Aerial / Ranged Harasser /
+Suppressor / Escalator / Swarmer / Controller / Duelist / Boss / Other
 
 ### Theme
 
@@ -762,6 +767,10 @@ How does it move, attack, and react?
 ### Player Counterplay
 
 How should the player respond?
+
+### Encounter Use
+
+What group composition, room shape, or route problem does this enemy support?
 
 ### Threatened Player Options
 
@@ -882,6 +891,10 @@ Use this section to collect future content ideas before approving them.
 
 ## Enemies
 
+- [ ] Ashbound
+- [ ] Censer
+- [ ] Chainrunner
+- [ ] Bellworn
 - [ ] Anchor parasite
 - [ ] Chain pilgrim
 - [ ] Mirror of the player
@@ -913,7 +926,7 @@ Use this section to separate ideas from committed content.
 ## Approved For MVP
 
 - [ ] One weapon family
-- [ ] One enemy
+- [ ] One baseline enemy role, preferably Ashbound or Burdened
 - [ ] One elite modifier
 - [ ] One hazard
 - [ ] One safe room
@@ -923,9 +936,11 @@ Use this section to separate ideas from committed content.
 ## Approved For Ash-Walk Pilgrimage
 
 - [ ] Three weapon families
+- [ ] Ashbound
 - [ ] Burdened
+- [ ] Censer
 - [ ] Harpy
-- [ ] Silencer or Paranoiac
+- [ ] Chainrunner or Paranoiac
 - [ ] Ash storm event
 - [ ] Basic Sanctuary
 - [ ] One boss or named elite
