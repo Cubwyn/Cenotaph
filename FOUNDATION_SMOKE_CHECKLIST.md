@@ -30,6 +30,7 @@ Pass checks:
 - [ ] `Space` jumps, falling returns to stable ground, and collision feels sane.
 - [ ] `Shift` sprint changes speed and drains stamina on the HUD.
 - [ ] `Q` dash fires once per press, consumes stamina, and respects cooldown.
+- [ ] `I` does not swap relics before at least two relics are owned.
 - [ ] `Escape` pauses, releases cursor, shows pause overlay, and resumes cleanly.
 - [ ] Ambient audio starts, pauses, and resumes with the game.
 
@@ -46,6 +47,10 @@ Pass checks:
 - [ ] Decorative, resource, Anchor, static, enemy, hurtbox, and trigger props render.
 - [ ] Walking over the small resource prop logs unsecured resource collection.
 - [ ] Walking into the Anchor logs activation and banks unsecured resource.
+- [ ] Walking over a relic pickup adds it to owned relics; the first relic
+  equips, later relics are stored without replacing the equipped relic.
+- [ ] Pressing `I` after owning at least two relics cycles the equipped relic and
+  the ascent HUD updates.
 - [ ] Death after collecting unbanked resource logs unsecured resource loss.
 - [ ] Respawn uses the active Anchor after it has been activated.
 - [ ] Static props block movement as expected.
@@ -57,6 +62,22 @@ Pass checks:
 - [ ] Player death triggers hit feedback, death audio, delayed respawn, and health
   restoration.
 - [ ] Transition trigger loads the target level without panic.
+
+## Save / Continue
+
+After collecting resource and at least one relic, exit and run:
+
+```powershell
+cargo run -- continue
+```
+
+Pass checks:
+
+- [ ] The saved level loads without falling back to the default map.
+- [ ] Banked resource, active cycle, owned relic count, and equipped relic are
+  restored in the HUD/console output.
+- [ ] Runtime autosaves remain local developer state and do not appear as
+  trackable project content.
 
 ## Failure Notes
 

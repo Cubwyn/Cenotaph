@@ -1,4 +1,4 @@
-// src/physics/engine.rs
+// src/systems/physics/engine.rs
 // Physics engine using Rapier3D for collision detection and response.
 
 use glam::Vec3;
@@ -28,7 +28,6 @@ pub struct PhysicsEngine {
     pub multibody_joint_set: MultibodyJointSet,
     pub ccd_solver: CCDSolver,
     pub player_body_handle: RigidBodyHandle,
-    #[allow(dead_code)]
     pub player_collider_handle: ColliderHandle,
     pub prop_bodies: Vec<RigidBodyHandle>,
     pub prop_colliders: Vec<Option<ColliderHandle>>,

@@ -1,10 +1,10 @@
-// src/world/level.rs
-// LevelData is the serialisable description of a single playable area.
+// src/data/world/level.rs
+// LevelData is the serializable description of a single playable area.
 // PropData describes every object placed inside that area.
 // ColliderType drives the physics engine's collider selection.
 //
 // This module defines the data structures used to represent levels and their contents.
-// Levels are serialized to JSON for persistence and can be loaded dynamically at runtime.
+// Levels are serialized to JSON and can be loaded dynamically at runtime.
 // The system supports both static level geometry and dynamic props with various gameplay properties.
 
 use serde::{Deserialize, Serialize};
@@ -103,7 +103,7 @@ pub struct PropData {
 ///
 /// A LevelData contains all the information needed to load and render a complete
 /// game level, including the base geometry, props, and atmospheric settings.
-/// Levels are serialized to JSON for persistence and can be loaded dynamically.
+/// Levels are serialized to JSON and can be loaded dynamically.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LevelData {
     /// Human-readable name of the level for display purposes
@@ -118,7 +118,7 @@ pub struct LevelData {
 }
 
 impl LevelData {
-    /// Returns the default level used when no save file exists.
+    /// Returns the default level used when no level file exists.
     ///
     /// This provides a fallback level with basic settings that allows the game
     /// to start even if no level files are present. It's also useful for testing
@@ -207,30 +207,6 @@ impl LevelData {
             Err(errors)
         }
     }
-
-    /// Serialises the level to a pretty-printed JSON file.
-    ///
-    /// # Parameters
-    /// - `file_path`: Path where the JSON file should be saved
-    ///
-    /// # Returns
-    /// - `Ok(())` on successful save
-    /// - `Err(String)` with error message if serialization or file writing fails
-    ///
-    /// # Usage
-    /// This is used for saving level edits, creating backup files, or exporting
-    /// levels for sharing or version control.
-    #[allow(dead_code)]
-    pub fn save(&self, file_path: &str) -> Result<(), String> {
-        let data = match serde_json::to_string_pretty(self) {
-            Ok(data) => data,
-            Err(e) => return Err(format!("Failed to serialize level: {}", e)),
-        };
-        match fs::write(file_path, data) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(format!("Failed to write level file: {}", e)),
-        }
-    }
 }
 
 impl PropData {
@@ -284,9 +260,28 @@ impl PropData {
         {
             errors.push(format!("{} anchor_id must not be empty", label));
         }
+        if self
+            .item_id
+            .as_ref()
+            .is_some_and(|item_id| item_id.trim().is_empty())
+        {
+            errors.push(format!("{} item_id must not be empty", label));
+        }
         if self.resource_value > 0 && self.enemy_type.is_some() {
             errors.push(format!(
                 "{} cannot be both a resource pickup and an enemy",
+                label
+            ));
+        }
+        if self.resource_value > 0 && self.item_id.is_some() {
+            errors.push(format!(
+                "{} cannot be both a resource pickup and an item pickup",
+                label
+            ));
+        }
+        if self.enemy_type.is_some() && self.item_id.is_some() {
+            errors.push(format!(
+                "{} cannot be both an item pickup and an enemy",
                 label
             ));
         }
@@ -373,6 +368,15 @@ mod tests {
     }
 
     #[test]
+    fn validation_rejects_empty_item_id() {
+        let prop: PropData =
+            serde_json::from_str(r#"{ "asset_id": "Cube.obj", "item_id": "" }"#).unwrap();
+
+        let errors = prop.validation_errors(0);
+        assert!(errors.iter().any(|error| error.contains("item_id")));
+    }
+
+    #[test]
     fn validation_rejects_enemy_resource_combo() {
         let prop: PropData = serde_json::from_str(
             r#"{ "asset_id": "Cube.obj", "enemy_type": "Burdened", "resource_value": 5 }"#,
@@ -384,18 +388,27 @@ mod tests {
     }
 
     #[test]
-    fn save_writes_level_json() {
-        let level = LevelData::default_level();
-        let path = std::env::temp_dir().join("cenotaph_level_save_test.json");
-        level.save(path.to_str().unwrap()).unwrap();
-        assert!(path.exists());
-        let _ = fs::remove_file(path);
+    fn validation_rejects_item_resource_combo() {
+        let prop: PropData = serde_json::from_str(
+            r#"{ "asset_id": "Cube.obj", "item_id": "ash_splinter", "resource_value": 5 }"#,
+        )
+        .unwrap();
+
+        let errors = prop.validation_errors(0);
+        assert!(errors.iter().any(|error| error.contains("item pickup")));
     }
 
     #[test]
     fn foundation_test_level_validates() {
         let level = LevelData::load("levels/foundation_test.json");
-        assert_eq!(level.props.len(), 7);
+        assert_eq!(level.props.len(), 16);
+        assert_eq!(level.validate(), Ok(()));
+    }
+
+    #[test]
+    fn movement_test_level_validates() {
+        let level = LevelData::load("levels/movement_test.json");
+        assert_eq!(level.props.len(), 18);
         assert_eq!(level.validate(), Ok(()));
     }
 }

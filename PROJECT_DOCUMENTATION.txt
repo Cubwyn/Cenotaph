@@ -25,9 +25,12 @@ Current implementation status:
 - rodio-backed audio.
 - JSON level data.
 - TOML tuning and bindings.
+- TOML enemy and relic definitions.
 - Foundation gameplay: movement, jump, sprint, dash, pause, HUD, prototype
   shooting, baseline enemy chase/attack, hurtboxes, death, respawn, prototype
-  resource pickup/Anchor banking, and project content validation.
+  resource pickup/Anchor banking, authored relic pickup/reward flow,
+  owned-relic cycling, autosave/resume, basic cycle modifiers, and project
+  content validation.
 
 Current north star:
 First Ascent Prototype.
@@ -56,6 +59,10 @@ MODEL_RESET_PLAN.md
 
 layout_guide.txt
   Current source tree and dependency rules.
+
+PROJECT_LAYOUT_FLOWCHART.md
+  Plain-language project map, runtime flowcharts, and common implementation
+  paths.
 
 SYSTEMS.md
   Gameplay and technical systems design: ascent, relics, builds, threats,
@@ -89,6 +96,12 @@ readme.txt
 RUNTIME COMMANDS
 ================================================================================
 
+Run default movement/combat sandbox:
+  cargo run
+
+Resume autosave:
+  cargo run -- continue
+
 Run Ash-Walk:
   cargo run -- ashwalk_01
 
@@ -120,6 +133,15 @@ config/
     Designer-tweakable gameplay constants for player, movement, camera, physics,
     combat, world, lighting, and debug logging.
 
+data/
+  enemies/*.toml
+    Gameplay-first enemy definitions. Current starter definitions are Ashbound,
+    Burdened, Censer, Chainrunner, and Harpy. They reference low-poly enemy
+    silhouettes under assets/enemies until production enemy models are generated.
+
+  relics/*.toml
+    Authored prototype relic definitions used by level pickups and enemy rewards.
+
 levels/
   ashwalk_01.json
     Current Ash-Walk level shell. Uses assets/ashwalk_001.obj as its base map.
@@ -145,17 +167,12 @@ assets/
     Foundation/default map assets.
 
   props.json
-    Legacy/source prop data. Current level placement is driven by levels/*.json.
+    Generated model catalog snapshot. Current level placement is driven by
+    levels/*.json.
 
 textures/
   Texture directory. PNG/JPG/JPEG files are loaded by filename when present;
   a checkerboard fallback is used when no texture is available.
-
-data/
-  enemies/*.toml
-    Gameplay-first enemy definitions. Current starter definitions are Ashbound,
-    Burdened, Censer, Chainrunner, and Harpy. They reference low-poly enemy
-    silhouettes under assets/enemies until production enemy models are generated.
 
 scripts/
   foundation_check.ps1
@@ -201,13 +218,17 @@ src/data/
 src/data/enemy.rs
   EnemyDefinition loading and validation helpers for data/enemies/*.toml.
 
+src/data/relic.rs
+  RelicDefinition loading, ID normalization, value validation, and registry
+  lookup helpers for data/relics/*.toml.
+
 src/data/config/gameplay.rs
   GameConfig plus PlayerConfig, MovementConfig, CameraConfig, PhysicsConfig,
   CombatConfig, WorldConfig, LightingConfig, DebugConfig, and keybinding parsing.
 
 src/data/world/level.rs
-  LevelData, PropData, ColliderType, level loading, save helpers, defaults, and
-  validation rules.
+  LevelData, PropData, ColliderType, level loading, defaults, and validation
+  rules.
 
 src/game/
   Gameplay-owned state and rules.
@@ -226,6 +247,22 @@ src/game/player.rs
 src/game/progression.rs
   RunProgress for unsecured resource, banked resource, Anchor activation, local
   Anchor respawn, and death loss rules.
+
+src/game/relic.rs
+  Owned relic inventory state, explicit acquisition outcomes, equipped relic
+  selection, relic stat modifiers, and cycle-to-next selection rules.
+
+src/game/cycle.rs
+  Basic cycle number/modifier state, reward scaling, enemy damage scaling, relic
+  damage scaling, and deterministic prototype enemy reward relic IDs.
+
+src/game/save.rs
+  SaveData snapshot/load helpers for level, cycle, resource, Anchor, respawn,
+  relic inventory, and equipped relic state.
+
+src/game/feedback.rs
+  Gameplay feedback timers, event feed entries, camera shake, and HUD flash
+  triggers for combat, pickups, relics, debug actions, healing, and death.
 
 src/systems/
   Engine subsystems.
@@ -293,9 +330,9 @@ Validation currently checks:
 - runtime level loading fills enemy prop model/collider/health from enemy
   definitions
 - enemy activation ranges cannot be smaller than attack ranges
-- referenced model assets use supported extensions
-- referenced model assets load successfully
-- referenced model assets contain render and physics geometry
+- all model assets under assets/ use supported extensions
+- all model assets under assets/ load successfully
+- all model assets under assets/ contain render and physics geometry
 - tuning.toml parses and uses sane numeric ranges
 - bindings.toml has required actions, valid tokens, and no duplicate bindings
 
@@ -304,12 +341,10 @@ ENEMY DESIGN STATUS
 ================================================================================
 
 Implemented in content:
-- Burdened is the only current enemy_type used by levels/foundation_test.json.
-- It is represented by an authored low-poly Burdened silhouette.
-- Its runtime health/collider/model are now supplied by
-  data/enemies/burdened.toml.
 - Starter enemy definitions now reference role-shaped low-poly silhouettes for
   Ashbound, Burdened, Censer, Chainrunner, and Harpy.
+- levels/foundation_test.json and levels/movement_test.json both place all five
+  starter enemy archetypes for testing.
 - Baseline enemy chase/attack reads activation range, movement, attack range,
   wind-up, damage, and cooldown from enemy definitions.
 
@@ -335,12 +370,12 @@ CURRENT NON-GOALS
 
 Not implemented yet:
 - Advanced enemy AI and role-specific behaviors
-- Relic generation
-- Inventory
-- Save/load
+- Generated relic rolls, rarity affixes, and item comparison
+- Full inventory UI
+- Save slots, migration, and conflict handling
 - Full Anchor UI/persistence
 - Sanctuary UI
-- Cycle Director
+- Full run-contract Cycle Director
 - Procedural route generation
 - Full content registry
 

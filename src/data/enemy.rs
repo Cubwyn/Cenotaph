@@ -105,6 +105,9 @@ impl EnemyDefinition {
         require_non_empty("behavior_tag", &self.behavior_tag, &mut errors);
         require_non_empty("model_asset", &self.model_asset, &mut errors);
         require_non_empty("visual_tell", &self.visual_tell, &mut errors);
+        if !self.behavior_tag.trim().is_empty() && !is_known_behavior_tag(&self.behavior_tag) {
+            errors.push(format!("unknown behavior_tag '{}'", self.behavior_tag));
+        }
 
         require_positive("health", self.health, &mut errors);
         require_non_negative("damage", self.damage, &mut errors);
@@ -147,6 +150,13 @@ pub fn normalize_enemy_id(value: &str) -> String {
     }
 
     normalized.trim_matches('_').to_string()
+}
+
+fn is_known_behavior_tag(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "chase_melee" | "slow_chase_melee" | "ranged_windup" | "flanker_lunge" | "aerial_dive"
+    )
 }
 
 fn require_non_empty(name: &str, value: &str, errors: &mut Vec<String>) {
@@ -233,6 +243,31 @@ mod tests {
         assert!(errors
             .iter()
             .any(|error| error.contains("activation_range must be >= attack_range")));
+    }
+
+    #[test]
+    fn rejects_unknown_behavior_tag() {
+        let enemy = EnemyDefinition {
+            id: "test".to_string(),
+            display_name: "Test".to_string(),
+            role: "grunt".to_string(),
+            behavior_tag: "made_up_behavior".to_string(),
+            model_asset: "Cube.obj".to_string(),
+            collider_type: ColliderType::Sphere,
+            visual_tell: "test silhouette".to_string(),
+            health: 20.0,
+            damage: 4.0,
+            move_speed: 2.0,
+            activation_range: 8.0,
+            attack_range: 2.0,
+            attack_windup: 0.25,
+            attack_cooldown: 1.0,
+        };
+
+        assert!(enemy
+            .validation_errors()
+            .iter()
+            .any(|error| error.contains("unknown behavior_tag")));
     }
 
     #[test]

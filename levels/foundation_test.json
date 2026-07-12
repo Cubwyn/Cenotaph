@@ -4,45 +4,103 @@
   "player_spawn": [0.0, 130.0, 0.0],
   "props": [
     {
-      "asset_id": "Cube.obj",
+      "asset_id": "props/test_obelisk.obj",
       "position": [4.0, 130.0, 0.0],
       "scale": [1.0, 1.0, 1.0]
     },
     {
-      "asset_id": "Cube.obj",
+      "asset_id": "pickups/resource_shard.obj",
       "position": [2.0, 130.0, -2.0],
       "scale": [0.4, 0.4, 0.4],
       "resource_value": 25
     },
     {
-      "asset_id": "Cube.obj",
-      "position": [0.0, 130.0, -4.0],
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [4.0, 130.0, -2.0],
+      "scale": [0.3, 0.3, 0.3],
+      "resource_value": 10
+    },
+    {
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [-4.0, 130.0, -2.0],
+      "scale": [0.3, 0.3, 0.3],
+      "resource_value": 10
+    },
+    {
+      "asset_id": "pickups/relic_ash_splinter.obj",
+      "position": [-2.0, 130.0, -2.5],
+      "scale": [0.35, 0.35, 0.35],
+      "item_id": "ash_splinter"
+    },
+    {
+      "asset_id": "pickups/relic_veil_cinder.obj",
+      "position": [0.0, 130.0, -3.0],
+      "scale": [0.35, 0.35, 0.35],
+      "item_id": "veil_cinder"
+    },
+    {
+      "asset_id": "pickups/relic_chain_sigil.obj",
+      "position": [2.0, 130.0, -2.5],
+      "scale": [0.35, 0.35, 0.35],
+      "item_id": "chain_sigil"
+    },
+    {
+      "asset_id": "world/anchor_marker.obj",
+      "position": [0.0, 130.0, -6.0],
       "scale": [0.8, 2.5, 0.8],
       "anchor_id": "foundation_anchor"
     },
     {
-      "asset_id": "Cube.obj",
+      "asset_id": "props/test_platform.obj",
       "position": [0.0, 128.5, 4.0],
       "scale": [4.0, 1.0, 4.0],
       "collider_type": "Box"
     },
     {
-      "asset_id": "Cube.obj",
-      "position": [6.0, 130.0, 0.0],
+      "asset_id": "enemies/ashbound.obj",
+      "position": [16.0, 130.0, 6.0],
+      "scale": [1.2, 1.2, 1.2],
+      "collider_type": "Sphere",
+      "enemy_type": "Ashbound"
+    },
+    {
+      "asset_id": "enemies/burdened.obj",
+      "position": [22.0, 130.0, 0.0],
       "scale": [1.5, 1.5, 1.5],
       "collider_type": "Sphere",
       "enemy_type": "Burdened"
     },
     {
-      "asset_id": "Cube.obj",
+      "asset_id": "enemies/censer.obj",
+      "position": [-20.0, 130.0, 8.0],
+      "scale": [1.1, 1.1, 1.1],
+      "collider_type": "Sphere",
+      "enemy_type": "Censer"
+    },
+    {
+      "asset_id": "enemies/chainrunner.obj",
+      "position": [16.0, 130.0, -6.0],
+      "scale": [1.1, 1.1, 1.1],
+      "collider_type": "Sphere",
+      "enemy_type": "Chainrunner"
+    },
+    {
+      "asset_id": "enemies/harpy.obj",
+      "position": [-24.0, 132.0, -6.0],
+      "scale": [1.2, 1.2, 1.2],
+      "collider_type": "Sphere",
+      "enemy_type": "Harpy"
+    },
+    {
+      "asset_id": "world/hurtbox_warning.obj",
       "position": [-6.0, 130.0, 0.0],
       "scale": [1.5, 1.5, 1.5],
       "collider_type": "Sphere",
       "is_hurtbox": true
     },
     {
-      "asset_id": "Cube.obj",
-      "position": [0.0, 130.0, 8.0],
+      "asset_id": "world/transition_gate.obj",
+      "position": [0.0, 130.0, 12.0],
       "scale": [1.0, 2.0, 1.0],
       "trigger_level_id": "ashwalk_01"
     }

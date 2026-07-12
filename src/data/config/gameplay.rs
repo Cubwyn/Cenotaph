@@ -1,8 +1,13 @@
-// src/config/gameplay.rs
+// src/data/config/gameplay.rs
 // Game configuration system - everything a designer needs to tweak
 // without touching code. All values have clear descriptions and sane defaults.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use winit::keyboard::KeyCode;
+
+type KeyBindings = HashMap<String, Option<KeyCode>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -15,24 +20,19 @@ pub struct GameConfig {
     pub world: WorldConfig,
     pub lighting: LightingConfig,
     pub debug: DebugConfig,
-    // Key bindings — manually loaded from config/bindings.toml via load_bindings()
-    // Note: serde skip is required because winit::KeyCode does not implement Serialize/Deserialize
+    // KeyCode is loaded manually because winit does not serialize it.
     #[serde(skip_serializing, skip_deserializing)]
-    pub keys: std::collections::HashMap<String, Option<winit::keyboard::KeyCode>>,
+    pub keys: KeyBindings,
 }
 
 impl GameConfig {
     /// Returns the KeyCode bound to `action`, or `None` if unbound / unknown.
-    pub fn key(&self, action: &str) -> Option<winit::keyboard::KeyCode> {
+    pub fn key(&self, action: &str) -> Option<KeyCode> {
         self.keys.get(action).copied().flatten()
     }
 
-    /// Load configuration from config/bindings.toml and config/tuning.toml
     pub fn load() -> Self {
-        // Load tuning.toml for all game constants
         let tuning = Self::load_tuning();
-
-        // Load bindings.toml for key bindings
         let keys = Self::load_bindings();
 
         Self {
@@ -69,23 +69,8 @@ impl GameConfig {
         }
     }
 
-    fn load_bindings() -> std::collections::HashMap<String, Option<winit::keyboard::KeyCode>> {
-        let default_keys = vec![
-            ("forward", "W"),
-            ("backward", "S"),
-            ("left", "A"),
-            ("right", "D"),
-            ("jump", "SPACE"),
-            ("dash", "Q"),
-            ("sprint", "SHIFT"),
-            ("attack", "MOUSE_LEFT"),
-            ("interact", "E"),
-            ("inventory", "I"),
-            ("pause", "ESCAPE"),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), parse_key(v)))
-        .collect();
+    fn load_bindings() -> KeyBindings {
+        let default_keys = default_bindings();
 
         let bindings_str = match std::fs::read_to_string("config/bindings.toml") {
             Ok(s) => s,
@@ -117,6 +102,37 @@ impl GameConfig {
 
         default_keys
     }
+}
+
+fn default_bindings() -> KeyBindings {
+    [
+        ("forward", "W"),
+        ("backward", "S"),
+        ("left", "A"),
+        ("right", "D"),
+        ("jump", "SPACE"),
+        ("dash", "Q"),
+        ("sprint", "SHIFT"),
+        ("attack", "MOUSE_LEFT"),
+        ("interact", "E"),
+        ("inventory", "I"),
+        ("pause", "ESCAPE"),
+        ("debug_help", "F1"),
+        ("debug_heal_player", "F2"),
+        ("debug_damage_player", "F3"),
+        ("debug_set_player_low_health", "F4"),
+        ("debug_reload_level", "F5"),
+        ("debug_respawn_loot", "F6"),
+        ("debug_spawn_ashbound", "F7"),
+        ("debug_spawn_burdened", "F8"),
+        ("debug_spawn_censer", "F9"),
+        ("debug_spawn_chainrunner", "F10"),
+        ("debug_spawn_harpy", "F11"),
+        ("debug_clear_enemies", "F12"),
+    ]
+    .into_iter()
+    .map(|(action, key)| (action.to_string(), parse_key(key)))
+    .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -151,78 +167,69 @@ impl Default for PhysicsConfig {
     }
 }
 
-pub(crate) fn parse_key(key_str: &str) -> Option<winit::keyboard::KeyCode> {
+pub(crate) fn parse_key(key_str: &str) -> Option<KeyCode> {
     match key_str.to_uppercase().as_str() {
-        // Letters
-        "A" => Some(winit::keyboard::KeyCode::KeyA),
-        "B" => Some(winit::keyboard::KeyCode::KeyB),
-        "C" => Some(winit::keyboard::KeyCode::KeyC),
-        "D" => Some(winit::keyboard::KeyCode::KeyD),
-        "E" => Some(winit::keyboard::KeyCode::KeyE),
-        "F" => Some(winit::keyboard::KeyCode::KeyF),
-        "G" => Some(winit::keyboard::KeyCode::KeyG),
-        "H" => Some(winit::keyboard::KeyCode::KeyH),
-        "I" => Some(winit::keyboard::KeyCode::KeyI),
-        "J" => Some(winit::keyboard::KeyCode::KeyJ),
-        "K" => Some(winit::keyboard::KeyCode::KeyK),
-        "L" => Some(winit::keyboard::KeyCode::KeyL),
-        "M" => Some(winit::keyboard::KeyCode::KeyM),
-        "N" => Some(winit::keyboard::KeyCode::KeyN),
-        "O" => Some(winit::keyboard::KeyCode::KeyO),
-        "P" => Some(winit::keyboard::KeyCode::KeyP),
-        "Q" => Some(winit::keyboard::KeyCode::KeyQ),
-        "R" => Some(winit::keyboard::KeyCode::KeyR),
-        "S" => Some(winit::keyboard::KeyCode::KeyS),
-        "T" => Some(winit::keyboard::KeyCode::KeyT),
-        "U" => Some(winit::keyboard::KeyCode::KeyU),
-        "V" => Some(winit::keyboard::KeyCode::KeyV),
-        "W" => Some(winit::keyboard::KeyCode::KeyW),
-        "X" => Some(winit::keyboard::KeyCode::KeyX),
-        "Y" => Some(winit::keyboard::KeyCode::KeyY),
-        "Z" => Some(winit::keyboard::KeyCode::KeyZ),
-
-        // Digits
-        "0" => Some(winit::keyboard::KeyCode::Digit0),
-        "1" => Some(winit::keyboard::KeyCode::Digit1),
-        "2" => Some(winit::keyboard::KeyCode::Digit2),
-        "3" => Some(winit::keyboard::KeyCode::Digit3),
-        "4" => Some(winit::keyboard::KeyCode::Digit4),
-        "5" => Some(winit::keyboard::KeyCode::Digit5),
-        "6" => Some(winit::keyboard::KeyCode::Digit6),
-        "7" => Some(winit::keyboard::KeyCode::Digit7),
-        "8" => Some(winit::keyboard::KeyCode::Digit8),
-        "9" => Some(winit::keyboard::KeyCode::Digit9),
-
-        // Special
-        "SPACE" => Some(winit::keyboard::KeyCode::Space),
-        "TAB" => Some(winit::keyboard::KeyCode::Tab),
-        "SHIFT" => Some(winit::keyboard::KeyCode::ShiftLeft),
-        "CTRL" => Some(winit::keyboard::KeyCode::ControlLeft),
-        "ALT" => Some(winit::keyboard::KeyCode::AltLeft),
-        "ESCAPE" => Some(winit::keyboard::KeyCode::Escape),
-        "ENTER" => Some(winit::keyboard::KeyCode::Enter),
-        "BACKSPACE" => Some(winit::keyboard::KeyCode::Backspace),
-        "DELETE" => Some(winit::keyboard::KeyCode::Delete),
-
-        // Arrow keys
-        "UP" => Some(winit::keyboard::KeyCode::ArrowUp),
-        "DOWN" => Some(winit::keyboard::KeyCode::ArrowDown),
-        "LEFT" => Some(winit::keyboard::KeyCode::ArrowLeft),
-        "RIGHT" => Some(winit::keyboard::KeyCode::ArrowRight),
-
-        // Function keys
-        "F1" => Some(winit::keyboard::KeyCode::F1),
-        "F2" => Some(winit::keyboard::KeyCode::F2),
-        "F3" => Some(winit::keyboard::KeyCode::F3),
-        "F4" => Some(winit::keyboard::KeyCode::F4),
-        "F5" => Some(winit::keyboard::KeyCode::F5),
-        "F6" => Some(winit::keyboard::KeyCode::F6),
-        "F7" => Some(winit::keyboard::KeyCode::F7),
-        "F8" => Some(winit::keyboard::KeyCode::F8),
-        "F9" => Some(winit::keyboard::KeyCode::F9),
-        "F10" => Some(winit::keyboard::KeyCode::F10),
-        "F11" => Some(winit::keyboard::KeyCode::F11),
-        "F12" => Some(winit::keyboard::KeyCode::F12),
+        "A" => Some(KeyCode::KeyA),
+        "B" => Some(KeyCode::KeyB),
+        "C" => Some(KeyCode::KeyC),
+        "D" => Some(KeyCode::KeyD),
+        "E" => Some(KeyCode::KeyE),
+        "F" => Some(KeyCode::KeyF),
+        "G" => Some(KeyCode::KeyG),
+        "H" => Some(KeyCode::KeyH),
+        "I" => Some(KeyCode::KeyI),
+        "J" => Some(KeyCode::KeyJ),
+        "K" => Some(KeyCode::KeyK),
+        "L" => Some(KeyCode::KeyL),
+        "M" => Some(KeyCode::KeyM),
+        "N" => Some(KeyCode::KeyN),
+        "O" => Some(KeyCode::KeyO),
+        "P" => Some(KeyCode::KeyP),
+        "Q" => Some(KeyCode::KeyQ),
+        "R" => Some(KeyCode::KeyR),
+        "S" => Some(KeyCode::KeyS),
+        "T" => Some(KeyCode::KeyT),
+        "U" => Some(KeyCode::KeyU),
+        "V" => Some(KeyCode::KeyV),
+        "W" => Some(KeyCode::KeyW),
+        "X" => Some(KeyCode::KeyX),
+        "Y" => Some(KeyCode::KeyY),
+        "Z" => Some(KeyCode::KeyZ),
+        "0" => Some(KeyCode::Digit0),
+        "1" => Some(KeyCode::Digit1),
+        "2" => Some(KeyCode::Digit2),
+        "3" => Some(KeyCode::Digit3),
+        "4" => Some(KeyCode::Digit4),
+        "5" => Some(KeyCode::Digit5),
+        "6" => Some(KeyCode::Digit6),
+        "7" => Some(KeyCode::Digit7),
+        "8" => Some(KeyCode::Digit8),
+        "9" => Some(KeyCode::Digit9),
+        "SPACE" => Some(KeyCode::Space),
+        "TAB" => Some(KeyCode::Tab),
+        "SHIFT" => Some(KeyCode::ShiftLeft),
+        "CTRL" => Some(KeyCode::ControlLeft),
+        "ALT" => Some(KeyCode::AltLeft),
+        "ESCAPE" => Some(KeyCode::Escape),
+        "ENTER" => Some(KeyCode::Enter),
+        "BACKSPACE" => Some(KeyCode::Backspace),
+        "DELETE" => Some(KeyCode::Delete),
+        "UP" => Some(KeyCode::ArrowUp),
+        "DOWN" => Some(KeyCode::ArrowDown),
+        "LEFT" => Some(KeyCode::ArrowLeft),
+        "RIGHT" => Some(KeyCode::ArrowRight),
+        "F1" => Some(KeyCode::F1),
+        "F2" => Some(KeyCode::F2),
+        "F3" => Some(KeyCode::F3),
+        "F4" => Some(KeyCode::F4),
+        "F5" => Some(KeyCode::F5),
+        "F6" => Some(KeyCode::F6),
+        "F7" => Some(KeyCode::F7),
+        "F8" => Some(KeyCode::F8),
+        "F9" => Some(KeyCode::F9),
+        "F10" => Some(KeyCode::F10),
+        "F11" => Some(KeyCode::F11),
+        "F12" => Some(KeyCode::F12),
         _ => None,
     }
 }
@@ -234,12 +241,16 @@ pub struct CombatConfig {
     pub base_damage: f32,
     /// Reserved multiplier for future precision or weak-point hits.
     pub crit_multiplier: f32,
+    /// Maximum distance for primary-fire hitscan checks.
+    pub primary_fire_range: f32,
     /// Cooldown after a successful primary-fire hit.
     pub attack_cooldown: f32,
     /// Cooldown after firing without hitting an enemy.
     pub miss_cooldown: f32,
     /// Radius used by the current prototype ray/sphere hit test.
     pub enemy_hit_radius: f32,
+    /// Brief enemy hit-stun duration after being damaged by primary fire.
+    pub enemy_hit_stun: f32,
     /// Damage per second applied by hurtbox props.
     pub hurtbox_damage_per_second: f32,
     /// Distance at which hurtbox props can damage the player.
@@ -255,9 +266,11 @@ impl Default for CombatConfig {
         Self {
             base_damage: 25.0,
             crit_multiplier: 2.0,
+            primary_fire_range: 80.0,
             attack_cooldown: 0.25,
             miss_cooldown: 0.15,
             enemy_hit_radius: 2.0,
+            enemy_hit_stun: 0.12,
             hurtbox_damage_per_second: 15.0,
             hurtbox_radius: 3.0,
             hurtbox_tick_interval: 0.5,

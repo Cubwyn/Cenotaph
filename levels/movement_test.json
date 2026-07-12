@@ -1,0 +1,121 @@
+{
+  "name": "Movement Test",
+  "base_map": "assets/test_movement_arena.obj",
+  "player_spawn": [0.0, 128.0, 0.0],
+  "props": [
+    {
+      "asset_id": "props/test_wall.obj",
+      "position": [0.0, 126.5, -46.0],
+      "scale": [92.0, 4.0, 1.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "props/test_wall.obj",
+      "position": [0.0, 126.5, 46.0],
+      "scale": [92.0, 4.0, 1.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "props/test_wall.obj",
+      "position": [-46.0, 126.5, 0.0],
+      "scale": [1.0, 4.0, 92.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "props/test_wall.obj",
+      "position": [46.0, 126.5, 0.0],
+      "scale": [1.0, 4.0, 92.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "props/test_wall.obj",
+      "position": [-6.0, 125.7, 18.0],
+      "scale": [20.0, 2.4, 1.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "props/test_wall.obj",
+      "position": [28.0, 125.7, 12.0],
+      "scale": [1.0, 2.4, 18.0],
+      "collider_type": "Box"
+    },
+    {
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [5.0, 126.0, -8.0],
+      "scale": [0.4, 0.4, 0.4],
+      "resource_value": 25
+    },
+    {
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [8.0, 126.0, -8.0],
+      "scale": [0.3, 0.3, 0.3],
+      "resource_value": 10
+    },
+    {
+      "asset_id": "pickups/relic_ash_splinter.obj",
+      "position": [-8.0, 126.0, -8.0],
+      "scale": [0.35, 0.35, 0.35],
+      "item_id": "ash_splinter"
+    },
+    {
+      "asset_id": "pickups/relic_veil_cinder.obj",
+      "position": [-5.0, 126.0, -8.0],
+      "scale": [0.35, 0.35, 0.35],
+      "item_id": "veil_cinder"
+    },
+    {
+      "asset_id": "pickups/relic_chain_sigil.obj",
+      "position": [-2.0, 126.0, -8.0],
+      "scale": [0.35, 0.35, 0.35],
+      "item_id": "chain_sigil"
+    },
+    {
+      "asset_id": "world/anchor_marker.obj",
+      "position": [0.0, 126.0, -16.0],
+      "scale": [0.8, 2.5, 0.8],
+      "anchor_id": "movement_anchor"
+    },
+    {
+      "asset_id": "enemies/ashbound.obj",
+      "position": [24.0, 126.0, 10.0],
+      "scale": [1.2, 1.2, 1.2],
+      "collider_type": "Sphere",
+      "enemy_type": "Ashbound"
+    },
+    {
+      "asset_id": "enemies/burdened.obj",
+      "position": [38.0, 126.0, 30.0],
+      "scale": [1.5, 1.5, 1.5],
+      "collider_type": "Sphere",
+      "enemy_type": "Burdened"
+    },
+    {
+      "asset_id": "enemies/censer.obj",
+      "position": [-38.0, 126.0, 28.0],
+      "scale": [1.1, 1.1, 1.1],
+      "collider_type": "Sphere",
+      "enemy_type": "Censer"
+    },
+    {
+      "asset_id": "enemies/chainrunner.obj",
+      "position": [36.0, 126.0, -30.0],
+      "scale": [1.1, 1.1, 1.1],
+      "collider_type": "Sphere",
+      "enemy_type": "Chainrunner"
+    },
+    {
+      "asset_id": "enemies/harpy.obj",
+      "position": [-36.0, 130.0, -30.0],
+      "scale": [1.2, 1.2, 1.2],
+      "collider_type": "Sphere",
+      "enemy_type": "Harpy"
+    },
+    {
+      "asset_id": "world/hurtbox_warning.obj",
+      "position": [-14.0, 126.0, 24.0],
+      "scale": [1.5, 1.5, 1.5],
+      "collider_type": "Sphere",
+      "is_hurtbox": true
+    }
+  ]
+}

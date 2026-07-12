@@ -1,4 +1,4 @@
-// src/render/mod.rs
+// src/systems/render/mod.rs
 // The render module owns all GPU-facing systems: the pipeline,
 // camera, mesh loading, instancing, textures, HUD, and asset management.
 

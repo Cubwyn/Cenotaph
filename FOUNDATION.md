@@ -123,9 +123,10 @@ Project validation through `cargo run -- validate` also checks:
 - `config/bindings.toml` contains required actions
 - binding tokens are valid
 - duplicate bindings are reported, except explicit unbound values
-- level-referenced model assets use supported extensions
-- level-referenced model assets can be loaded by the mesh loader
-- model assets contain vertices, render indices, and physics triangles
+- all model assets under `assets/` use supported extensions
+- all model assets under `assets/` can be loaded by the mesh loader
+- all model assets under `assets/` contain vertices, render indices, and
+  physics triangles
 
 ## Foundation Test Level
 
@@ -266,12 +267,12 @@ Gameplay-first enemy roles are documented in `ENEMY_GAMEPLAY_ROSTER.txt`.
 Do not treat these as foundation requirements yet:
 
 - relic generation
-- inventory
+- full inventory UI and item comparison
 - advanced enemy AI, pathfinding, and role-specific behavior
 - full Anchor UI, Anchor persistence, and Sanctuary behavior
 - sanctuary UI
-- save/load
-- cycle director
+- save slots, migration, and conflict handling
+- full run-contract Cycle Director
 - procedural route generation
 - full content registry
 
@@ -279,7 +280,6 @@ These belong after the foundation remains boringly reliable.
 
 ## Next Stable Targets
 
-1. Expand content validation into typed relic/hazard data once those
-   registries exist.
+1. Add typed hazard data once hazards graduate beyond hurtbox props.
 2. Add production enemy models and behavior-specific animation/audio tells
    before expanding the enemy roster in levels.

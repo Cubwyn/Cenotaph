@@ -1,0 +1,9 @@
+id = "veil_cinder"
+display_name = "Veil Cinder"
+family = "Moonchild"
+rarity = "Common"
+damage_multiplier = 0.9
+cooldown_multiplier = 0.8
+range_multiplier = 1.35
+hit_stun_bonus = 0.0
+flavor_text = "A small ember that pulls distance into focus."

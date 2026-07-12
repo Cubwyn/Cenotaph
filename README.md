@@ -141,6 +141,7 @@ Detailed documents live in the following files:
 - `MODEL_RESET_PLAN.md` — incremental plan for rebuilding placeholder and production models.
 - `layout_guide.txt` — current physical source layout and module dependency rules.
 - `PROJECT_DOCUMENTATION.txt` — current file-by-file project inventory.
+- `PROJECT_LAYOUT_FLOWCHART.md` — plain-language project map and flowcharts.
 - `ENEMY_GAMEPLAY_ROSTER.txt` — gameplay-first enemy roles, counterplay, encounter recipes, and implementation order.
 - `ENEMY_MODEL_GENERATOR_BRIEF.txt` — enemy model reference for 3D generators and future roster planning.
 - `SYSTEMS.md` — the mechanical and technical systems map.
@@ -164,6 +165,19 @@ The current codebase is a foundation prototype built on:
 - JSON level data
 - TOML tuning and bindings
 - TOML enemy definitions
+- TOML relic definitions
+
+Run the default movement/combat sandbox:
+
+```powershell
+cargo run
+```
+
+Resume the autosave:
+
+```powershell
+cargo run -- continue
+```
 
 Run the current Ash-Walk test map:
 
@@ -177,7 +191,7 @@ Run the foundation systems smoke-test map:
 cargo run -- foundation_test
 ```
 
-Validate authored level, config, enemy, and referenced model data without
+Validate authored level, config, enemy, relic, and model asset data without
 opening a game window:
 
 ```powershell
@@ -209,6 +223,7 @@ Core controls:
 - `Q` dash
 - mouse look
 - left mouse primary fire
+- `I` cycle owned relics
 - `Escape` pause/unpause
 
 See `FOUNDATION.md` for the current runtime contracts and stable groundwork checklist.
@@ -328,13 +343,15 @@ Implemented now:
 - movement, sprint, dash, pause, HUD, audio feedback, level loading, config
   loading, hurtbox damage, death/respawn, prototype prop shooting, and
   baseline data-driven enemy chase/attack, prototype resource pickup/Anchor
-  banking, and level/config validation
+  banking, authored relic pickups, deterministic enemy relic rewards,
+  owned-relic cycling, autosave/resume, basic cycle modifiers, and full
+  project content validation
 
 Not implemented yet:
 
 - advanced enemy AI, role-specific enemy behavior, production enemy models,
-  relic drops, inventory, save/load, full Anchor/Sanctuary UI, Cycle Director,
-  and procedural route generation
+  generated relic rolls/affixes, item comparison UI, full Anchor/Sanctuary UI,
+  full run-contract Cycle Director, and procedural route generation
 
 
 ---

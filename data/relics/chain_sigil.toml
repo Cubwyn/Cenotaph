@@ -1,0 +1,9 @@
+id = "chain_sigil"
+display_name = "Chain Sigil"
+family = "Architect"
+rarity = "Common"
+damage_multiplier = 1.05
+cooldown_multiplier = 0.9
+range_multiplier = 1.0
+hit_stun_bonus = 0.08
+flavor_text = "A crude mark that catches momentum and refuses to let go."

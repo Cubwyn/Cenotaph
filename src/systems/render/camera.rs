@@ -1,4 +1,4 @@
-// src/render/camera.rs
+// src/systems/render/camera.rs
 // First-person camera: position, orientation, view-projection matrix,
 // mouse-look controller, and movement-intent extraction.
 
@@ -75,8 +75,7 @@ impl CameraController {
         camera.pitch = camera.pitch.clamp(-limit, limit);
     }
 
-    /// Compute a normalised movement intent vector from current key state.
-    /// The Y component is non-zero only in editor fly-mode (handled upstream).
+    /// Compute a normalised horizontal movement intent from current key state.
     pub fn get_movement_intent(
         &self,
         input: &InputManager,

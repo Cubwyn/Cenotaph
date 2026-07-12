@@ -1,4 +1,4 @@
-// src/render/instance.rs
+// src/systems/render/instance.rs
 // Per-instance transform data uploaded to the GPU as a vertex buffer.
 
 use glam::{Mat4, Quat, Vec3};

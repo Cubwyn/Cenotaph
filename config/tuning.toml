@@ -39,9 +39,11 @@ player_speed = 5.0
 # Weapon and damage
 base_damage = 25.0
 crit_multiplier = 2.0
+primary_fire_range = 80.0
 attack_cooldown = 0.25
 miss_cooldown = 0.15
 enemy_hit_radius = 2.0
+enemy_hit_stun = 0.12
 hurtbox_damage_per_second = 15.0
 hurtbox_radius = 3.0
 hurtbox_tick_interval = 0.5

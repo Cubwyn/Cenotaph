@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::data::config::gameplay::{parse_key, GameConfig};
 use crate::data::enemy::{normalize_enemy_id, EnemyDefinition};
+use crate::data::relic::{normalize_relic_id, RelicDefinition};
 use crate::data::world::level::LevelData;
 use crate::systems::render::mesh::{try_load_model, ModelData};
 
@@ -28,6 +29,7 @@ pub struct ContentValidationReport {
     pub checked_configs: usize,
     pub checked_assets: usize,
     pub checked_enemy_definitions: usize,
+    pub checked_relic_definitions: usize,
     pub issues: Vec<ValidationIssue>,
 }
 
@@ -39,19 +41,21 @@ impl ContentValidationReport {
     pub fn summary(&self) -> String {
         if self.is_ok() {
             format!(
-                "content validation passed: {} level file(s), {} config file(s), {} enemy definition file(s), {} asset file(s) checked",
+                "content validation passed: {} level file(s), {} config file(s), {} enemy definition file(s), {} relic definition file(s), {} asset file(s) checked",
                 self.checked_levels,
                 self.checked_configs,
                 self.checked_enemy_definitions,
+                self.checked_relic_definitions,
                 self.checked_assets
             )
         } else {
             format!(
-                "content validation failed: {} issue(s) across {} level file(s), {} config file(s), {} enemy definition file(s), {} asset file(s)",
+                "content validation failed: {} issue(s) across {} level file(s), {} config file(s), {} enemy definition file(s), {} relic definition file(s), {} asset file(s)",
                 self.issues.len(),
                 self.checked_levels,
                 self.checked_configs,
                 self.checked_enemy_definitions,
+                self.checked_relic_definitions,
                 self.checked_assets
             )
         }
@@ -77,28 +81,38 @@ pub fn validate_project_content() -> ContentValidationReport {
     let mut checked_asset_paths = HashSet::new();
     let enemy_ids =
         validate_enemy_definitions_dir("data/enemies", &mut report, &mut checked_asset_paths);
+    let relic_ids = validate_relic_definitions_dir("data/relics", &mut report);
     validate_levels_dir_into(
         "levels",
         Some(&enemy_ids),
+        Some(&relic_ids),
         &mut report,
         &mut checked_asset_paths,
     );
+    validate_all_model_assets_dir("assets", &mut report, &mut checked_asset_paths);
     validate_tuning_file("config/tuning.toml", &mut report);
     validate_bindings_file("config/bindings.toml", &mut report);
     report
 }
 
-#[allow(dead_code)]
-pub fn validate_levels_dir(levels_dir: impl AsRef<Path>) -> ContentValidationReport {
+#[cfg(test)]
+fn validate_levels_dir(levels_dir: impl AsRef<Path>) -> ContentValidationReport {
     let mut report = ContentValidationReport::default();
     let mut checked_asset_paths = HashSet::new();
-    validate_levels_dir_into(levels_dir, None, &mut report, &mut checked_asset_paths);
+    validate_levels_dir_into(
+        levels_dir,
+        None,
+        None,
+        &mut report,
+        &mut checked_asset_paths,
+    );
     report
 }
 
 fn validate_levels_dir_into(
     levels_dir: impl AsRef<Path>,
     known_enemy_ids: Option<&HashSet<String>>,
+    known_relic_ids: Option<&HashSet<String>>,
     report: &mut ContentValidationReport,
     checked_asset_paths: &mut HashSet<PathBuf>,
 ) {
@@ -153,10 +167,13 @@ fn validate_levels_dir_into(
         if let Some(enemy_ids) = known_enemy_ids {
             validate_level_enemy_references(&level, &path_label, enemy_ids, report);
         }
+        if let Some(relic_ids) = known_relic_ids {
+            validate_level_item_references(&level, &path_label, relic_ids, report);
+        }
 
         for asset_path in referenced_model_assets(&level) {
-            if asset_path.exists() && checked_asset_paths.insert(asset_path.clone()) {
-                validate_model_asset_file(&asset_path, report);
+            if asset_path.exists() {
+                validate_model_asset_once(&asset_path, report, checked_asset_paths);
             }
         }
     }
@@ -230,9 +247,7 @@ fn validate_enemy_definitions_dir(
 
         let model_path = enemy.model_path();
         if model_path.exists() {
-            if checked_asset_paths.insert(model_path.clone()) {
-                validate_model_asset_file(&model_path, report);
-            }
+            validate_model_asset_once(&model_path, report, checked_asset_paths);
         } else if !enemy.model_asset.trim().is_empty() {
             report.add_issue(
                 path_label,
@@ -245,6 +260,122 @@ fn validate_enemy_definitions_dir(
     }
 
     enemy_ids
+}
+
+fn validate_all_model_assets_dir(
+    assets_dir: impl AsRef<Path>,
+    report: &mut ContentValidationReport,
+    checked_asset_paths: &mut HashSet<PathBuf>,
+) {
+    let assets_dir = assets_dir.as_ref();
+    let mut model_paths = Vec::new();
+    collect_model_asset_paths(assets_dir, report, &mut model_paths);
+    model_paths.sort();
+
+    for model_path in model_paths {
+        validate_model_asset_once(&model_path, report, checked_asset_paths);
+    }
+}
+
+fn collect_model_asset_paths(
+    path: &Path,
+    report: &mut ContentValidationReport,
+    model_paths: &mut Vec<PathBuf>,
+) {
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(e) => {
+            report.add_issue(
+                path.to_string_lossy(),
+                format!("failed to read asset directory: {}", e),
+            );
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_model_asset_paths(&path, report, model_paths);
+        } else if has_model_asset_extension(&path) {
+            model_paths.push(path);
+        }
+    }
+}
+
+fn has_model_asset_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| matches!(ext.to_ascii_lowercase().as_str(), "obj" | "glb" | "gltf"))
+}
+
+fn validate_relic_definitions_dir(
+    relics_dir: impl AsRef<Path>,
+    report: &mut ContentValidationReport,
+) -> HashSet<String> {
+    let relics_dir = relics_dir.as_ref();
+    let mut relic_ids = HashSet::new();
+
+    let entries = match std::fs::read_dir(relics_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            report.add_issue(
+                relics_dir.to_string_lossy(),
+                format!("failed to read relic definitions directory: {}", e),
+            );
+            return relic_ids;
+        }
+    };
+
+    let mut relic_paths: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .filter(|path| {
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+        })
+        .collect();
+    relic_paths.sort();
+
+    if relic_paths.is_empty() {
+        report.add_issue(
+            relics_dir.to_string_lossy(),
+            "no relic TOML files found in relic definitions directory",
+        );
+        return relic_ids;
+    }
+
+    for relic_path in relic_paths {
+        let path_label = relic_path.to_string_lossy().to_string();
+        report.checked_relic_definitions += 1;
+
+        let relic = match RelicDefinition::try_load(&relic_path) {
+            Ok(relic) => relic,
+            Err(e) => {
+                report.add_issue(path_label, e);
+                continue;
+            }
+        };
+
+        for error in relic.validation_errors() {
+            report.add_issue(path_label.clone(), error);
+        }
+
+        let normalized_id = normalize_relic_id(&relic.id);
+        if normalized_id.is_empty() {
+            continue;
+        }
+        if !relic_ids.insert(normalized_id.clone()) {
+            report.add_issue(
+                path_label.clone(),
+                format!("duplicate relic id '{}'", normalized_id),
+            );
+        }
+    }
+
+    relic_ids
 }
 
 fn validate_level_enemy_references(
@@ -275,6 +406,34 @@ fn validate_level_enemy_references(
     }
 }
 
+fn validate_level_item_references(
+    level: &LevelData,
+    path_label: &str,
+    relic_ids: &HashSet<String>,
+    report: &mut ContentValidationReport,
+) {
+    for (index, prop) in level.props.iter().enumerate() {
+        let Some(item_id) = prop.item_id.as_ref() else {
+            continue;
+        };
+        let normalized = normalize_relic_id(item_id);
+        if normalized.is_empty() {
+            report.add_issue(
+                path_label.to_string(),
+                format!("prop {} item_id must not be empty", index),
+            );
+        } else if !relic_ids.contains(&normalized) {
+            report.add_issue(
+                path_label.to_string(),
+                format!(
+                    "prop {} item_id '{}' has no matching relic definition",
+                    index, item_id
+                ),
+            );
+        }
+    }
+}
+
 fn referenced_model_assets(level: &LevelData) -> Vec<PathBuf> {
     let mut paths = Vec::with_capacity(level.props.len() + 1);
     if !level.base_map.trim().is_empty() {
@@ -286,6 +445,17 @@ fn referenced_model_assets(level: &LevelData) -> Vec<PathBuf> {
         }
     }
     paths
+}
+
+fn validate_model_asset_once(
+    path: &Path,
+    report: &mut ContentValidationReport,
+    checked_asset_paths: &mut HashSet<PathBuf>,
+) {
+    let key = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if checked_asset_paths.insert(key) {
+        validate_model_asset_file(path, report);
+    }
 }
 
 fn validate_model_asset_file(path: &Path, report: &mut ContentValidationReport) {
@@ -489,6 +659,11 @@ fn validate_tuning_values(config: &GameConfig) -> Vec<String> {
         config.combat.crit_multiplier,
         &mut issues,
     );
+    require_positive(
+        "combat.primary_fire_range",
+        config.combat.primary_fire_range,
+        &mut issues,
+    );
     require_non_negative(
         "combat.attack_cooldown",
         config.combat.attack_cooldown,
@@ -502,6 +677,11 @@ fn validate_tuning_values(config: &GameConfig) -> Vec<String> {
     require_positive(
         "combat.enemy_hit_radius",
         config.combat.enemy_hit_radius,
+        &mut issues,
+    );
+    require_non_negative(
+        "combat.enemy_hit_stun",
+        config.combat.enemy_hit_stun,
         &mut issues,
     );
     require_non_negative(
@@ -695,7 +875,24 @@ mod tests {
         assert!(report.checked_levels >= 2);
         assert_eq!(report.checked_configs, 2);
         assert!(report.checked_enemy_definitions >= 5);
+        assert!(report.checked_relic_definitions >= 1);
         assert!(report.checked_assets >= 3);
+    }
+
+    #[test]
+    fn project_validation_checks_every_model_asset() {
+        let mut collection_report = ContentValidationReport::default();
+        let mut model_paths = Vec::new();
+        collect_model_asset_paths(
+            std::path::Path::new("assets"),
+            &mut collection_report,
+            &mut model_paths,
+        );
+        assert!(collection_report.is_ok(), "{}", collection_report);
+
+        let report = validate_project_content();
+        assert!(report.is_ok(), "{}", report);
+        assert_eq!(report.checked_assets, model_paths.len());
     }
 
     #[test]
@@ -769,6 +966,36 @@ mod tests {
             .issues
             .iter()
             .any(|issue| issue.message.contains("no matching enemy definition")));
+    }
+
+    #[test]
+    fn reports_unknown_level_item_id() {
+        let level: LevelData = serde_json::from_str(
+            r#"
+            {
+                "name": "Item Reference Test",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": [
+                    {
+                        "asset_id": "Cube.obj",
+                        "item_id": "NotReal"
+                    }
+                ]
+            }
+            "#,
+        )
+        .unwrap();
+        let relic_ids = HashSet::from(["ash_splinter".to_string()]);
+        let mut report = ContentValidationReport::default();
+
+        validate_level_item_references(&level, "test_level", &relic_ids, &mut report);
+
+        assert!(!report.is_ok());
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.message.contains("no matching relic definition")));
     }
 
     #[test]

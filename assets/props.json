@@ -9,6 +9,20 @@
       "size_bytes": 979
     },
     {
+      "filename": "anchor_marker.obj",
+      "relative_path": "world/anchor_marker.obj",
+      "full_path": "assets/world/anchor_marker.obj",
+      "format": "obj",
+      "size_bytes": 339
+    },
+    {
+      "filename": "ashbound.obj",
+      "relative_path": "enemies/ashbound.obj",
+      "full_path": "assets/enemies/ashbound.obj",
+      "format": "obj",
+      "size_bytes": 195
+    },
+    {
       "filename": "ashwalk_001.obj",
       "relative_path": "ashwalk_001.obj",
       "full_path": "assets/ashwalk_001.obj",
@@ -16,12 +30,115 @@
       "size_bytes": 5502286
     },
     {
+      "filename": "burdened.obj",
+      "relative_path": "enemies/burdened.obj",
+      "full_path": "assets/enemies/burdened.obj",
+      "format": "obj",
+      "size_bytes": 439
+    },
+    {
+      "filename": "censer.obj",
+      "relative_path": "enemies/censer.obj",
+      "full_path": "assets/enemies/censer.obj",
+      "format": "obj",
+      "size_bytes": 498
+    },
+    {
+      "filename": "chainrunner.obj",
+      "relative_path": "enemies/chainrunner.obj",
+      "full_path": "assets/enemies/chainrunner.obj",
+      "format": "obj",
+      "size_bytes": 361
+    },
+    {
+      "filename": "harpy.obj",
+      "relative_path": "enemies/harpy.obj",
+      "full_path": "assets/enemies/harpy.obj",
+      "format": "obj",
+      "size_bytes": 460
+    },
+    {
+      "filename": "hurtbox_warning.obj",
+      "relative_path": "world/hurtbox_warning.obj",
+      "full_path": "assets/world/hurtbox_warning.obj",
+      "format": "obj",
+      "size_bytes": 201
+    },
+    {
       "filename": "map_001.glb",
       "relative_path": "map_001.glb",
       "full_path": "assets/map_001.glb",
       "format": "glb",
       "size_bytes": 193284
+    },
+    {
+      "filename": "relic_ash_splinter.obj",
+      "relative_path": "pickups/relic_ash_splinter.obj",
+      "full_path": "assets/pickups/relic_ash_splinter.obj",
+      "format": "obj",
+      "size_bytes": 241
+    },
+    {
+      "filename": "relic_chain_sigil.obj",
+      "relative_path": "pickups/relic_chain_sigil.obj",
+      "full_path": "assets/pickups/relic_chain_sigil.obj",
+      "format": "obj",
+      "size_bytes": 297
+    },
+    {
+      "filename": "relic_veil_cinder.obj",
+      "relative_path": "pickups/relic_veil_cinder.obj",
+      "full_path": "assets/pickups/relic_veil_cinder.obj",
+      "format": "obj",
+      "size_bytes": 198
+    },
+    {
+      "filename": "resource_shard.obj",
+      "relative_path": "pickups/resource_shard.obj",
+      "full_path": "assets/pickups/resource_shard.obj",
+      "format": "obj",
+      "size_bytes": 238
+    },
+    {
+      "filename": "test_movement_arena.obj",
+      "relative_path": "test_movement_arena.obj",
+      "full_path": "assets/test_movement_arena.obj",
+      "format": "obj",
+      "size_bytes": 1712
+    },
+    {
+      "filename": "test_obelisk.obj",
+      "relative_path": "props/test_obelisk.obj",
+      "full_path": "assets/props/test_obelisk.obj",
+      "format": "obj",
+      "size_bytes": 334
+    },
+    {
+      "filename": "test_platform.obj",
+      "relative_path": "props/test_platform.obj",
+      "full_path": "assets/props/test_platform.obj",
+      "format": "obj",
+      "size_bytes": 300
+    },
+    {
+      "filename": "test_wall.obj",
+      "relative_path": "props/test_wall.obj",
+      "full_path": "assets/props/test_wall.obj",
+      "format": "obj",
+      "size_bytes": 288
+    },
+    {
+      "filename": "transition_gate.obj",
+      "relative_path": "world/transition_gate.obj",
+      "full_path": "assets/world/transition_gate.obj",
+      "format": "obj",
+      "size_bytes": 300
     }
   ],
-  "subfolders": []
+  "subfolders": [
+    "enemies",
+    "pickups",
+    "props",
+    "world"
+  ]
 }

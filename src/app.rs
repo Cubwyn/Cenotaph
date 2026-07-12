@@ -140,6 +140,7 @@ impl ApplicationHandler for App {
                         Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
                         Err(e) => eprintln!("[RENDER ERROR] {:?}", e),
                     }
+                    self.input.end_frame();
                 }
 
                 _ => {}

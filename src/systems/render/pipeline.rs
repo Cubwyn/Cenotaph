@@ -1,4 +1,4 @@
-// src/render/pipeline.rs
+// src/systems/render/pipeline.rs
 // Constructs the wgpu render pipeline from the shader and bind group layouts.
 // Kept separate so the pipeline can be rebuilt on resize or shader hot-reload.
 

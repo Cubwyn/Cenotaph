@@ -1,4 +1,4 @@
-// src/render/lighting.rs
+// src/systems/render/lighting.rs
 // Basic lighting and fog system for Cenotaph's underground environments
 
 use wgpu::util::DeviceExt;

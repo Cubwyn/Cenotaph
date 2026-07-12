@@ -25,11 +25,12 @@ Status: In progress as the current foundation build.
 Current notes:
 
 - Movement, camera, jump, sprint, dash, pause, HUD, hurtbox damage, death,
-  respawn, prototype prop shooting, baseline enemy chase/attack, and
-  level/config validation exist.
+  respawn, prototype prop shooting, baseline enemy chase/attack, authored relic
+  pickups/rewards, owned-relic cycling, autosave/resume, basic cycle modifiers,
+  and full project content validation exist.
 - Starter enemy definitions now have authored low-poly silhouette assets.
-- A minimal resource pickup and Anchor banking/respawn stub exists in
-  `foundation_test`.
+- Minimal resource pickup, Anchor banking/respawn, relic pickup, and hazard
+  examples exist in `foundation_test` and `movement_test`.
 - Advanced enemy AI, role-specific enemy behavior, and production enemy models
   do not exist yet.
 
@@ -110,8 +111,8 @@ Is it fun to climb, survive, find a relic, adapt, and try again?
 - [ ] Player can start at safe point.
 - [ ] Player can choose between at least two routes.
 - [ ] Player can fight through danger.
-- [ ] Enemy can drop a generated relic.
-- [ ] Player can equip the relic.
+- [ ] Enemy can drop a prototype authored relic.
+- [ ] Player can intentionally equip/cycle owned relics.
 - [ ] Player can reach an Anchor.
 - [ ] Player can bank a resource.
 - [ ] Player loses unsecured resource on death.
@@ -120,9 +121,10 @@ Is it fun to climb, survive, find a relic, adapt, and try again?
 
 ## Future Notes
 
-The foundation now has a resource pickup and Anchor trigger stub. Next add one
-route choice, one hazard, one loot/relic stub, and make the Anchor part of a
-small repeatable climb.
+The foundation now has resource pickup, Anchor banking, authored relic
+pickup/reward flow, basic cycle modifiers, and a hazard prop. Next add one
+route choice, one elite modifier, one upgrade/perk choice, and make the Anchor
+part of a small repeatable climb.
 
 ---
 

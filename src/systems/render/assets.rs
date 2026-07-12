@@ -1,4 +1,4 @@
-// src/render/assets.rs
+// src/systems/render/assets.rs
 // AssetManager stores GPU-ready mesh data (vertex + index buffers) keyed
 // by asset filename. RenderAsset is the GPU representation of a loaded model.
 

@@ -1,4 +1,4 @@
-// src/render/texture.rs
+// src/systems/render/texture.rs
 // TextureManager holds GPU bind groups keyed by filename.
 // Missing textures fall back to a small magenta/black checkerboard so broken
 // assets are immediately visible without crashing.

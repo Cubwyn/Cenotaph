@@ -1,4 +1,4 @@
-// src/render/mesh.rs
+// src/systems/render/mesh.rs
 // Vertex definition and model loading for .glb / .gltf / .obj files.
 // Returns both render-ready data (vertices + indexed parts) and
 // physics-ready data (point cloud + triangle indices).

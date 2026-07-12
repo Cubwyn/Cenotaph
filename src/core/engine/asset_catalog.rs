@@ -1,5 +1,5 @@
 /*
-src/engine/asset_catalog.rs
+src/core/engine/asset_catalog.rs
 Scans the assets/ directory (and subdirectories) for available 3D models.
 Generates a JSON catalog that can be used by level editors or referenced
 when designing levels.
@@ -99,7 +99,7 @@ impl AssetCatalog {
                             });
                         }
                     }
-                } // prly too many but oh well
+                }
             }
         }
     }

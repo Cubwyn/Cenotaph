@@ -1,79 +1,43 @@
-// src/engine/loader.rs
+// src/core/engine/loader.rs
 // Disk I/O helpers for the engine.
-// These are pure functions — they take device/queue references and return
-// GPU resources. They never touch EngineState directly.
-//
-// This module handles loading assets from disk and uploading them to the GPU.
-// It provides functions for loading textures and 3D models, with proper error
-// handling and fallback mechanisms to ensure the game can start even with
-// missing or corrupted assets.
+// These functions upload disk assets to GPU managers without touching
+// EngineState directly.
 
 use std::fs;
+use std::path::{Path, PathBuf};
 use wgpu::util::DeviceExt;
 
 use crate::systems::render::assets::{AssetManager, RenderAsset, RenderAssetMeshPart};
 use crate::systems::render::mesh::try_load_model;
 use crate::systems::render::texture::TextureManager;
 
-// ── Texture loading ───────────────────────────────────────────────────────────
+const ASSETS_DIR: &str = "assets";
+const TEXTURES_DIR: &str = "textures";
+const BASE_MAP_ASSET_ID: &str = "map_001.glb";
 
-/// Scans `textures/` directory and uploads every PNG/JPG to the TextureManager.
-///
-/// This function automatically discovers texture files and uploads them to the GPU
-/// as texture resources with appropriate bind groups for shader access. It handles
-/// various image formats and provides fallback mechanisms for corrupted files.
-///
-/// # Parameters
-/// - `device`: GPU device for creating texture resources
-/// - `queue`: GPU command queue for uploading texture data
-/// - `layout`: Bind group layout for texture and sampler bindings
-/// - `manager`: Texture manager to store the created bind groups
-///
-/// # Process
-/// 1. Creates textures/ directory if it doesn't exist
-/// 2. Scans for PNG and JPG files
-/// 3. Loads each image file into memory
-/// 4. Converts to RGBA8 format for GPU compatibility
-/// 5. Creates GPU texture with appropriate usage flags
-/// 6. Uploads image data to GPU texture
-/// 7. Creates texture view and sampler
-/// 8. Creates bind group combining texture and sampler
-/// 9. Stores bind group in manager with filename as key
-///
-/// # Error Handling
-/// - Missing files are skipped with warning messages
-/// - Corrupted images are skipped with detailed error reporting
-/// - Invalid file names are skipped gracefully
-/// - Function continues processing remaining files on errors
+/// Upload every PNG/JPG in `textures/` to the texture manager.
 pub fn load_textures_from_disk(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
     manager: &mut TextureManager,
 ) {
-    // Ensure textures directory exists, create if missing
-    std::fs::create_dir_all("textures").unwrap_or_default();
-    let Ok(entries) = fs::read_dir("textures") else {
+    fs::create_dir_all(TEXTURES_DIR).unwrap_or_default();
+    let Ok(entries) = fs::read_dir(TEXTURES_DIR) else {
         return;
     };
 
     for entry in entries.flatten() {
         let path = entry.path();
-        let Some(ext) = path.extension().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        let ext = ext.to_ascii_lowercase();
-        if !matches!(ext.as_str(), "png" | "jpg" | "jpeg") {
+        if !is_supported_texture(&path) {
             continue;
         }
 
-        // Extract filename safely, skip if invalid UTF-8
         let file_name = match path.file_name().and_then(|name| name.to_str()) {
             Some(name) => name.to_string(),
             None => continue,
         };
 
-        // Load image file data with error handling
         let img_data = match fs::read(&path) {
             Ok(data) => data,
             Err(e) => {
@@ -86,7 +50,6 @@ pub fn load_textures_from_disk(
             }
         };
 
-        // Decode image from memory with error handling
         let img = match image::load_from_memory(&img_data) {
             Ok(img) => img,
             Err(e) => {
@@ -99,11 +62,9 @@ pub fn load_textures_from_disk(
             }
         };
 
-        // Convert to RGBA8 format for GPU compatibility
         let img_rgba = img.to_rgba8();
         let (w, h) = img_rgba.dimensions();
 
-        // Create GPU texture with appropriate parameters
         let tex_size = wgpu::Extent3d {
             width: w,
             height: h,
@@ -120,7 +81,6 @@ pub fn load_textures_from_disk(
             view_formats: &[],
         });
 
-        // Upload image data to GPU texture
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &texture,
@@ -137,10 +97,8 @@ pub fn load_textures_from_disk(
             tex_size,
         );
 
-        // Create texture view for shader access
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Create sampler with repeat addressing and linear filtering
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
@@ -151,7 +109,6 @@ pub fn load_textures_from_disk(
             ..Default::default()
         });
 
-        // Create bind group combining texture and sampler for shader access
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
             entries: &[
@@ -167,57 +124,23 @@ pub fn load_textures_from_disk(
             label: Some(&file_name),
         });
 
-        // Store bind group in manager for later use by shaders
         manager.insert(&file_name, bind_group);
     }
 }
 
-// ── Prop asset loading ────────────────────────────────────────────────────────
-
-/// Scans `assets/` directory (including subdirectories) and uploads every GLB/GLTF/OBJ (except the base map) to
-/// the AssetManager as GPU vertex + index buffers.
-///
-/// This function loads 3D model files and converts them into GPU-ready vertex and index
-/// buffers for rendering. It handles multiple model formats and provides error recovery
-/// for corrupted or unsupported files.
-///
-/// # Parameters
-/// - `device`: GPU device for creating buffer resources
-/// - `assets`: Asset manager to store the created render assets
-///
-/// # Process
-/// 1. Scans assets/ directory for model files
-/// 2. Skips the base map file (handled separately)
-/// 3. Loads each model file using the mesh loader
-/// 4. Creates vertex buffer with vertex data
-/// 5. Creates index buffer for each mesh part
-/// 6. Stores render assets with filename as key
-///
-/// # Supported Formats
-/// - GLB (Binary glTF)
-/// - GLTF (glTF JSON format)
-/// - OBJ (Wavefront OBJ format)
-///
-/// # Error Handling
-/// - Missing assets directory prints warning and returns early
-/// - Unsupported file formats are skipped
-/// - Corrupted model files are caught with panic handling and skipped
-/// - Function continues processing remaining files on errors
+/// Upload every prop model under `assets/` except the base map.
 pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
-    // Check if assets directory exists
-    let Ok(entries) = fs::read_dir("assets") else {
+    let Ok(entries) = fs::read_dir(ASSETS_DIR) else {
         eprintln!("WARNING: Could not read assets/ directory.");
         return;
     };
 
-    // Recursively scan assets directory including subdirectories
     let mut found_any = false;
-    let mut pending: Vec<std::path::PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    let mut pending: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
 
     while let Some(path) = pending.pop() {
         if path.is_dir() {
-            // Add directory contents to pending queue
-            if let Ok(sub_entries) = std::fs::read_dir(&path) {
+            if let Ok(sub_entries) = fs::read_dir(&path) {
                 pending.extend(sub_entries.flatten().map(|e| e.path()));
             }
             continue;
@@ -227,36 +150,20 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
             continue;
         }
 
-        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-            continue;
-        };
-        let ext = ext.to_ascii_lowercase();
-        if !matches!(ext.as_str(), "glb" | "gltf" | "obj") {
+        if !is_supported_model(&path) {
             continue;
         }
 
-        let relative_asset_id = path
-            .strip_prefix("assets")
-            .ok()
-            .map(|p| p.to_string_lossy().replace('\\', "/"))
-            .or_else(|| {
-                path.file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-            });
-
-        let Some(asset_id) = relative_asset_id else {
+        let Some(asset_id) = asset_id_for_path(&path) else {
             continue;
         };
 
-        // Skip the base map file as it's handled separately by the level system
-        if asset_id == "map_001.glb" {
+        if asset_id == BASE_MAP_ASSET_ID {
             continue;
         }
 
         found_any = true;
 
-        // Load model with explicit error handling so one bad asset does not
-        // prevent the rest of the catalog from being usable.
         if let Some(path_str) = path.to_str() {
             let (vertices, parts, _pp, _pi) = match try_load_model(path_str) {
                 Ok(model) => model,
@@ -270,14 +177,12 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
                 }
             };
 
-            // Create vertex buffer with all vertex data
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Asset Vertex Buffer"),
                 contents: bytemuck::cast_slice(&vertices),
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
-            // Create index buffers for each mesh part
             let mut render_parts = Vec::new();
             for part in parts {
                 let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -292,7 +197,6 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
                 });
             }
 
-            // Store by the same relative path used by level JSON `asset_id`.
             assets.insert(
                 asset_id,
                 RenderAsset {
@@ -303,8 +207,31 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
         }
     }
 
-    // Warn if no model files were found, but don't fail - game can still run
     if !found_any {
         eprintln!("WARNING: No prop model files (.obj, .glb, .gltf) found in assets/");
     }
+}
+
+fn is_supported_texture(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg"))
+        .unwrap_or(false)
+}
+
+fn is_supported_model(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "glb" | "gltf" | "obj"))
+        .unwrap_or(false)
+}
+
+fn asset_id_for_path(path: &Path) -> Option<String> {
+    path.strip_prefix(ASSETS_DIR)
+        .ok()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .or_else(|| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().to_string())
+        })
 }
