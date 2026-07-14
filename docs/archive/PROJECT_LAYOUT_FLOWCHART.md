@@ -104,9 +104,10 @@ flowchart TD
 
     movement["CameraController::get_movement_intent"]
     stamina["PlayerState timers, stamina, dash"]
+    editor["Level editor mode, placement, save, hot reload"]
     progression["Resource pickup, anchors, respawn point"]
     enemies["Enemy AI chase/attack"]
-    combat["Primary fire ray/sphere hit"]
+    combat["Primary fire obstruction + ray/sphere hit"]
     rapier["PhysicsEngine movement + step"]
     instances["sync_instances when prop positions change"]
 
@@ -116,7 +117,8 @@ flowchart TD
     overlay["HUD overlay pass"]
 
     redraw --> dt --> physics_update
-    physics_update --> movement --> stamina --> progression --> enemies --> combat --> rapier --> instances
+    physics_update --> movement --> stamina --> editor
+    editor --> progression --> enemies --> combat --> rapier --> instances
     physics_update --> visual_update
     visual_update --> mouse --> light --> draw
     draw --> scene --> overlay
@@ -234,7 +236,7 @@ src/main.rs
 ### Config And Data
 
 - `config/bindings.toml` - Action bindings such as WASD, Space, Shift, Q,
-  mouse attack, and Escape.
+  mouse attack, Escape, debug controls, and editor controls.
 - `config/tuning.toml` - Player, movement, camera, physics, combat, world,
   lighting, and debug values.
 - `data/enemies/ashbound.toml` - Ashbound enemy definition.
@@ -293,13 +295,17 @@ src/main.rs
 - `src/data/config/gameplay.rs` - Loads and defines all config/tuning structs.
 - `src/data/enemy.rs` - Loads enemy TOML files and resolves enemy IDs.
 - `src/data/world/mod.rs` - Exposes level data.
-- `src/data/world/level.rs` - Defines level JSON, prop JSON, colliders, and
-  validation.
+- `src/data/world/level.rs` - Defines level JSON, prop JSON, colliders,
+  validation, and JSON saving.
 - `src/game/mod.rs` - Exposes gameplay modules.
 - `src/game/player.rs` - Player health, stamina, dash, hit feedback, death, and
   respawn state.
 - `src/game/enemy.rs` - Enemy chase/idle/attack intent and attack timers.
-- `src/game/combat.rs` - Ray/sphere hit helper for prototype shooting.
+- `src/game/combat.rs` - Ray/sphere enemy target helper for prototype shooting.
+- `src/systems/physics/engine.rs` - Rapier-backed solid-world weapon
+  obstruction queries.
+- `src/game/editor.rs` - In-game editor mode state, placement templates,
+  snapped cursor math, and reload confirmation.
 - `src/game/progression.rs` - Resource pickup, Anchor banking, respawn point,
   and death loss.
 - `src/systems/mod.rs` - Exposes audio, input, physics, and render systems.
@@ -313,7 +319,8 @@ src/main.rs
 - `src/systems/render/mod.rs` - Exposes render modules.
 - `src/systems/render/assets.rs` - Stores GPU model assets and draw groups.
 - `src/systems/render/camera.rs` - First-person camera and movement intent.
-- `src/systems/render/hud.rs` - Health/stamina bars, crosshair, pause overlay.
+- `src/systems/render/hud.rs` - Health/stamina bars, crosshair, pause overlay,
+  editor panel, and editor cursor marker.
 - `src/systems/render/hud.wgsl` - HUD shader.
 - `src/systems/render/instance.rs` - Per-instance transform layout.
 - `src/systems/render/lighting.rs` - Light and fog uniforms.

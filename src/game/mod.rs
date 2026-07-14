@@ -6,6 +6,7 @@
 
 pub mod combat;
 pub mod cycle;
+pub mod editor;
 pub mod enemy;
 pub mod feedback;
 pub mod player;

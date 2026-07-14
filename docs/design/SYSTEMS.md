@@ -10,7 +10,7 @@ Lore and dream logic belong in `LORE.md`.
 
 Content templates belong in `CONTENT_GUIDE.md`.
 
-Implementation notes belong in `TECHNICAL_NOTES.md`.
+Implementation notes belong in `../development/TECHNICAL_NOTES.md`.
 
 ---
 
@@ -401,7 +401,7 @@ What is trying to stop the player?
 
 ## Core Enemy Roles
 
-The full gameplay-first roster lives in `ENEMY_GAMEPLAY_ROSTER.txt`.
+The full gameplay-first roster lives in `../art/ENEMY_GAMEPLAY_ROSTER.txt`.
 
 Core combat jobs:
 
@@ -593,19 +593,19 @@ Each ascent should change at least three of these.
 
 Stores typed content definitions.
 
-See `TECHNICAL_NOTES.md`.
+See `../development/TECHNICAL_NOTES.md`.
 
 ## Content Validation
 
 Ensures data references are valid and content does not silently break.
 
-See `TECHNICAL_NOTES.md`.
+See `../development/TECHNICAL_NOTES.md`.
 
 ## Save System
 
 Stores player memory and persistent progression.
 
-See `TECHNICAL_NOTES.md`.
+See `../development/TECHNICAL_NOTES.md`.
 
 ## Presentation System
 
@@ -615,7 +615,7 @@ Handles UI, audio, VFX, feedback, atmosphere, and readability.
 
 Debug and validation tools needed to keep a solo forever project maintainable.
 
-See `TECHNICAL_NOTES.md`.
+See `../development/TECHNICAL_NOTES.md`.
 
 ---
 

@@ -174,7 +174,7 @@ impl PhysicsEngine {
     }
 
     pub fn add_prop(&mut self, prop: &PropData, phys_points: &[Vec3], phys_indices: &[[u32; 3]]) {
-        let is_dynamic = prop.enemy_type.is_some();
+        let is_dynamic = prop.enemy_type.is_some() || prop.path_id.is_some();
         let rb_builder = if is_dynamic {
             RigidBodyBuilder::dynamic().lock_rotations()
         } else {
@@ -298,6 +298,43 @@ impl PhysicsEngine {
             .is_some()
     }
 
+    /// Returns the nearest solid world obstruction along a weapon ray.
+    ///
+    /// This intentionally ignores the player, sensors, and dynamic bodies
+    /// (enemies), leaving combat target selection to the gameplay layer while
+    /// still preventing hitscan shots from passing through walls and level mesh.
+    pub fn weapon_obstruction_distance(
+        &self,
+        origin: Vec3,
+        dir: Vec3,
+        max_range: f32,
+    ) -> Option<f32> {
+        let dir_len_sq = dir.length_squared();
+        let max_range = max_range.max(0.0);
+        if dir_len_sq <= f32::EPSILON || max_range <= 0.0 {
+            return None;
+        }
+
+        let dir = dir / dir_len_sq.sqrt();
+        let ray = Ray::new(
+            RVec3::new(origin.x, origin.y, origin.z),
+            RVec3::new(dir.x, dir.y, dir.z),
+        );
+        let filter = QueryFilter::only_fixed()
+            .exclude_sensors()
+            .exclude_collider(self.player_collider_handle);
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            self.narrow_phase.query_dispatcher(),
+            &self.rigid_body_set,
+            &self.collider_set,
+            filter,
+        );
+
+        query_pipeline
+            .cast_ray(&ray, max_range, true)
+            .map(|(_, distance)| distance.max(0.0))
+    }
+
     pub fn apply_player_movement(
         &mut self,
         intent: [f32; 3],
@@ -385,11 +422,13 @@ mod tests {
 
     fn enemy_prop() -> PropData {
         PropData {
+            id: None,
             asset_id: "Cube.obj".to_string(),
             position: [1.0, 126.0, -2.0],
             rotation: [0.0, 0.0, 0.0],
             scale: [1.0, 1.0, 1.0],
             collider_type: ColliderType::Sphere,
+            brush_geometry: None,
             is_climbable: false,
             is_hurtbox: false,
             item_id: None,
@@ -401,6 +440,64 @@ mod tests {
             light_intensity: 0.0,
             ambient_sound_id: None,
             trigger_level_id: None,
+            loot_table_id: None,
+            path_id: None,
+            dialogue_id: None,
+            event_id: None,
+        }
+    }
+
+    fn wall_prop() -> PropData {
+        PropData {
+            id: None,
+            asset_id: "Wall.obj".to_string(),
+            position: [0.0, 126.0, -5.0],
+            rotation: [0.0, 0.0, 0.0],
+            scale: [4.0, 4.0, 1.0],
+            collider_type: ColliderType::Box,
+            brush_geometry: None,
+            is_climbable: false,
+            is_hurtbox: false,
+            item_id: None,
+            resource_value: 0,
+            anchor_id: None,
+            enemy_type: None,
+            enemy_health: 0.0,
+            light_color: None,
+            light_intensity: 0.0,
+            ambient_sound_id: None,
+            trigger_level_id: None,
+            loot_table_id: None,
+            path_id: None,
+            dialogue_id: None,
+            event_id: None,
+        }
+    }
+
+    fn hurtbox_sensor_prop() -> PropData {
+        PropData {
+            id: None,
+            asset_id: "Warning.obj".to_string(),
+            position: [0.0, 126.0, -5.0],
+            rotation: [0.0, 0.0, 0.0],
+            scale: [2.0, 2.0, 2.0],
+            collider_type: ColliderType::Sphere,
+            brush_geometry: None,
+            is_climbable: false,
+            is_hurtbox: true,
+            item_id: None,
+            resource_value: 0,
+            anchor_id: None,
+            enemy_type: None,
+            enemy_health: 0.0,
+            light_color: None,
+            light_intensity: 0.0,
+            ambient_sound_id: None,
+            trigger_level_id: None,
+            loot_table_id: None,
+            path_id: None,
+            dialogue_id: None,
+            event_id: None,
         }
     }
 
@@ -422,5 +519,98 @@ mod tests {
         let velocity = body.linvel();
         assert_eq!(velocity.x, 2.0);
         assert_eq!(velocity.z, -1.0);
+    }
+
+    #[test]
+    fn weapon_obstruction_distance_hits_static_walls() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        engine.add_prop(&wall_prop(), &[], &[]);
+        engine.step(&PhysicsConfig::default(), 0.016);
+
+        let distance = engine
+            .weapon_obstruction_distance(
+                Vec3::new(0.0, 126.0, 0.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                20.0,
+            )
+            .expect("static wall should block weapon ray");
+
+        assert!(
+            (4.45..=4.55).contains(&distance),
+            "expected wall face around 4.5m, got {distance}"
+        );
+    }
+
+    #[test]
+    fn weapon_obstruction_distance_works_before_any_props_are_added() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        engine.step(&PhysicsConfig::default(), 0.016);
+
+        let distance = engine
+            .weapon_obstruction_distance(
+                Vec3::new(0.0, 128.0, 0.0),
+                Vec3::new(0.0, -1.0, 0.0),
+                10.0,
+            )
+            .expect("fallback floor should block downward weapon ray immediately");
+
+        assert!(
+            (2.45..=2.55).contains(&distance),
+            "expected fallback floor top around 2.5m, got {distance}"
+        );
+    }
+
+    #[test]
+    fn weapon_obstruction_distance_ignores_dynamic_enemies() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        let mut enemy = enemy_prop();
+        enemy.position = [0.0, 126.0, -5.0];
+        engine.add_prop(&enemy, &[], &[]);
+        engine.step(&PhysicsConfig::default(), 0.016);
+
+        assert_eq!(
+            engine.weapon_obstruction_distance(
+                Vec3::new(0.0, 126.0, 0.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                20.0,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn weapon_obstruction_distance_ignores_sensor_hurtboxes() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        engine.add_prop(&hurtbox_sensor_prop(), &[], &[]);
+        engine.step(&PhysicsConfig::default(), 0.016);
+
+        assert_eq!(
+            engine.weapon_obstruction_distance(
+                Vec3::new(0.0, 126.0, 0.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                20.0,
+            ),
+            None
+        );
     }
 }

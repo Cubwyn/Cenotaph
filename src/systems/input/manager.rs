@@ -51,8 +51,7 @@ impl InputManager {
                         self.keys_pressed.remove(keycode);
                     }
                 }
-                // Don't consume Escape so app.rs can handle cursor toggle
-                *keycode != winit::keyboard::KeyCode::Escape
+                true
             }
 
             WindowEvent::MouseWheel { delta, .. } => {
@@ -113,11 +112,38 @@ impl InputManager {
         self.mouse_delta = (0.0, 0.0);
     }
 
-    pub fn reset_combat_inputs(&mut self) {
+    pub fn reset_all(&mut self) {
+        self.keys_pressed.clear();
+        self.keys_just_pressed.clear();
+        self.mouse_delta = (0.0, 0.0);
+        self.scroll_delta = 0.0;
         self.fire_primary = false;
     }
 
     pub fn end_frame(&mut self) {
         self.keys_just_pressed.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reset_all_clears_sticky_focus_loss_state() {
+        let mut input = InputManager::new();
+        input.keys_pressed.insert(KeyCode::KeyW);
+        input.keys_just_pressed.insert(KeyCode::KeyW);
+        input.mouse_delta = (12.0, -8.0);
+        input.scroll_delta = 3.0;
+        input.fire_primary = true;
+
+        input.reset_all();
+
+        assert!(input.keys_pressed.is_empty());
+        assert!(input.keys_just_pressed.is_empty());
+        assert_eq!(input.mouse_delta, (0.0, 0.0));
+        assert_eq!(input.scroll_delta, 0.0);
+        assert!(!input.fire_primary);
     }
 }

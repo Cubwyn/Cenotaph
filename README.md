@@ -61,21 +61,6 @@ The game should feel like climbing through a dream that has rules, but refuses t
 
 ---
 
-## Core Player Loop
-
-```text
-Enter the mountain
-Choose a route
-Fight through hostile spaces
-Recover relics
-Adapt the build
-Survive pressure
-Reach an Anchor or Sanctuary
-Bank progress
-Push higher
-Begin another ascent
-```
-
 The core design question is:
 
 ```text
@@ -131,25 +116,34 @@ The expandable content can be strange, ambitious, and endless.
 
 ## Documentation Map
 
-This README is the master overview.
+This README is the master overview. The categorized documentation index lives
+at [`docs/README.md`](docs/README.md):
 
-Detailed documents live in the following files:
+- `docs/design/` contains systems, lore, content rules, and the roadmap.
+- `docs/development/` contains the current foundation, smoke checklist,
+  technical notes, and ordered project-wide improvement backlog.
+- `docs/editor/` contains the standalone editor backlog.
+- `docs/art/` contains asset rules and enemy art/model briefs.
+- `docs/archive/` preserves superseded project inventories for history only.
 
-- `FOUNDATION.md` — current stable groundwork, runtime shape, content contracts, and validation checklist.
-- `FOUNDATION_SMOKE_CHECKLIST.md` — manual GPU/play smoke checklist for the foundation build.
-- `ASSET_GUIDE.md` — model scale, export, naming, directory, and replacement rules.
-- `MODEL_RESET_PLAN.md` — incremental plan for rebuilding placeholder and production models.
-- `layout_guide.txt` — current physical source layout and module dependency rules.
-- `PROJECT_DOCUMENTATION.txt` — current file-by-file project inventory.
-- `PROJECT_LAYOUT_FLOWCHART.md` — plain-language project map and flowcharts.
-- `ENEMY_GAMEPLAY_ROSTER.txt` — gameplay-first enemy roles, counterplay, encounter recipes, and implementation order.
-- `ENEMY_MODEL_GENERATOR_BRIEF.txt` — enemy model reference for 3D generators and future roster planning.
-- `SYSTEMS.md` — the mechanical and technical systems map.
-- `CONTENT_GUIDE.md` — rules and templates for adding new content.
-- `LORE.md` — mythology, tone, dream logic, and narrative rules.
-- `ROADMAP.md` — staged development plan and milestone definitions.
-- `TECHNICAL_NOTES.md` — Rust architecture direction, data registry, validation, save structure, and developer tools.
-- `readme.txt` — short plain-text project summary.
+## Project Layout
+
+```text
+assets/         Runtime-ready models
+config/         Player bindings and gameplay tuning
+data/           Enemy and relic definitions
+docs/           Current categorized documentation and historical archive
+levels/         Runtime JSON levels only
+prefabs/        Validated reusable prop groups for level construction
+scripts/        Repeatable project checks
+source_assets/  Blender files, conversion inputs, and visual references
+src/            Rust runtime, data contracts, systems, and developer tooling
+textures/       Runtime textures
+tools/          Standalone editor web UI
+```
+
+Generated caches and editor backups are ignored. Launching the game no longer
+writes an asset catalog into `assets/`.
 
 ---
 
@@ -182,37 +176,89 @@ cargo run -- continue
 Run the current Ash-Walk test map:
 
 ```powershell
-cargo run -- ashwalk_01
+cargo run -- play ashwalk_01
 ```
 
 Run the foundation systems smoke-test map:
 
 ```powershell
-cargo run -- foundation_test
+cargo run -- play foundation_test
 ```
 
-Validate authored level, config, enemy, relic, and model asset data without
-opening a game window:
+List playable level IDs or show every project command:
+
+```powershell
+cargo levels
+cargo run -- help
+```
+
+Validate authored level, prefab, config, enemy, relic, model, and texture data
+without opening a game window:
 
 ```powershell
 cargo run -- validate
 ```
 
-Run the full foundation check:
+Run the broader project diagnosis. This also checks required directories,
+default-level availability, save/backup health, source/runtime separation,
+pending write sidecars, and retained editor backups:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/foundation_check.ps1
+cargo doctor
 ```
 
-Then use `FOUNDATION_SMOKE_CHECKLIST.md` for manual launch/play validation.
+Run the standalone level editor:
+
+```powershell
+cargo run -- editor
+# Short project alias:
+cargo editor
+```
+
+Then open the printed localhost URL. The editor lists real project levels,
+assets, enemies, and relics; edits `levels/<level>.json`; validates through the
+same Rust level contract as the game; and saves through the shared staged-write
+system so the running game can hot-reload clean changes.
+
+Security model: the editor binds only to `127.0.0.1`, prints a per-launch
+tokenized URL, requires that token on all `/api/*` calls, rejects unexpected
+`Host`/`Origin` headers, never serves arbitrary files, only writes safe
+`levels/<id>.json` and `prefabs/<id>.json` paths, and creates ignored backup
+copies before overwriting existing content or deleting a prefab.
+
+Run the full project check:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/project_check.ps1
+```
+
+`scripts/foundation_check.ps1` remains as a compatibility entry point.
+
+Fast project aliases:
+
+```powershell
+cargo dev-check          # Check every Rust target
+cargo doctor             # Diagnose layout, content, saves, and pending writes
+cargo levels             # List playable level IDs
+cargo validate-content   # Validate levels and data without opening a window
+cargo play-foundation    # Launch the foundation systems test level
+cargo resume             # Resume the latest autosave
+```
+
+Autosaves are validated before writing, replaced through a flushed staging
+file, and keep `save/cenotaph_save.backup.json` as the last known-good slot.
+`continue` automatically recovers that backup when the primary is missing or
+damaged; `cargo doctor` reports the condition without opening the game.
+
+Then use `docs/development/FOUNDATION_SMOKE_CHECKLIST.md` for manual launch/play validation.
 
 Or run the core checks individually:
 
 ```powershell
 cargo fmt --check
-cargo clippy -- -D warnings
+cargo clippy --all-targets -- -D warnings
 cargo test
-cargo run -- validate
+cargo doctor
 ```
 
 Core controls:
@@ -224,9 +270,80 @@ Core controls:
 - mouse look
 - left mouse primary fire
 - `I` cycle owned relics
+- `F5` transactionally reload tuning, bindings, models, textures, enemy/relic
+  definitions, and the current level; invalid changes leave play state intact
 - `Escape` pause/unpause
 
-See `FOUNDATION.md` for the current runtime contracts and stable groundwork checklist.
+Standalone editor workflow:
+
+- choose a level from the Levels panel
+- use the Hammer-style `4 View` layout: Camera, Top X/Z, Front X/Y, and Side
+  Z/Y panels
+- use the Camera viewport to select, place, or move props with ray picking
+- use the Top/Front/Side panels to select, place, move, pan, zoom, and draw on
+  exact orthographic grids; `Top Y`, `Front Z`, and `Side X` set each work plane
+- fly the FPS-style editor camera with `WASD`/`QE`, right-drag to look, and
+  wheel to move forward/back
+- use the Keys workspace to inspect or remap editor keybindings; bindings are
+  stored locally in the browser
+- right-click Camera or orthographic views for context commands: select, place,
+  create brush, paste, duplicate, focus, delete, validate, and reset camera
+- use the Draw tool in Camera, Top, Front, or Side to create floor, wall, block,
+  directional slope, configurable cylinder, directional stair, and closed
+  terrain brushes
+- select terrain geometry to raise/lower its center, smooth, flatten,
+  regenerate, or generate a new seeded heightfield while preserving collision
+- Ctrl-click or Shift-click the object list for multi-selection, or drag a
+  marquee in an orthographic Select view; group operations preserve relative
+  placement and show primary/secondary selection outlines
+- use the XYZ axis selector, Snap toggle, grid value, transform inspector,
+  arrow/PageUp/PageDown nudges, and Move tool for precise group transforms
+- use the Palette for geometry, pickups, enemies, Anchors, hazards, and gates
+- use the Asset Browser to place runtime-supported models or stage files from
+  `source_assets/` for models, textures, materials, audio, dialogue/data,
+  levels, and config
+- use the dedicated Props, Assets, Events, Loot, Paths, Dialogue, and Validate
+  workspaces for level metadata, prop transforms, gameplay fields, guided
+  system editing, raw JSON escape hatches, and issue-to-prop navigation
+- use Prefabs to capture the current selection around its bottom-center pivot,
+  then place the validated group from Camera, Top, Front, or Side as one Undo
+  operation
+- use `F` to focus selected, `Ctrl+D` to duplicate, and `Ctrl+C`/`Ctrl+V` to
+  copy/paste selected props with the default bindings
+- `Validate` checks the current unsaved level through the Rust validator
+- `Save` writes the real level file only after validation passes
+- undo/redo coalesces a drag or focused field edit into one history step and
+  reports Saved again when history returns exactly to the on-disk snapshot
+- unsaved edits are stored as a browser-local draft; reopening the level offers
+  recovery and warns when the on-disk level changed since the draft began
+
+Runtime quick-adjust controls:
+
+- `Tab` toggle in-game level editor
+- `G` cycle editor mode: geometry, items, enemies, entities
+- left/right arrows cycle the current placement template
+- up/down arrows select existing props
+- mouse wheel adjusts placement distance
+- `Enter` place the current template at the snapped cursor
+- `Delete` remove the selected or nearest prop
+- `V` validate the current level in-editor
+- `P` save the current `levels/<level>.json` after validation passes
+- `R` hot reload the current level from disk
+
+Editor-supported authoring data now includes stable prop IDs, imported asset
+metadata, loot tables, authored paths, level events, and dialogue blocks. The
+runtime can execute on-enter/proximity events, grant resources, spawn weighted
+loot rolls, queue level transitions, log dialogue, set/save level-local flags,
+restore once-event state on continue, and move path-bound enemies/props.
+The editor HUD shows saved/unsaved state, validation state, cursor coordinates,
+selected prop count, placement distance, and the core edit keys while active.
+
+The editor expansion checklist lives in `docs/editor/LEVEL_EDITOR_BACKLOG.md`.
+
+The in-game HUD now mirrors these core verbs with a compact guide strip, thicker
+high-contrast block text, shot-result feedback, and the event feed.
+
+See `docs/development/FOUNDATION.md` for the current runtime contracts and stable groundwork checklist.
 
 ---
 
@@ -248,7 +365,7 @@ Supporting systems:
 - Presentation System
 - Developer Tools
 
-See `SYSTEMS.md` for the full breakdown.
+See `docs/design/SYSTEMS.md` for the full breakdown.
 
 ---
 
@@ -264,7 +381,7 @@ The world is divided into seven major Strata:
 6. Mirror-Crust
 7. The Breach
 
-Each Stratum should be documented uniformly using the template in `CONTENT_GUIDE.md`.
+Each Stratum should be documented uniformly using the template in `docs/design/CONTENT_GUIDE.md`.
 
 ---
 
@@ -340,12 +457,13 @@ Prototype.
 
 Implemented now:
 
-- movement, sprint, dash, pause, HUD, audio feedback, level loading, config
-  loading, hurtbox damage, death/respawn, prototype prop shooting, and
-  baseline data-driven enemy chase/attack, prototype resource pickup/Anchor
-  banking, authored relic pickups, deterministic enemy relic rewards,
-  owned-relic cycling, autosave/resume, basic cycle modifiers, and full
-  project content validation
+- movement, sprint, dash, pause, readable guided HUD, standalone level editor,
+  in-game quick adjuster, audio feedback, level loading, config loading,
+  hurtbox damage, death/respawn, prototype prop shooting with solid-world
+  obstruction, baseline data-driven enemy chase/attack, prototype resource
+  pickup/Anchor banking, authored relic pickups, deterministic enemy relic
+  rewards, owned-relic cycling, autosave/resume, basic cycle modifiers, and
+  full project content validation
 
 Not implemented yet:
 

@@ -50,8 +50,4 @@ impl AssetManager {
     pub fn get(&self, id: &str) -> Option<&RenderAsset> {
         self.assets.get(id)
     }
-
-    pub fn len(&self) -> usize {
-        self.assets.len()
-    }
 }

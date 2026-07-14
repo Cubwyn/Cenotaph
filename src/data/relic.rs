@@ -22,16 +22,6 @@ pub struct RelicRegistry {
 }
 
 impl RelicRegistry {
-    pub fn load_dir(path: impl AsRef<Path>) -> Self {
-        match Self::try_load_dir(path.as_ref()) {
-            Ok(registry) => registry,
-            Err(e) => {
-                eprintln!("[RELIC DATA] {}", e);
-                Self::default()
-            }
-        }
-    }
-
     pub fn try_load_dir(path: impl AsRef<Path>) -> Result<Self, String> {
         let path = path.as_ref();
         let entries = std::fs::read_dir(path)
@@ -47,11 +37,27 @@ impl RelicRegistry {
             })
             .collect();
         relic_paths.sort();
+        if relic_paths.is_empty() {
+            return Err(format!(
+                "no relic definition TOML files found in '{}'",
+                path.display()
+            ));
+        }
 
-        let definitions = relic_paths
-            .into_iter()
-            .map(RelicDefinition::try_load)
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut definitions = Vec::with_capacity(relic_paths.len());
+        for relic_path in relic_paths {
+            let definition = RelicDefinition::try_load(&relic_path)
+                .map_err(|error| format!("{}: {}", relic_path.to_string_lossy(), error))?;
+            let errors = definition.validation_errors();
+            if !errors.is_empty() {
+                return Err(format!(
+                    "{} failed validation: {}",
+                    relic_path.to_string_lossy(),
+                    errors.join("; ")
+                ));
+            }
+            definitions.push(definition);
+        }
 
         Self::from_definitions(definitions)
     }
@@ -78,6 +84,10 @@ impl RelicRegistry {
 
     pub fn get(&self, id: &str) -> Option<&RelicDefinition> {
         self.definitions.get(&normalize_relic_id(id))
+    }
+
+    pub fn len(&self) -> usize {
+        self.definitions.len()
     }
 }
 

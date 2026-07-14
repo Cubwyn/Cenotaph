@@ -7,6 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use wgpu::util::DeviceExt;
 
+use crate::core::engine::validation::validate_model_geometry;
 use crate::systems::render::assets::{AssetManager, RenderAsset, RenderAssetMeshPart};
 use crate::systems::render::mesh::try_load_model;
 use crate::systems::render::texture::TextureManager;
@@ -15,24 +16,61 @@ const ASSETS_DIR: &str = "assets";
 const TEXTURES_DIR: &str = "textures";
 const BASE_MAP_ASSET_ID: &str = "map_001.glb";
 
-/// Upload every PNG/JPG in `textures/` to the texture manager.
+#[derive(Debug, Default)]
+pub struct DiskLoadReport {
+    pub loaded: usize,
+    pub issues: Vec<String>,
+}
+
+impl DiskLoadReport {
+    pub fn into_result(self, kind: &str) -> Result<usize, String> {
+        if self.issues.is_empty() {
+            Ok(self.loaded)
+        } else {
+            Err(format!(
+                "{} loading failed with {} issue(s): {}",
+                kind,
+                self.issues.len(),
+                self.issues.join("; ")
+            ))
+        }
+    }
+}
+
+/// Upload supported texture files in `textures/` to the texture manager.
 pub fn load_textures_from_disk(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     layout: &wgpu::BindGroupLayout,
     manager: &mut TextureManager,
-) {
-    fs::create_dir_all(TEXTURES_DIR).unwrap_or_default();
-    let Ok(entries) = fs::read_dir(TEXTURES_DIR) else {
-        return;
+) -> DiskLoadReport {
+    let mut report = DiskLoadReport::default();
+    if let Err(error) = fs::create_dir_all(TEXTURES_DIR) {
+        report.issues.push(format!(
+            "failed to create texture directory '{}': {}",
+            TEXTURES_DIR, error
+        ));
+        return report;
+    }
+    let entries = match fs::read_dir(TEXTURES_DIR) {
+        Ok(entries) => entries,
+        Err(error) => {
+            report.issues.push(format!(
+                "failed to read texture directory '{}': {}",
+                TEXTURES_DIR, error
+            ));
+            return report;
+        }
     };
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !is_supported_texture(&path) {
-            continue;
-        }
+    let mut texture_paths = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| is_supported_texture(path))
+        .collect::<Vec<_>>();
+    texture_paths.sort();
 
+    for path in texture_paths {
         let file_name = match path.file_name().and_then(|name| name.to_str()) {
             Some(name) => name.to_string(),
             None => continue,
@@ -41,11 +79,11 @@ pub fn load_textures_from_disk(
         let img_data = match fs::read(&path) {
             Ok(data) => data,
             Err(e) => {
-                eprintln!(
-                    "Warning: Failed to read texture file {}: {}",
+                report.issues.push(format!(
+                    "failed to read texture '{}': {}",
                     path.display(),
                     e
-                );
+                ));
                 continue;
             }
         };
@@ -53,11 +91,11 @@ pub fn load_textures_from_disk(
         let img = match image::load_from_memory(&img_data) {
             Ok(img) => img,
             Err(e) => {
-                eprintln!(
-                    "Warning: Failed to decode texture file {}: {}",
+                report.issues.push(format!(
+                    "failed to decode texture '{}': {}",
                     path.display(),
                     e
-                );
+                ));
                 continue;
             }
         };
@@ -125,23 +163,42 @@ pub fn load_textures_from_disk(
         });
 
         manager.insert(&file_name, bind_group);
+        report.loaded += 1;
     }
+    report
 }
 
 /// Upload every prop model under `assets/` except the base map.
-pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
-    let Ok(entries) = fs::read_dir(ASSETS_DIR) else {
-        eprintln!("WARNING: Could not read assets/ directory.");
-        return;
+pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) -> DiskLoadReport {
+    let mut report = DiskLoadReport::default();
+    let entries = match fs::read_dir(ASSETS_DIR) {
+        Ok(entries) => entries,
+        Err(error) => {
+            report.issues.push(format!(
+                "failed to read asset directory '{}': {}",
+                ASSETS_DIR, error
+            ));
+            return report;
+        }
     };
 
-    let mut found_any = false;
     let mut pending: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    pending.sort_by(|left, right| right.cmp(left));
 
     while let Some(path) = pending.pop() {
         if path.is_dir() {
             if let Ok(sub_entries) = fs::read_dir(&path) {
-                pending.extend(sub_entries.flatten().map(|e| e.path()));
+                let mut children = sub_entries
+                    .flatten()
+                    .map(|entry| entry.path())
+                    .collect::<Vec<_>>();
+                children.sort_by(|left, right| right.cmp(left));
+                pending.extend(children);
+            } else {
+                report.issues.push(format!(
+                    "failed to read asset directory '{}'",
+                    path.display()
+                ));
             }
             continue;
         }
@@ -162,20 +219,28 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
             continue;
         }
 
-        found_any = true;
-
         if let Some(path_str) = path.to_str() {
-            let (vertices, parts, _pp, _pi) = match try_load_model(path_str) {
+            let model = match try_load_model(path_str) {
                 Ok(model) => model,
                 Err(error) => {
-                    eprintln!(
-                        "WARNING: Failed to load model asset {}: {}",
+                    report.issues.push(format!(
+                        "failed to load model asset '{}': {}",
                         path.display(),
                         error
-                    );
+                    ));
                     continue;
                 }
             };
+            let geometry_errors = validate_model_geometry(&model);
+            if !geometry_errors.is_empty() {
+                report.issues.push(format!(
+                    "model asset '{}' failed geometry validation: {}",
+                    path.display(),
+                    geometry_errors.join("; ")
+                ));
+                continue;
+            }
+            let (vertices, parts, _pp, _pi) = model;
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Asset Vertex Buffer"),
@@ -204,18 +269,26 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) {
                     parts: render_parts,
                 },
             );
+            report.loaded += 1;
+        } else {
+            report.issues.push(format!(
+                "asset path '{}' is not valid UTF-8",
+                path.to_string_lossy()
+            ));
         }
     }
-
-    if !found_any {
-        eprintln!("WARNING: No prop model files (.obj, .glb, .gltf) found in assets/");
-    }
+    report
 }
 
 fn is_supported_texture(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
-        .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "png" | "jpg" | "jpeg"))
+        .map(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "png" | "jpg" | "jpeg" | "webp" | "bmp" | "tga"
+            )
+        })
         .unwrap_or(false)
 }
 

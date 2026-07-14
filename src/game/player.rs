@@ -45,6 +45,11 @@ impl PlayerState {
         self.hit_flash_timer = 0.0;
     }
 
+    pub fn reconfigure(&mut self, config: &PlayerConfig) {
+        self.health.set_max_preserving_ratio(config.max_health);
+        self.stamina.set_max_preserving_ratio(config.max_stamina);
+    }
+
     pub fn restore_after_respawn(&mut self, config: &PlayerConfig) {
         self.health.restore_full(config.max_health);
         self.stamina.restore_full(config.max_stamina);
@@ -148,6 +153,12 @@ impl HealthState {
         self.current = self.max;
     }
 
+    fn set_max_preserving_ratio(&mut self, max: f32) {
+        let ratio = self.ratio();
+        self.max = max.max(1.0);
+        self.current = self.max * ratio;
+    }
+
     pub fn is_depleted(&self) -> bool {
         self.current <= 0.0
     }
@@ -206,6 +217,20 @@ impl StaminaState {
         self.current = self.max;
         self.smoothed = self.max;
         self.regen_delay_timer = 0.0;
+    }
+
+    fn set_max_preserving_ratio(&mut self, max: f32) {
+        let (current_ratio, display_ratio) = if self.max <= 0.0 {
+            (1.0, 1.0)
+        } else {
+            (
+                (self.current / self.max).clamp(0.0, 1.0),
+                (self.smoothed / self.max).clamp(0.0, 1.0),
+            )
+        };
+        self.max = max.max(0.0);
+        self.current = self.max * current_ratio;
+        self.smoothed = self.max * display_ratio;
     }
 }
 
@@ -279,6 +304,27 @@ mod tests {
         player.tick_timers(movement_config.dash_duration);
         assert!(!player.is_dashing);
         assert_eq!(player.dash_direction, [0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn reconfigure_preserves_health_and_stamina_ratios() {
+        let mut player = PlayerState::new(&PlayerConfig::default());
+        player.health.damage(25.0);
+        player.stamina.drain(50.0);
+        player.stamina.smoothed = 60.0;
+        let config = PlayerConfig {
+            max_health: 200.0,
+            max_stamina: 50.0,
+            ..PlayerConfig::default()
+        };
+
+        player.reconfigure(&config);
+
+        assert_eq!(player.health.current, 150.0);
+        assert_eq!(player.health.max, 200.0);
+        assert_eq!(player.stamina.current, 25.0);
+        assert!((player.stamina.smoothed - 30.0).abs() < 0.0001);
+        assert_eq!(player.stamina.max, 50.0);
     }
 
     #[test]

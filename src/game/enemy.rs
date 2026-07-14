@@ -7,6 +7,7 @@ pub struct EnemyRuntimeState {
     pub attack_cooldown_remaining: f32,
     pub attack_windup_remaining: f32,
     pub stagger_remaining: f32,
+    pub path_waypoint: usize,
 }
 
 impl EnemyRuntimeState {
@@ -235,6 +236,7 @@ mod tests {
             attack_cooldown_remaining: 0.25,
             attack_windup_remaining: 0.1,
             stagger_remaining: 0.0,
+            path_waypoint: 0,
         };
 
         assert!(!advance_enemy_attack(&mut runtime, &enemy, 0.1));

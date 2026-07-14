@@ -1,0 +1,153 @@
+{
+  "name": "Editor Systems Test",
+  "base_map": "assets/test_movement_arena.obj",
+  "player_spawn": [
+    0.0,
+    126.0,
+    0.0
+  ],
+  "props": [
+    {
+      "id": "editor_guard",
+      "asset_id": "enemies/ashbound.obj",
+      "position": [
+        6.0,
+        126.0,
+        -4.0
+      ],
+      "scale": [
+        1.2,
+        1.2,
+        1.2
+      ],
+      "collider_type": "Sphere",
+      "enemy_type": "ashbound",
+      "loot_table_id": "editor_guard_drops",
+      "path_id": "editor_guard_patrol"
+    },
+    {
+      "id": "editor_event_marker",
+      "asset_id": "world/anchor_marker.obj",
+      "position": [
+        0.0,
+        126.0,
+        -2.0
+      ],
+      "scale": [
+        0.5,
+        1.0,
+        0.5
+      ],
+      "collider_type": "None",
+      "dialogue_id": "editor_intro"
+    }
+  ],
+  "asset_imports": [
+    {
+      "id": "editor_wall_import",
+      "asset_id": "props/test_wall.obj",
+      "default_scale": [
+        8.0,
+        3.0,
+        1.0
+      ],
+      "default_collider_type": "Box",
+      "tags": [
+        "geometry",
+        "test"
+      ],
+      "notes": "Imported test wall template for editor authoring validation."
+    }
+  ],
+  "loot_tables": [
+    {
+      "id": "editor_guard_drops",
+      "rolls": 1,
+      "entries": [
+        {
+          "weight": 3,
+          "resource_value": 25,
+          "quantity": 1
+        },
+        {
+          "weight": 1,
+          "item_id": "ash_splinter",
+          "quantity": 1
+        }
+      ]
+    }
+  ],
+  "paths": [
+    {
+      "id": "editor_guard_patrol",
+      "kind": "Enemy",
+      "looped": true,
+      "speed_multiplier": 0.5,
+      "waypoints": [
+        [
+          6.0,
+          126.0,
+          -4.0
+        ],
+        [
+          10.0,
+          126.0,
+          -4.0
+        ]
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "editor_arrival",
+      "once": true,
+      "trigger": {
+        "kind": "OnEnter"
+      },
+      "actions": [
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "editor_intro"
+        },
+        {
+          "kind": "GrantResource",
+          "resource_value": 5
+        }
+      ]
+    },
+    {
+      "id": "editor_loot_spawn",
+      "once": true,
+      "trigger": {
+        "kind": "Proximity",
+        "position": [
+          0.0,
+          126.0,
+          -2.0
+        ],
+        "radius": 1.5
+      },
+      "actions": [
+        {
+          "kind": "SpawnLoot",
+          "loot_table_id": "editor_guard_drops",
+          "spawn_position": [
+            0.0,
+            126.0,
+            -3.0
+          ]
+        }
+      ]
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "editor_intro",
+      "speaker": "Editor",
+      "lines": [
+        "Level graph online.",
+        "Events, loot, paths, and dialogue are authored together."
+      ]
+    }
+  ]
+}

@@ -143,7 +143,9 @@ Important files:
 - `src/core/engine/loader.rs`: loads textures and model assets.
 - `src/core/engine/sync.rs`: rebuilds GPU instance buffers from level props.
 - `src/core/engine/validation.rs`: checks content/config/assets without a game window.
-- `src/core/engine/asset_catalog.rs`: scans `assets/` and can write `assets/props.json`.
+- `src/core/engine/asset_catalog.rs`: scans project asset roots, separates
+  runtime-supported models from source-only model/texture/audio/dialogue/data
+  files, and can write `assets/props.json`.
 
 ### `src/data`
 
@@ -388,9 +390,12 @@ so they are a foundation cue rather than a full footstep timing system.
 
 Combat is intentionally minimal right now.
 
-Primary fire casts a ray from the camera and checks whether it passes within
-`combat.enemy_hit_radius` of an enemy prop position. If it hits, the enemy prop
-loses `combat.base_damage`. When health reaches zero, the prop is removed from:
+Primary fire casts a ray from the camera, asks the Rapier physics world for the
+nearest solid wall/map obstruction, and only checks enemy ray/sphere hits up to
+that distance. This prevents shooting through static walls while still ignoring
+enemy bodies and hurtbox sensors for obstruction. If the shot hits, the enemy
+prop loses `combat.base_damage`. When health reaches zero, the prop is removed
+from:
 
 - level data
 - physics
@@ -571,13 +576,21 @@ Implemented:
 - movement, jump, sprint, dash
 - pause and cursor release
 - HUD health/stamina/crosshair/pause overlay
+- readable HUD guide strip and shot-result feedback
+- in-game level editor for prop/brush geometry, pickups, enemies, Anchors,
+  hazards, transition gates, JSON save, and hot reload
+- standalone localhost level editor with 3D viewport, flying camera,
+  Hammer-style orthographic panels, ray-picked placement, marquee/group
+  selection, axis-constrained transforms, transactional undo/redo, tabbed
+  authoring workspaces, slope/cylinder/stair brush geometry, project asset
+  browser, Rust validation, and safe level file saves
 - static prop collision
 - hurtbox damage
 - player death and delayed respawn
 - resource pickup
 - Anchor banking and local respawn
 - level transition trigger
-- prototype primary fire
+- prototype primary fire with solid-world obstruction
 - baseline enemy chase/attack
 - model/texture fallback behavior
 
@@ -586,6 +599,7 @@ Not implemented yet:
 - full weapon system
 - generated relic rolls and affixes
 - full inventory UI and item comparison
+- freeform mesh sculpting or CSG beyond prop-based geometry brushes
 - save slots, migration, and conflict handling
 - full Anchor UI
 - Sanctuary UI

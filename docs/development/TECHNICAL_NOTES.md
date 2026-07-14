@@ -204,7 +204,8 @@ Does every route have at least one encounter or reward?
 
 ## MVP Requirement
 
-- Non-window validation for current authored level/config/enemy/model data
+- Non-window validation for authored levels, prefabs, config, registries,
+  models, and textures
 - Clear error messages
 
 ## Expansion
@@ -239,9 +240,17 @@ Does every route have at least one encounter or reward?
 - `config/tuning.toml` parseability and numeric ranges
 - `config/bindings.toml` required actions, valid tokens, and duplicate bindings
 - level resource/Anchor metadata sanity
+- prefab versioning, prop limits, stable IDs, and forbidden level-local links
+- relic definition parseability, ID uniqueness, and stat sanity
+- level and loot-table relic references
+- level paths, events, dialogue, flags, and their cross-references
+- all model assets under `assets/`, including unreferenced files
+- supported textures under `textures/` decode successfully
 
-Future validation should add relic data, loot tables, hazards, encounter tables,
-and behavior-specific enemy requirements.
+`cargo doctor` wraps content validation with project-layout, playable-level,
+autosave/backup, source/runtime separation, editor-backup, and interrupted-write
+checks. Runtime startup and F5 reload use strict versions of the same contracts;
+invalid content is rejected before live state is replaced.
 
 ---
 

@@ -3,3 +3,4 @@
 // Think of this as the "map" of Cenotaph — the dead kingdom's geometry and memory.
 
 pub mod level;
+pub mod prefab;

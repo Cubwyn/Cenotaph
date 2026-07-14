@@ -29,16 +29,6 @@ pub struct EnemyRegistry {
 }
 
 impl EnemyRegistry {
-    pub fn load_dir(path: impl AsRef<Path>) -> Self {
-        match Self::try_load_dir(path.as_ref()) {
-            Ok(registry) => registry,
-            Err(e) => {
-                eprintln!("[ENEMY DATA] {}", e);
-                Self::default()
-            }
-        }
-    }
-
     pub fn try_load_dir(path: impl AsRef<Path>) -> Result<Self, String> {
         let path = path.as_ref();
         let entries = std::fs::read_dir(path)
@@ -54,11 +44,35 @@ impl EnemyRegistry {
             })
             .collect();
         enemy_paths.sort();
+        if enemy_paths.is_empty() {
+            return Err(format!(
+                "no enemy definition TOML files found in '{}'",
+                path.display()
+            ));
+        }
 
-        let definitions = enemy_paths
-            .into_iter()
-            .map(EnemyDefinition::try_load)
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut definitions = Vec::with_capacity(enemy_paths.len());
+        for enemy_path in enemy_paths {
+            let definition = EnemyDefinition::try_load(&enemy_path)
+                .map_err(|error| format!("{}: {}", enemy_path.to_string_lossy(), error))?;
+            let errors = definition.validation_errors();
+            if !errors.is_empty() {
+                return Err(format!(
+                    "{} failed validation: {}",
+                    enemy_path.to_string_lossy(),
+                    errors.join("; ")
+                ));
+            }
+            let model_path = definition.model_path();
+            if !model_path.is_file() {
+                return Err(format!(
+                    "{} references missing model asset '{}'",
+                    enemy_path.to_string_lossy(),
+                    model_path.to_string_lossy()
+                ));
+            }
+            definitions.push(definition);
+        }
 
         Self::from_definitions(definitions)
     }
@@ -85,6 +99,10 @@ impl EnemyRegistry {
 
     pub fn get(&self, id: &str) -> Option<&EnemyDefinition> {
         self.definitions.get(&normalize_enemy_id(id))
+    }
+
+    pub fn len(&self) -> usize {
+        self.definitions.len()
     }
 }
 

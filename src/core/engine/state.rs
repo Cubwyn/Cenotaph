@@ -12,19 +12,22 @@
 //   sync.rs   - sync_instances
 //   loader.rs - load_textures_from_disk / load_prop_assets
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::core::engine::loader::{load_prop_assets, load_textures_from_disk};
+use crate::core::engine::validation::{tuning_validation_errors, validate_model_geometry};
 use crate::data::config::gameplay::{GameConfig, PhysicsConfig};
 use crate::data::enemy::EnemyRegistry;
 use crate::data::relic::RelicRegistry;
-use crate::data::world::level::LevelData;
+use crate::data::world::level::{validate_level_id, LevelData, PropData};
 use crate::game::cycle::CycleState;
+use crate::game::editor::LevelEditorState;
 use crate::game::enemy::EnemyRuntimeState;
 use crate::game::feedback::{FeedbackEvent, FeedbackEventKind, FeedbackState};
 use crate::game::player::PlayerState;
@@ -36,14 +39,12 @@ use crate::systems::physics::engine::PhysicsEngine;
 use crate::systems::render::assets::{AssetManager, DrawGroup, RenderAssetMeshPart};
 use crate::systems::render::camera::{Camera, CameraController, CameraUniform};
 use crate::systems::render::hud::{
-    AscentHudState, DebugHudState, HudFeedEvent, HudFeedback, HudFrameState, HudMarkerKind,
-    HudMarkerState, HudSystem, HudWorldMarker,
+    AscentHudState, DebugHudState, EditorHudState, HudFeedEvent, HudFeedback, HudFrameState,
+    HudMarkerKind, HudMarkerState, HudSystem, HudWorldMarker,
 };
 use crate::systems::render::instance::InstanceRaw;
 use crate::systems::render::lighting::LightingSystem;
-use crate::systems::render::mesh::{
-    empty_model, try_load_model, ModelData, RenderMeshPart, Vertex,
-};
+use crate::systems::render::mesh::{try_load_model, ModelData, RenderMeshPart, Vertex};
 use crate::systems::render::pipeline::RenderPipeline;
 use crate::systems::render::texture::TextureManager;
 
@@ -59,6 +60,14 @@ struct MapRenderResources {
     vertex_buffer: wgpu::Buffer,
     parts: Vec<RenderAssetMeshPart>,
     instance_buffer: wgpu::Buffer,
+}
+
+struct PreparedLevel {
+    name: String,
+    path: String,
+    data: LevelData,
+    file_modified: Option<std::time::SystemTime>,
+    model: ModelData,
 }
 
 fn round_to_u32(value: f32) -> u32 {
@@ -87,6 +96,7 @@ pub struct EngineState {
     // Asset / texture registries
     pub assets: AssetManager,
     pub texture_manager: TextureManager,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
     pub active_draw_groups: Vec<DrawGroup>,
 
     // Camera
@@ -118,32 +128,44 @@ pub struct EngineState {
     pub equipped_relic: EquippedRelic,
     pub cycle: CycleState,
     pub feedback: FeedbackState,
+    pub editor: LevelEditorState,
 
     /// Time remaining (seconds) before the next action is allowed.
     pub action_cooldown: f32,
     /// Per-prop enemy runtime state, aligned with `level_data.props`.
     pub enemy_runtime: Vec<EnemyRuntimeState>,
+    /// Per-event fired flags, aligned with `level_data.events`.
+    pub level_event_fired: Vec<bool>,
+    /// Level-local event flags set by event actions during the current load.
+    pub level_flags: HashSet<String>,
     /// Accumulator for debug logging (seconds since last print).
     pub debug_timer: f32,
 
     /// If Some, the engine should load this level on the next frame.
     pub pending_transition: Option<String>,
+    /// A failed target is suppressed until the current level is reloaded.
+    pub failed_transition: Option<String>,
 }
 
 impl EngineState {
-    pub async fn new(window: Arc<Window>, level_name: String) -> Self {
-        let config_data = GameConfig::load();
-        let enemy_registry = EnemyRegistry::load_dir("data/enemies");
-        let relic_registry = RelicRegistry::load_dir("data/relics");
+    pub async fn new(window: Arc<Window>, level_name: String) -> Result<Self, String> {
+        let config_data = GameConfig::try_load()
+            .map_err(|error| format!("game configuration could not be loaded: {}", error))?;
+        let tuning_errors = tuning_validation_errors(&config_data);
+        if !tuning_errors.is_empty() {
+            return Err(format!(
+                "gameplay tuning failed validation: {}",
+                tuning_errors.join("; ")
+            ));
+        }
+        let enemy_registry = EnemyRegistry::try_load_dir("data/enemies")
+            .map_err(|error| format!("enemy definitions could not be loaded: {}", error))?;
+        let relic_registry = RelicRegistry::try_load_dir("data/relics")
+            .map_err(|error| format!("relic definitions could not be loaded: {}", error))?;
         let should_continue_saved_game = level_name.eq_ignore_ascii_case("continue");
         let saved_game = if should_continue_saved_game {
-            match SaveData::load_from_path(DEFAULT_SAVE_PATH) {
-                Ok(save) => save,
-                Err(error) => {
-                    eprintln!("[SAVE] {}", error);
-                    None
-                }
-            }
+            SaveData::load_from_path(DEFAULT_SAVE_PATH)
+                .map_err(|error| format!("saved game could not be resumed: {}", error))?
         } else {
             None
         };
@@ -157,13 +179,22 @@ impl EngineState {
                     level_name
                 }
             });
+        let mut prepared_level =
+            Self::prepare_level(&starting_level_name, &enemy_registry, &relic_registry)?;
+        if let Some(save) = saved_game.as_ref() {
+            if let Some(respawn_position) = save.respawn_position {
+                prepared_level.data.player_spawn = respawn_position;
+            }
+        }
         let size = window.inner_size();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance
+            .create_surface(window.clone())
+            .map_err(|error| format!("failed to create rendering surface: {}", error))?;
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -171,7 +202,7 @@ impl EngineState {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
+            .map_err(|error| format!("failed to find a compatible graphics adapter: {}", error))?;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::empty(),
@@ -181,7 +212,7 @@ impl EngineState {
                 ..Default::default()
             })
             .await
-            .unwrap();
+            .map_err(|error| format!("failed to create graphics device: {}", error))?;
 
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
@@ -189,15 +220,26 @@ impl EngineState {
             .iter()
             .copied()
             .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
+            .or_else(|| surface_caps.formats.first().copied())
+            .ok_or_else(|| "graphics surface reported no supported formats".to_string())?;
+        let present_mode = surface_caps
+            .present_modes
+            .first()
+            .copied()
+            .ok_or_else(|| "graphics surface reported no presentation modes".to_string())?;
+        let alpha_mode = surface_caps
+            .alpha_modes
+            .first()
+            .copied()
+            .ok_or_else(|| "graphics surface reported no alpha modes".to_string())?;
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: size.width.max(1),
             height: size.height.max(1),
-            present_mode: surface_caps.present_modes[0],
-            alpha_mode: surface_caps.alpha_modes[0],
+            present_mode,
+            alpha_mode,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
@@ -242,41 +284,42 @@ impl EngineState {
             });
 
         let mut texture_manager = TextureManager::new(&device, &queue, &texture_bind_group_layout);
-        load_textures_from_disk(
+        let texture_count = load_textures_from_disk(
             &device,
             &queue,
             &texture_bind_group_layout,
             &mut texture_manager,
-        );
+        )
+        .into_result("texture")?;
+        println!("[ASSETS] Loaded {} texture(s)", texture_count);
 
-        let level_path = format!("levels/{}.json", starting_level_name);
-        let mut level_data = LevelData::load(&level_path);
-        Self::apply_enemy_definitions(&mut level_data, &enemy_registry, &level_path);
-        Self::report_level_validation(&level_data, &level_path);
+        let PreparedLevel {
+            name: prepared_level_name,
+            path: level_path,
+            data: level_data,
+            file_modified: level_file_modified,
+            model,
+        } = prepared_level;
         println!(
-            "[DEBUG] Level loaded: {}, props: {}",
+            "[LEVEL] Prepared '{}': {} props",
             level_path,
             level_data.props.len()
         );
-        if let Some(save) = saved_game.as_ref() {
-            if let Some(respawn_position) = save.respawn_position {
-                level_data.player_spawn = respawn_position;
-            }
-        }
 
-        let (map_vertices, map_mesh_parts, phys_points, phys_indices) =
-            Self::load_map_model(&level_data);
+        let (map_vertices, map_mesh_parts, phys_points, phys_indices) = model;
         Self::log_map_model(&map_vertices, map_mesh_parts.len());
         let map_resources = Self::build_map_resources(&device, &map_vertices, map_mesh_parts);
 
         let mut assets = AssetManager::new();
-        load_prop_assets(&device, &mut assets);
+        let asset_count = load_prop_assets(&device, &mut assets).into_result("model asset")?;
 
-        let catalog = crate::core::engine::asset_catalog::AssetCatalog::scan("assets");
-        let _ = catalog.save("assets/props.json");
-        println!("[DEBUG] Assets loaded: {}", assets.len());
-
-        let camera = Self::camera_for_spawn(level_data.player_spawn, config.width, config.height);
+        println!("[ASSETS] Loaded {} model asset(s)", asset_count);
+        let camera = Self::camera_for_spawn(
+            level_data.player_spawn,
+            config.width,
+            config.height,
+            config_data.world.draw_distance,
+        );
         let camera_controller = CameraController::new(config_data.camera.sensitivity);
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
@@ -351,6 +394,9 @@ impl EngineState {
         }
         let feedback = FeedbackState::new();
         let enemy_runtime = Self::enemy_runtime_for_level(&level_data);
+        let level_event_fired =
+            Self::level_event_runtime_for_saved_level(&level_data, saved_game.as_ref());
+        let level_flags = Self::level_flags_for_saved_level(saved_game.as_ref());
         let mut state = Self {
             window,
             surface,
@@ -366,6 +412,7 @@ impl EngineState {
             map_instance_buffer: map_resources.instance_buffer,
             assets,
             texture_manager,
+            texture_bind_group_layout,
             active_draw_groups: Vec::new(),
             camera,
             camera_controller,
@@ -381,20 +428,25 @@ impl EngineState {
             enemy_registry,
             relic_registry,
             level_data,
-            level_name: starting_level_name,
+            level_name: prepared_level_name,
             player,
             progress,
             equipped_relic,
             cycle,
             feedback,
+            editor: LevelEditorState::new(),
             action_cooldown: 0.0,
             enemy_runtime,
+            level_event_fired,
+            level_flags,
             debug_timer: 0.0,
             pending_transition: None,
+            failed_transition: None,
         };
+        state.editor.set_known_file_modified(level_file_modified);
 
         state.sync_instances();
-        state
+        Ok(state)
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -507,6 +559,8 @@ impl EngineState {
                 shot_flash: self.feedback.shot_flash_timer,
                 hit_marker: self.feedback.hit_marker_timer,
                 kill_marker: self.feedback.kill_marker_timer,
+                blocked_flash: self.feedback.blocked_flash_timer,
+                miss_flash: self.feedback.miss_flash_timer,
                 pickup_flash: self.feedback.pickup_flash_timer,
                 damage_flash: self.feedback.damage_flash_timer,
                 debug_flash: self.feedback.debug_flash_timer,
@@ -533,6 +587,7 @@ impl EngineState {
                 feedback: hud_feedback,
                 debug: self.debug_hud_state(),
                 ascent: self.ascent_hud_state(),
+                editor: self.editor_hud_state(),
                 markers: self.hud_world_markers(),
                 event_feed: self.hud_event_feed(),
             };
@@ -601,6 +656,34 @@ impl EngineState {
         }
     }
 
+    fn editor_hud_state(&self) -> EditorHudState {
+        let selected_prop = self
+            .editor
+            .selected_prop
+            .map(|index| (index + 1) as u32)
+            .unwrap_or(0);
+        let cursor = self.editor.cursor_position;
+
+        EditorHudState {
+            enabled: self.editor.enabled,
+            dirty: self.editor.dirty,
+            mode_label: self.editor.mode().label().to_string(),
+            template_label: self.editor.current_template_label().to_string(),
+            selected_prop,
+            prop_count: self.level_data.props.len() as u32,
+            placement_distance: self.editor.placement_distance.round().max(0.0) as u32,
+            cursor: [
+                cursor[0].round() as i32,
+                cursor[1].round() as i32,
+                cursor[2].round() as i32,
+            ],
+            message: self.editor.message().to_string(),
+            validation_label: self.editor.validation_label().to_string(),
+            validation_current: self.editor.validation_current(),
+            validation_has_errors: self.editor.validation_has_errors(),
+        }
+    }
+
     fn hud_event_feed(&self) -> Vec<HudFeedEvent> {
         self.feedback
             .events
@@ -615,6 +698,8 @@ impl EngineState {
             FeedbackEventKind::PlayerDamage => ("DMG", [1.0, 0.16, 0.08, 1.0]),
             FeedbackEventKind::EnemyHit => ("HIT", [1.0, 0.38, 0.14, 1.0]),
             FeedbackEventKind::EnemyKill => ("KILL", [1.0, 0.74, 0.18, 1.0]),
+            FeedbackEventKind::ShotBlocked => ("BLOCK", [0.48, 0.78, 1.0, 1.0]),
+            FeedbackEventKind::ShotMissed => ("MISS", [0.76, 0.80, 0.86, 1.0]),
             FeedbackEventKind::Pickup => ("PICKUP", [1.0, 0.78, 0.18, 1.0]),
             FeedbackEventKind::Resource => ("RES", [0.84, 0.82, 1.0, 1.0]),
             FeedbackEventKind::Heal => ("HEAL", [0.28, 1.0, 0.48, 1.0]),
@@ -640,6 +725,24 @@ impl EngineState {
         let player_pos = self.physics.get_player_pos();
         let player = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
         let mut markers = Vec::new();
+
+        if self.editor.enabled {
+            let cursor = self.editor.cursor_position;
+            let cursor_pos = Vec3::new(cursor[0], cursor[1], cursor[2]);
+            if let Some(screen_pos) = self.project_to_hud(cursor_pos) {
+                markers.push((
+                    player.distance(cursor_pos),
+                    HudWorldMarker {
+                        screen_pos,
+                        ratio: 1.0,
+                        distance_m: round_to_u32(player.distance(cursor_pos)),
+                        kind: HudMarkerKind::EditorCursor,
+                        state: HudMarkerState::Neutral,
+                        state_ratio: 1.0,
+                    },
+                ));
+            }
+        }
 
         for (index, prop) in self.level_data.props.iter().enumerate() {
             let Some(kind) = self.marker_kind_for_prop(prop) else {
@@ -783,39 +886,118 @@ impl EngineState {
         Some([ndc.x.clamp(-0.97, 0.97), ndc.y.clamp(-0.92, 0.92)])
     }
 
-    /// Replaces current level data with a new level, rebuilding all map geometry,
-    /// physics colliders, prop instances, and resetting camera position.
-    pub fn load_level(&mut self, new_level_name: &str) {
-        let level_path = format!("levels/{}.json", new_level_name);
-        let mut level_data = LevelData::load(&level_path);
-        Self::apply_enemy_definitions(&mut level_data, &self.enemy_registry, &level_path);
-        Self::report_level_validation(&level_data, &level_path);
-        println!(
-            "[LEVEL] Loaded '{}': {} props",
-            new_level_name,
-            level_data.props.len()
+    /// Reloads designer-owned runtime data as one transaction. Nothing live is
+    /// changed unless config, registries, level data, and map geometry all pass.
+    pub fn reload_runtime_content(&mut self) -> Result<(), String> {
+        let config = GameConfig::try_load()
+            .map_err(|error| format!("game configuration could not be reloaded: {}", error))?;
+        let tuning_errors = tuning_validation_errors(&config);
+        if !tuning_errors.is_empty() {
+            return Err(format!(
+                "gameplay tuning failed validation: {}",
+                tuning_errors.join("; ")
+            ));
+        }
+
+        let enemy_registry = EnemyRegistry::try_load_dir("data/enemies")
+            .map_err(|error| format!("enemy definitions could not be reloaded: {}", error))?;
+        let relic_registry = RelicRegistry::try_load_dir("data/relics")
+            .map_err(|error| format!("relic definitions could not be reloaded: {}", error))?;
+        let prepared = Self::prepare_level(&self.level_name, &enemy_registry, &relic_registry)?;
+
+        let owned_relic_ids = self.equipped_relic.owned_ids();
+        let equipped_relic_id = self.equipped_relic.equipped_id().map(ToOwned::to_owned);
+        let missing_owned_relics = owned_relic_ids
+            .iter()
+            .filter(|id| relic_registry.get(id).is_none())
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing_owned_relics.is_empty() {
+            return Err(format!(
+                "relic reload would remove owned relic(s): {}",
+                missing_owned_relics.join(", ")
+            ));
+        }
+
+        let mut assets = AssetManager::new();
+        let asset_count =
+            load_prop_assets(&self.device, &mut assets).into_result("model asset reload")?;
+        let mut texture_manager =
+            TextureManager::new(&self.device, &self.queue, &self.texture_bind_group_layout);
+        let texture_count = load_textures_from_disk(
+            &self.device,
+            &self.queue,
+            &self.texture_bind_group_layout,
+            &mut texture_manager,
+        )
+        .into_result("texture reload")?;
+
+        self.player.reconfigure(&config.player);
+        self.camera_controller
+            .set_sensitivity(config.camera.sensitivity);
+        self.camera.zfar = config.world.draw_distance;
+        self.config_data = config;
+        self.enemy_registry = enemy_registry;
+        self.relic_registry = relic_registry;
+        self.assets = assets;
+        self.texture_manager = texture_manager;
+        self.equipped_relic.restore_from_ids(
+            &owned_relic_ids,
+            equipped_relic_id.as_deref(),
+            &self.relic_registry,
         );
+        self.commit_prepared_level(prepared);
+        println!(
+            "[RELOAD] Runtime data applied: {} models, {} textures, {} enemies, {} relics",
+            asset_count,
+            texture_count,
+            self.enemy_registry.len(),
+            self.relic_registry.len()
+        );
+        Ok(())
+    }
 
-        let (map_vertices, map_mesh_parts, phys_points, phys_indices) =
-            Self::load_map_model(&level_data);
+    /// Fully prepares a new level before replacing any live runtime state.
+    pub fn load_level(&mut self, new_level_name: &str) -> Result<(), String> {
+        let prepared =
+            Self::prepare_level(new_level_name, &self.enemy_registry, &self.relic_registry)?;
+        self.commit_prepared_level(prepared);
+        Ok(())
+    }
+
+    fn commit_prepared_level(&mut self, prepared: PreparedLevel) {
+        let PreparedLevel {
+            name,
+            path,
+            data: level_data,
+            file_modified,
+            model,
+        } = prepared;
+        let (map_vertices, map_mesh_parts, phys_points, phys_indices) = model;
         let map_resources = Self::build_map_resources(&self.device, &map_vertices, map_mesh_parts);
-
-        self.physics = Self::build_physics_for_level(
+        let physics = Self::build_physics_for_level(
             &level_data,
             &self.config_data.physics,
             phys_points,
             phys_indices,
         );
-
-        self.camera.position = Self::camera_position_for_spawn(level_data.player_spawn);
-
         let enemy_runtime = Self::enemy_runtime_for_level(&level_data);
+        let level_event_fired = Self::level_event_runtime_for_level(&level_data);
+
+        self.physics = physics;
+        self.camera.position = Self::camera_position_for_spawn(level_data.player_spawn);
         self.map_vertex_buffer = map_resources.vertex_buffer;
         self.map_parts = map_resources.parts;
         self.map_instance_buffer = map_resources.instance_buffer;
         self.level_data = level_data;
-        self.level_name = new_level_name.to_string();
+        self.level_name = name;
         self.enemy_runtime = enemy_runtime;
+        self.level_event_fired = level_event_fired;
+        self.level_flags.clear();
+        self.failed_transition = None;
+        self.editor.dirty = false;
+        self.editor.set_known_file_modified(file_modified);
+        self.editor.clamp_selection(self.level_data.props.len());
 
         self.action_cooldown = 0.0;
         self.progress.clear_anchor();
@@ -823,7 +1005,12 @@ impl EngineState {
             .reset_for_level_transition(&self.config_data.player);
 
         self.sync_instances();
-        println!("[LEVEL] Transition complete: {}", new_level_name);
+        println!(
+            "[LEVEL] Loaded '{}' from {} ({} props)",
+            self.level_name,
+            path,
+            self.level_data.props.len()
+        );
     }
 
     pub fn update_lighting(&mut self) {
@@ -904,6 +1091,11 @@ impl EngineState {
             PhysicsEngine::new(level_data.player_spawn, phys_points, phys_indices, config);
 
         for prop in &level_data.props {
+            if let Some((prop_points, prop_indices)) = Self::brush_physics_mesh(prop) {
+                physics.add_prop(prop, &prop_points, &prop_indices);
+                continue;
+            }
+
             let asset_path = format!("assets/{}", prop.asset_id);
             match try_load_model(&asset_path) {
                 Ok((_vertices, _parts, prop_points, prop_indices)) => {
@@ -922,7 +1114,20 @@ impl EngineState {
         physics
     }
 
-    fn camera_for_spawn(spawn: [f32; 3], width: u32, height: u32) -> Camera {
+    fn brush_physics_mesh(prop: &PropData) -> Option<(Vec<Vec3>, Vec<[u32; 3]>)> {
+        let geometry = prop.brush_geometry.as_ref()?;
+        let rotation = prop.rotation_radians();
+        let rotation = Quat::from_euler(glam::EulerRot::XYZ, rotation[0], rotation[1], rotation[2]);
+        let scale = Vec3::new(prop.scale[0], prop.scale[1], prop.scale[2]);
+        let points = geometry
+            .vertices
+            .iter()
+            .map(|vertex| rotation * (Vec3::from_array(*vertex) * scale))
+            .collect();
+        Some((points, geometry.faces.clone()))
+    }
+
+    fn camera_for_spawn(spawn: [f32; 3], width: u32, height: u32, draw_distance: f32) -> Camera {
         Camera {
             position: Self::camera_position_for_spawn(spawn),
             yaw: -1.5,
@@ -930,7 +1135,7 @@ impl EngineState {
             aspect: width as f32 / height as f32,
             fovy: 0.78,
             znear: 0.1,
-            zfar: 500.0,
+            zfar: draw_distance,
         }
     }
 
@@ -969,75 +1174,134 @@ impl EngineState {
         );
     }
 
-    fn report_level_validation(level_data: &LevelData, level_path: &str) {
-        if let Err(errors) = level_data.validate() {
-            eprintln!(
-                "[LEVEL VALIDATION] {} has {} issue(s):",
-                level_path,
-                errors.len()
-            );
-            for error in errors {
-                eprintln!("  - {}", error);
-            }
+    fn prepare_level(
+        level_name: &str,
+        enemy_registry: &EnemyRegistry,
+        relic_registry: &RelicRegistry,
+    ) -> Result<PreparedLevel, String> {
+        validate_level_id(level_name)?;
+        let path = format!("levels/{}.json", level_name);
+        let mut data = LevelData::try_load(&path)?;
+        Self::apply_enemy_definitions(&mut data, enemy_registry, &path)?;
+
+        let mut validation_errors = data.validation_errors();
+        validation_errors.extend(Self::relic_reference_errors(&data, relic_registry));
+        if !validation_errors.is_empty() {
+            return Err(format!(
+                "level '{}' failed validation: {}",
+                path,
+                validation_errors.join("; ")
+            ));
         }
+
+        let model = try_load_model(&data.base_map).map_err(|error| {
+            format!(
+                "failed to load base map '{}' for level '{}': {}",
+                data.base_map, level_name, error
+            )
+        })?;
+        let model_errors = validate_model_geometry(&model);
+        if !model_errors.is_empty() {
+            return Err(format!(
+                "base map '{}' failed geometry validation: {}",
+                data.base_map,
+                model_errors.join("; ")
+            ));
+        }
+
+        let file_modified = std::fs::metadata(&path)
+            .and_then(|metadata| metadata.modified())
+            .ok();
+        Ok(PreparedLevel {
+            name: level_name.to_string(),
+            path,
+            data,
+            file_modified,
+            model,
+        })
     }
 
     fn apply_enemy_definitions(
         level_data: &mut LevelData,
         enemy_registry: &EnemyRegistry,
         level_path: &str,
-    ) {
-        for prop in &mut level_data.props {
+    ) -> Result<(), String> {
+        for (index, prop) in level_data.props.iter_mut().enumerate() {
             let Some(enemy_type) = prop.enemy_type.as_deref() else {
                 continue;
             };
 
             let Some(enemy) = enemy_registry.get(enemy_type) else {
-                eprintln!(
-                    "[ENEMY DATA] Level '{}' references unknown enemy_type '{}'",
-                    level_path, enemy_type
-                );
-                continue;
+                return Err(format!(
+                    "level '{}' prop {} references unknown enemy_type '{}'",
+                    level_path, index, enemy_type
+                ));
             };
 
             prop.asset_id = enemy.model_asset.clone();
-            prop.collider_type = enemy.collider_type.clone();
+            prop.collider_type = enemy.collider_type;
             prop.enemy_health = enemy.health;
         }
+        Ok(())
+    }
+
+    fn relic_reference_errors(
+        level_data: &LevelData,
+        relic_registry: &RelicRegistry,
+    ) -> Vec<String> {
+        let mut errors = Vec::new();
+        for (index, prop) in level_data.props.iter().enumerate() {
+            if let Some(item_id) = prop.item_id.as_deref() {
+                if relic_registry.get(item_id).is_none() {
+                    errors.push(format!(
+                        "prop {} references unknown item_id '{}'",
+                        index, item_id
+                    ));
+                }
+            }
+        }
+        for (table_index, table) in level_data.loot_tables.iter().enumerate() {
+            for (entry_index, entry) in table.entries.iter().enumerate() {
+                if let Some(item_id) = entry.item_id.as_deref() {
+                    if relic_registry.get(item_id).is_none() {
+                        errors.push(format!(
+                            "loot table {} entry {} references unknown item_id '{}'",
+                            table_index, entry_index, item_id
+                        ));
+                    }
+                }
+            }
+        }
+        errors
     }
 
     fn enemy_runtime_for_level(level_data: &LevelData) -> Vec<EnemyRuntimeState> {
         vec![EnemyRuntimeState::default(); level_data.props.len()]
     }
 
-    fn load_map_model(level_data: &LevelData) -> ModelData {
-        match try_load_model(&level_data.base_map) {
-            Ok(model) => model,
-            Err(error) => {
-                eprintln!(
-                    "[ERROR] Failed to load base map '{}': {}",
-                    level_data.base_map, error
-                );
-                let fallback = LevelData::default_level();
-                match try_load_model(&fallback.base_map) {
-                    Ok(model) => {
-                        eprintln!(
-                            "[LEVEL] Falling back to default base map '{}'",
-                            fallback.base_map
-                        );
-                        model
-                    }
-                    Err(fallback_error) => {
-                        eprintln!(
-                            "[ERROR] Failed to load fallback base map '{}': {}",
-                            fallback.base_map, fallback_error
-                        );
-                        eprintln!("[LEVEL] Using empty render model and physics fallback floor.");
-                        empty_model()
-                    }
-                }
-            }
-        }
+    fn level_event_runtime_for_level(level_data: &LevelData) -> Vec<bool> {
+        vec![false; level_data.events.len()]
+    }
+
+    fn level_event_runtime_for_saved_level(
+        level_data: &LevelData,
+        save: Option<&SaveData>,
+    ) -> Vec<bool> {
+        let Some(save) = save else {
+            return Self::level_event_runtime_for_level(level_data);
+        };
+
+        let fired: HashSet<&str> = save.fired_level_events.iter().map(String::as_str).collect();
+        level_data
+            .events
+            .iter()
+            .map(|event| fired.contains(event.id.as_str()))
+            .collect()
+    }
+
+    fn level_flags_for_saved_level(save: Option<&SaveData>) -> HashSet<String> {
+        save.map(|save| save.level_flags.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -1045,7 +1309,21 @@ impl EngineState {
 mod tests {
     use super::*;
     use crate::data::enemy::EnemyDefinition;
-    use crate::data::world::level::{ColliderType, PropData};
+    use crate::data::world::level::{
+        ColliderType, LevelEventData, LevelEventTriggerData, LevelEventTriggerKind, PropData,
+    };
+
+    #[test]
+    fn default_runtime_content_prepares_as_one_valid_bundle() {
+        let enemies = EnemyRegistry::try_load_dir("data/enemies").unwrap();
+        let relics = RelicRegistry::try_load_dir("data/relics").unwrap();
+
+        let prepared = EngineState::prepare_level("movement_test", &enemies, &relics).unwrap();
+
+        assert_eq!(prepared.name, "movement_test");
+        assert!(!prepared.data.props.is_empty());
+        assert!(!prepared.model.0.is_empty());
+    }
 
     #[test]
     fn enemy_definitions_materialize_level_props() {
@@ -1071,11 +1349,13 @@ mod tests {
             base_map: "assets/Cube.obj".to_string(),
             player_spawn: [0.0, 0.0, 0.0],
             props: vec![PropData {
+                id: None,
                 asset_id: "Cube.obj".to_string(),
                 position: [0.0, 0.0, 0.0],
                 rotation: [0.0, 0.0, 0.0],
                 scale: [1.0, 1.0, 1.0],
                 collider_type: ColliderType::None,
+                brush_geometry: None,
                 is_climbable: false,
                 is_hurtbox: false,
                 item_id: None,
@@ -1087,10 +1367,19 @@ mod tests {
                 light_intensity: 0.0,
                 ambient_sound_id: None,
                 trigger_level_id: None,
+                loot_table_id: None,
+                path_id: None,
+                dialogue_id: None,
+                event_id: None,
             }],
+            asset_imports: Vec::new(),
+            loot_tables: Vec::new(),
+            paths: Vec::new(),
+            events: Vec::new(),
+            dialogues: Vec::new(),
         };
 
-        EngineState::apply_enemy_definitions(&mut level, &enemy_registry, "test");
+        EngineState::apply_enemy_definitions(&mut level, &enemy_registry, "test").unwrap();
 
         let prop = &level.props[0];
         assert_eq!(prop.asset_id, "enemies/burdened.obj");
@@ -1106,11 +1395,13 @@ mod tests {
             player_spawn: [0.0, 0.0, 0.0],
             props: vec![
                 PropData {
+                    id: None,
                     asset_id: "Cube.obj".to_string(),
                     position: [0.0, 0.0, 0.0],
                     rotation: [0.0, 0.0, 0.0],
                     scale: [1.0, 1.0, 1.0],
                     collider_type: ColliderType::None,
+                    brush_geometry: None,
                     is_climbable: false,
                     is_hurtbox: false,
                     item_id: None,
@@ -1122,13 +1413,19 @@ mod tests {
                     light_intensity: 0.0,
                     ambient_sound_id: None,
                     trigger_level_id: None,
+                    loot_table_id: None,
+                    path_id: None,
+                    dialogue_id: None,
+                    event_id: None,
                 },
                 PropData {
+                    id: None,
                     asset_id: "Cube.obj".to_string(),
                     position: [1.0, 0.0, 0.0],
                     rotation: [0.0, 0.0, 0.0],
                     scale: [1.0, 1.0, 1.0],
                     collider_type: ColliderType::Sphere,
+                    brush_geometry: None,
                     is_climbable: false,
                     is_hurtbox: false,
                     item_id: None,
@@ -1140,13 +1437,70 @@ mod tests {
                     light_intensity: 0.0,
                     ambient_sound_id: None,
                     trigger_level_id: None,
+                    loot_table_id: None,
+                    path_id: None,
+                    dialogue_id: None,
+                    event_id: None,
                 },
             ],
+            asset_imports: Vec::new(),
+            loot_tables: Vec::new(),
+            paths: Vec::new(),
+            events: Vec::new(),
+            dialogues: Vec::new(),
         };
 
         assert_eq!(
             EngineState::enemy_runtime_for_level(&level),
             vec![EnemyRuntimeState::default(), EnemyRuntimeState::default()]
         );
+    }
+
+    #[test]
+    fn saved_level_event_state_restores_against_current_level_ids() {
+        let mut level = LevelData::default_level();
+        level.events = vec![
+            test_level_event("intro"),
+            test_level_event("gate_open_reward"),
+            test_level_event("boss_door"),
+        ];
+        let save = crate::game::save::SaveData {
+            version: crate::game::save::SAVE_VERSION,
+            level_name: "editor_systems_test".to_string(),
+            cycle_number: 1,
+            unsecured_resource: 0,
+            banked_resource: 0,
+            active_anchor_id: None,
+            respawn_position: None,
+            relic_inventory: Vec::new(),
+            equipped_relic_id: None,
+            fired_level_events: vec![
+                "missing_old_event".to_string(),
+                "gate_open_reward".to_string(),
+            ],
+            level_flags: vec!["gate_open".to_string(), "gate_open".to_string()],
+        };
+
+        let fired = EngineState::level_event_runtime_for_saved_level(&level, Some(&save));
+        let flags = EngineState::level_flags_for_saved_level(Some(&save));
+
+        assert_eq!(fired, vec![false, true, false]);
+        assert!(flags.contains("gate_open"));
+        assert_eq!(flags.len(), 1);
+    }
+
+    fn test_level_event(id: &str) -> LevelEventData {
+        LevelEventData {
+            id: id.to_string(),
+            once: true,
+            trigger: LevelEventTriggerData {
+                kind: LevelEventTriggerKind::OnEnter,
+                position: [0.0, 0.0, 0.0],
+                radius: 2.5,
+                prop_id: None,
+                flag_id: None,
+            },
+            actions: Vec::new(),
+        }
     }
 }

@@ -8,6 +8,45 @@ use serde::{Deserialize, Serialize};
 use winit::keyboard::KeyCode;
 
 type KeyBindings = HashMap<String, Option<KeyCode>>;
+const TUNING_PATH: &str = "config/tuning.toml";
+const BINDINGS_PATH: &str = "config/bindings.toml";
+
+pub(crate) const REQUIRED_BINDING_ACTIONS: &[&str] = &[
+    "forward",
+    "backward",
+    "left",
+    "right",
+    "jump",
+    "sprint",
+    "dash",
+    "attack",
+    "interact",
+    "inventory",
+    "pause",
+    "debug_help",
+    "debug_heal_player",
+    "debug_damage_player",
+    "debug_set_player_low_health",
+    "debug_reload_level",
+    "debug_respawn_loot",
+    "debug_spawn_ashbound",
+    "debug_spawn_burdened",
+    "debug_spawn_censer",
+    "debug_spawn_chainrunner",
+    "debug_spawn_harpy",
+    "debug_clear_enemies",
+    "editor_toggle",
+    "editor_place",
+    "editor_delete",
+    "editor_save",
+    "editor_reload",
+    "editor_validate",
+    "editor_next_mode",
+    "editor_next_template",
+    "editor_previous_template",
+    "editor_select_next",
+    "editor_select_previous",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -31,11 +70,32 @@ impl GameConfig {
         self.keys.get(action).copied().flatten()
     }
 
-    pub fn load() -> Self {
-        let tuning = Self::load_tuning();
-        let keys = Self::load_bindings();
+    pub fn try_load() -> Result<Self, String> {
+        Self::try_load_from_paths(TUNING_PATH, BINDINGS_PATH)
+    }
 
-        Self {
+    fn try_load_from_paths(
+        tuning_path: impl AsRef<std::path::Path>,
+        bindings_path: impl AsRef<std::path::Path>,
+    ) -> Result<Self, String> {
+        let tuning_path = tuning_path.as_ref();
+        let tuning_str = std::fs::read_to_string(tuning_path).map_err(|error| {
+            format!(
+                "failed to read gameplay tuning '{}': {}",
+                tuning_path.display(),
+                error
+            )
+        })?;
+        let tuning: Self = toml::from_str(&tuning_str).map_err(|error| {
+            format!(
+                "failed to parse gameplay tuning '{}': {}",
+                tuning_path.display(),
+                error
+            )
+        })?;
+
+        let keys = load_bindings_from_path(bindings_path)?;
+        Ok(Self {
             player: tuning.player,
             movement: tuning.movement,
             camera: tuning.camera,
@@ -45,63 +105,76 @@ impl GameConfig {
             lighting: tuning.lighting,
             debug: tuning.debug,
             keys,
-        }
+        })
+    }
+}
+
+fn load_bindings_from_path(path: impl AsRef<std::path::Path>) -> Result<KeyBindings, String> {
+    let path = path.as_ref();
+    let bindings_str = std::fs::read_to_string(path)
+        .map_err(|error| format!("failed to read bindings '{}': {}", path.display(), error))?;
+    let raw: toml::Value = toml::from_str(&bindings_str)
+        .map_err(|error| format!("failed to parse bindings '{}': {}", path.display(), error))?;
+    let keybindings = raw
+        .get("keybindings")
+        .and_then(toml::Value::as_table)
+        .ok_or_else(|| format!("bindings '{}' is missing [keybindings]", path.display()))?;
+
+    let missing = REQUIRED_BINDING_ACTIONS
+        .iter()
+        .filter(|action| !keybindings.contains_key(**action))
+        .copied()
+        .collect::<Vec<_>>();
+    if !missing.is_empty() {
+        return Err(format!(
+            "bindings '{}' is missing required action(s): {}",
+            path.display(),
+            missing.join(", ")
+        ));
     }
 
-    fn load_tuning() -> Self {
-        let tuning_str = match std::fs::read_to_string("config/tuning.toml") {
-            Ok(s) => s,
-            Err(_) => {
-                eprintln!("Warning: Could not find config/tuning.toml. Using compiled defaults.");
-                return Self::default();
-            }
-        };
-
-        match toml::from_str(&tuning_str) {
-            Ok(config) => config,
-            Err(e) => {
-                eprintln!(
-                    "Warning: Failed to parse tuning.toml ({}). Using compiled defaults.",
-                    e
-                );
-                Self::default()
+    let mut keys = default_bindings();
+    let mut seen_tokens = HashMap::new();
+    for (action, value) in keybindings {
+        let token = value.as_str().ok_or_else(|| {
+            format!(
+                "binding '{}' in '{}' must be a string",
+                action,
+                path.display()
+            )
+        })?;
+        if !is_valid_binding_token(token) {
+            return Err(format!(
+                "binding '{}' in '{}' uses unknown key '{}'",
+                action,
+                path.display(),
+                token
+            ));
+        }
+        let normalized = token.to_ascii_uppercase();
+        if !matches!(normalized.as_str(), "NONE" | "UNBOUND") {
+            if let Some(previous_action) = seen_tokens.insert(normalized.clone(), action.clone()) {
+                return Err(format!(
+                    "bindings '{}' assigns '{}' to both '{}' and '{}'",
+                    path.display(),
+                    normalized,
+                    previous_action,
+                    action
+                ));
             }
         }
+        keys.insert(action.clone(), parse_key(token));
     }
+    Ok(keys)
+}
 
-    fn load_bindings() -> KeyBindings {
-        let default_keys = default_bindings();
-
-        let bindings_str = match std::fs::read_to_string("config/bindings.toml") {
-            Ok(s) => s,
-            Err(_) => {
-                eprintln!("Warning: Could not find config/bindings.toml. Using default keys.");
-                return default_keys;
-            }
-        };
-
-        let raw: toml::Value = match toml::from_str(&bindings_str) {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!("Warning: Failed to parse bindings.toml. Using default keys.");
-                return default_keys;
-            }
-        };
-
-        if let Some(keybindings) = raw.get("keybindings") {
-            if let Some(keybindings_table) = keybindings.as_table() {
-                let mut keys = default_keys;
-                for (action, key_val) in keybindings_table.iter() {
-                    if let Some(key_str) = key_val.as_str() {
-                        keys.insert(action.clone(), parse_key(key_str));
-                    }
-                }
-                return keys;
-            }
-        }
-
-        default_keys
-    }
+pub(crate) fn is_valid_binding_token(token: &str) -> bool {
+    let token = token.to_ascii_uppercase();
+    parse_key(&token).is_some()
+        || matches!(
+            token.as_str(),
+            "MOUSE_LEFT" | "MOUSE_RIGHT" | "MOUSE_MIDDLE" | "NONE" | "UNBOUND"
+        )
 }
 
 fn default_bindings() -> KeyBindings {
@@ -129,6 +202,17 @@ fn default_bindings() -> KeyBindings {
         ("debug_spawn_chainrunner", "F10"),
         ("debug_spawn_harpy", "F11"),
         ("debug_clear_enemies", "F12"),
+        ("editor_toggle", "TAB"),
+        ("editor_place", "ENTER"),
+        ("editor_delete", "DELETE"),
+        ("editor_save", "P"),
+        ("editor_reload", "R"),
+        ("editor_validate", "V"),
+        ("editor_next_mode", "G"),
+        ("editor_next_template", "RIGHT"),
+        ("editor_previous_template", "LEFT"),
+        ("editor_select_next", "DOWN"),
+        ("editor_select_previous", "UP"),
     ]
     .into_iter()
     .map(|(action, key)| (action.to_string(), parse_key(key)))
@@ -465,5 +549,27 @@ mod tests {
 
         assert!(!parsed.debug.position_log_enabled);
         assert_eq!(parsed.debug.position_log_interval, 12.5);
+    }
+
+    #[test]
+    fn strict_loader_rejects_incomplete_binding_files() {
+        let dir = std::env::temp_dir().join(format!(
+            "cenotaph_config_test_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tuning_path = dir.join("tuning.toml");
+        let bindings_path = dir.join("bindings.toml");
+        std::fs::write(&tuning_path, "").unwrap();
+        std::fs::write(&bindings_path, "[keybindings]\nforward = \"W\"\n").unwrap();
+
+        let error = GameConfig::try_load_from_paths(&tuning_path, &bindings_path).unwrap_err();
+
+        assert!(error.contains("missing required action"));
+        std::fs::remove_dir_all(dir).ok();
     }
 }

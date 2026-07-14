@@ -43,9 +43,35 @@ the active local Anchor respawn point.
 - Low-poly authored enemy silhouette assets under `assets/enemies/`.
 - First-person movement with jump, coyote time, sprint stamina, and dash.
 - Pause mode through Escape, including cursor release and ambient pause/resume.
-- HUD health/stamina bars, crosshair, hit flash, and pause overlay.
-- Static, sphere, mesh, hurtbox, enemy, decorative, and trigger prop data.
-- Simple ray/sphere primary fire against enemy props.
+- HUD health/stamina bars, guide strip, thicker readable block text, crosshair,
+  shot-result flashes, and pause overlay.
+- Standalone localhost level editor launched with `cargo run -- editor`, with
+  project level browsing, Hammer-style Camera/Top/Front/Side view panels, a 3D
+  WebGL viewport, fly camera, ray-picked and orthographic placement/move/select
+  tools, orthographic marquee and multi-prop selection, axis-constrained group
+  transforms, snap controls, transactional undo/redo, drawable floor/wall/block/
+  slope/cylinder/stair/terrain geometry brushes, reusable prop prefabs,
+  browser-local draft recovery, tabbed authoring workspaces, palette, asset
+  browser, configurable keybindings, right-click context commands,
+  duplicate/copy/paste, focus-selected, guided system inspectors, Rust-backed
+  validation, and direct save-to-level-file workflow.
+- Project asset catalog for runtime-supported models plus source files across
+  model, texture, material, audio, dialogue/data, level, and config formats.
+- Editor server hardening: loopback-only bind, per-launch tokenized URL,
+  token-required API calls, local Host/Origin checks, static embedded assets,
+  path-restricted level/prefab writes, and backup-before-overwrite saves.
+- In-game quick-adjust mode for runtime smoke checks, hot-reload verification,
+  snapped placement, prop deletion, and emergency level edits.
+- Static, sphere, mesh, hurtbox, enemy, decorative, trigger, path-bound, and
+  dialogue/event-linked prop data.
+- Level authoring graph data for asset imports, loot tables, paths, events, and
+  dialogue blocks.
+- Runtime level events for on-enter/proximity triggers, resource grants,
+  deterministic weighted loot table rolls, dialogue logging, level transitions,
+  level-local flags, and saved once-event state.
+- Runtime path following for idle enemies and non-enemy path-bound props.
+- Simple primary fire against enemy props, with solid world geometry blocking
+  shots before enemy ray/sphere hit checks are applied.
 - Baseline data-driven enemy chase/attack using enemy definition activation,
   movement, range, wind-up, damage, and cooldown stats.
 - Enemy prop removal from level data, physics, and render instances.
@@ -55,10 +81,14 @@ the active local Anchor respawn point.
 - Procedural ambient and one-shot audio.
 - Asset catalog scanning for model assets.
 - Configurable console position/stamina debug logging.
-- Startup level validation warnings.
+- Strict startup validation for tuning, bindings, registries, level data, and
+  base-map geometry with actionable errors instead of silent substitution.
 - Non-window project content validation through `cargo run -- validate`.
-- Non-panicking runtime model loading for level maps and props, with default-map
-  and empty-model fallback for broken base maps.
+- Whole-project diagnostics through `cargo doctor`.
+- Transactional F5 reload for tuning, bindings, models, textures, enemy/relic
+  definitions, and the current level; rejected changes leave live state intact.
+- Validated staged writes for levels, prefabs, and saves with cross-process
+  locking and interrupted-write recovery.
 
 ## Level Data Contract
 
@@ -71,12 +101,21 @@ Required level fields:
 - `player_spawn`
 - `props`
 
+Optional level authoring fields with safe defaults:
+
+- `asset_imports`: `[]`
+- `loot_tables`: `[]`
+- `paths`: `[]`
+- `events`: `[]`
+- `dialogues`: `[]`
+
 Required prop field:
 
 - `asset_id`
 
 Prop fields with safe defaults:
 
+- `id`: `null`
 - `position`: `[0.0, 0.0, 0.0]`
 - `rotation`: `[0.0, 0.0, 0.0]` in degrees
 - `scale`: `[1.0, 1.0, 1.0]`
@@ -92,6 +131,10 @@ Prop fields with safe defaults:
 - `light_intensity`: `0.0`
 - `ambient_sound_id`: `null`
 - `trigger_level_id`: `null`
+- `loot_table_id`: `null`
+- `path_id`: `null`
+- `dialogue_id`: `null`
+- `event_id`: `null`
 
 Level validation currently checks:
 
@@ -106,6 +149,14 @@ Level validation currently checks:
 - resource pickups are not also enemies
 - level transition targets exist under `levels/`
 - lit props have a color when intensity is set
+- authoring IDs use stable ID characters and are unique per collection
+- prop `loot_table_id`, `path_id`, `dialogue_id`, and `event_id` references
+  resolve to level-local authoring data
+- asset imports reference existing model assets and have valid defaults
+- loot tables have rolls, entries, weights, quantities, and valid grant shapes
+- paths have finite waypoints and valid speed multipliers
+- events have valid trigger data and action requirements
+- dialogues have speakers and non-empty lines
 
 Project validation through `cargo run -- validate` also checks:
 
@@ -127,6 +178,16 @@ Project validation through `cargo run -- validate` also checks:
 - all model assets under `assets/` can be loaded by the mesh loader
 - all model assets under `assets/` contain vertices, render indices, and
   physics triangles
+- supported texture files under `textures/` decode successfully
+
+## Save Contract
+
+Autosaves are validated before writing. The save system writes through a
+flushed same-directory staging file, retains the previous valid state at
+`save/cenotaph_save.backup.json`, and automatically repairs a missing or
+damaged primary from that backup when `continue` is used. Save data rejects
+unsafe level IDs, unsupported versions, non-finite positions, duplicate IDs,
+and equipped relics that are not owned.
 
 ## Foundation Test Level
 
@@ -170,6 +231,7 @@ Current combat foundation knobs include:
 - `crit_multiplier`
 - `attack_cooldown`
 - `miss_cooldown`
+- `primary_fire_range`
 - `enemy_hit_radius`
 - `hurtbox_damage_per_second`
 - `hurtbox_radius`
@@ -222,26 +284,28 @@ cooldown.
 
 ## Checks
 
-Use these before treating the foundation as stable:
+Use this before treating the project as stable:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/foundation_check.ps1
+powershell -ExecutionPolicy Bypass -File scripts/project_check.ps1
 ```
+
+The old `scripts/foundation_check.ps1` path delegates to the project check.
 
 The script runs:
 
 ```powershell
 cargo fmt --check
-cargo clippy -- -D warnings
+cargo clippy --all-targets -- -D warnings
 cargo test
-cargo run -- validate
+cargo run -- doctor
 ```
 
 Manual play smoke checks:
 
 ```powershell
-cargo run -- ashwalk_01
-cargo run -- foundation_test
+cargo run -- play ashwalk_01
+cargo run -- play foundation_test
 ```
 
 Use `FOUNDATION_SMOKE_CHECKLIST.md` for the manual pass/fail launch checklist.
@@ -258,9 +322,9 @@ chase/attack. `levels/foundation_test.json` uses a `Burdened` enemy prop whose
 runtime model, collider, health, and combat tuning come from
 `data/enemies/burdened.toml`.
 
-Gameplay-first enemy roles are documented in `ENEMY_GAMEPLAY_ROSTER.txt`.
+Gameplay-first enemy roles are documented in `../art/ENEMY_GAMEPLAY_ROSTER.txt`.
 3D model generation guidance is documented in
-`ENEMY_MODEL_GENERATOR_BRIEF.txt`.
+`../art/ENEMY_MODEL_GENERATOR_BRIEF.txt`.
 
 ## Current Non-Goals
 
@@ -275,6 +339,8 @@ Do not treat these as foundation requirements yet:
 - full run-contract Cycle Director
 - procedural route generation
 - full content registry
+- native/DCC-style editor application beyond the browser localhost editor
+- freeform mesh sculpting beyond prop/brush geometry
 
 These belong after the foundation remains boringly reliable.
 

@@ -16,6 +16,9 @@ Do not move to the next stage until the current stage answers its success questi
 
 A stage is complete when the game proves the design question for that stage, not when every possible feature is finished.
 
+Level-editor work is tracked in `../editor/LEVEL_EDITOR_BACKLOG.md`. Editor features count
+as complete only when they pass that file's full-project definition of done.
+
 ---
 
 # Stage 0: Foundation Prototype
@@ -24,8 +27,9 @@ Status: In progress as the current foundation build.
 
 Current notes:
 
-- Movement, camera, jump, sprint, dash, pause, HUD, hurtbox damage, death,
-  respawn, prototype prop shooting, baseline enemy chase/attack, authored relic
+- Movement, camera, jump, sprint, dash, pause, readable guided HUD, in-game
+  level editor, hurtbox damage, death, respawn, prototype prop shooting with
+  solid-world obstruction, baseline enemy chase/attack, authored relic
   pickups/rewards, owned-relic cycling, autosave/resume, basic cycle modifiers,
   and full project content validation exist.
 - Starter enemy definitions now have authored low-poly silhouette assets.
@@ -50,6 +54,7 @@ Prove basic feel.
 - Damage
 - Death
 - One test arena
+- In-game level editing tools for maintaining the test arena
 
 ## Success Question
 
@@ -65,7 +70,8 @@ Does it feel good to move, shoot, get hit, and defeat an enemy?
 - [ ] Enemy can take damage.
 - [ ] Enemy can damage player.
 - [ ] Player can die.
-- [ ] Basic combat feels understandable.
+- [ ] Basic combat feels understandable, including hit, kill, miss, and
+  blocked-shot feedback.
 
 ## Future Notes
 

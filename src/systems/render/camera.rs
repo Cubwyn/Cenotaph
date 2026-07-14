@@ -67,6 +67,10 @@ impl CameraController {
         Self { sensitivity }
     }
 
+    pub fn set_sensitivity(&mut self, sensitivity: f32) {
+        self.sensitivity = sensitivity;
+    }
+
     /// Apply raw mouse delta to camera yaw/pitch with smoothing.
     pub fn process_mouse(&self, dx: f64, dy: f64, camera: &mut Camera) {
         camera.yaw += dx as f32 * self.sensitivity;

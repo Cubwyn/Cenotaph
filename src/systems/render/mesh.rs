@@ -69,6 +69,7 @@ pub fn try_load_model(path: &str) -> Result<ModelData, String> {
     }
 }
 
+#[cfg(test)]
 pub fn empty_model() -> ModelData {
     (
         vec![Vertex {

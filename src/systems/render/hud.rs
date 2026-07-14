@@ -13,10 +13,10 @@ struct HudVertex {
 }
 
 const CROSSHAIR_SIZE: f32 = 0.015;
-const MAX_HUD_QUADS: usize = 8192;
+const MAX_HUD_QUADS: usize = 16000;
 const MAX_WORLD_MARKERS: usize = 64;
 const MAX_EVENT_FEED_ITEMS: usize = 5;
-const HUD_TEXT_X_SCALE: f32 = 0.58;
+const HUD_TEXT_X_SCALE: f32 = 0.70;
 const HUD_MIN_TEXT_SCALE: f32 = 0.46;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +25,7 @@ pub enum HudMarkerKind {
     Loot,
     Anchor,
     Hazard,
+    EditorCursor,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +60,8 @@ pub struct HudFeedback {
     pub shot_flash: f32,
     pub hit_marker: f32,
     pub kill_marker: f32,
+    pub blocked_flash: f32,
+    pub miss_flash: f32,
     pub pickup_flash: f32,
     pub damage_flash: f32,
     pub debug_flash: f32,
@@ -96,6 +99,22 @@ pub struct AscentHudState {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct EditorHudState {
+    pub enabled: bool,
+    pub dirty: bool,
+    pub mode_label: String,
+    pub template_label: String,
+    pub selected_prop: u32,
+    pub prop_count: u32,
+    pub placement_distance: u32,
+    pub cursor: [i32; 3],
+    pub message: String,
+    pub validation_label: String,
+    pub validation_current: bool,
+    pub validation_has_errors: bool,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct HudFrameState {
     pub health_ratio: f32,
     pub stamina_ratio: f32,
@@ -108,6 +127,7 @@ pub struct HudFrameState {
     pub feedback: HudFeedback,
     pub debug: DebugHudState,
     pub ascent: AscentHudState,
+    pub editor: EditorHudState,
     pub markers: Vec<HudWorldMarker>,
     pub event_feed: Vec<HudFeedEvent>,
 }
@@ -371,9 +391,13 @@ impl HudSystem {
         color: [f32; 4],
     ) {
         let scale = scale.max(HUD_MIN_TEXT_SCALE);
-        let pixel_y = 0.006 * scale;
+        let pixel_y = 0.007 * scale;
         let pixel_x = pixel_y * HUD_TEXT_X_SCALE;
         let advance = pixel_x * 6.35;
+        let backing_x = pixel_x * 0.18;
+        let backing_y = pixel_y * 0.18;
+        let backing_color = [0.0, 0.0, 0.0, (color[3] * 0.72).min(0.82)];
+        let mut pixels = Vec::new();
 
         for (index, ch) in text.chars().enumerate() {
             if ch == ' ' {
@@ -388,17 +412,53 @@ impl HudSystem {
                     if bits & (1 << (4 - col)) == 0 {
                         continue;
                     }
-                    Self::push_rect(
-                        verts,
+                    pixels.push((
                         glyph_x + col as f32 * pixel_x,
                         y + (6 - row) as f32 * pixel_y,
-                        pixel_x * 0.92,
-                        pixel_y * 0.92,
-                        color,
-                    );
+                    ));
                 }
             }
         }
+
+        for &(pixel_left, pixel_bottom) in &pixels {
+            Self::push_rect(
+                verts,
+                pixel_left - backing_x,
+                pixel_bottom - backing_y,
+                pixel_x * 1.30,
+                pixel_y * 1.30,
+                backing_color,
+            );
+        }
+
+        for (pixel_left, pixel_bottom) in pixels {
+            Self::push_rect(
+                verts,
+                pixel_left,
+                pixel_bottom,
+                pixel_x * 1.04,
+                pixel_y * 1.04,
+                color,
+            );
+        }
+    }
+
+    fn push_fit_text(
+        verts: &mut Vec<HudVertex>,
+        x: f32,
+        y: f32,
+        text: &str,
+        scale: f32,
+        max_width: f32,
+        color: [f32; 4],
+    ) {
+        let width = Self::text_width(text, scale);
+        let fitted_scale = if width > max_width && width > 0.0 {
+            (scale * max_width / width).max(HUD_MIN_TEXT_SCALE)
+        } else {
+            scale
+        };
+        Self::push_text(verts, x, y, text, fitted_scale, color);
     }
 
     fn push_centered_text(
@@ -419,7 +479,7 @@ impl HudSystem {
             0.0
         } else {
             let scale = scale.max(HUD_MIN_TEXT_SCALE);
-            let pixel_x = 0.006 * scale * HUD_TEXT_X_SCALE;
+            let pixel_x = 0.007 * scale * HUD_TEXT_X_SCALE;
             count * pixel_x * 6.35 - pixel_x
         }
     }
@@ -998,6 +1058,20 @@ impl HudSystem {
                     [1.0, 0.35, 0.22, 0.62],
                 );
             }
+            HudMarkerKind::EditorCursor => {
+                let size = 0.050 + pulse * 0.010;
+                Self::push_outline_rect(
+                    verts,
+                    x - size,
+                    y - size,
+                    size * 2.0,
+                    size * 2.0,
+                    0.006,
+                    [0.35, 1.0, 0.95, 0.78],
+                );
+                Self::push_centered_rect(verts, x, y, 0.014, 0.014, [0.35, 1.0, 0.95, 0.92]);
+                Self::push_centered_text(verts, x, y + 0.060, "EDIT", 0.34, [0.7, 1.0, 0.95, 0.76]);
+            }
         }
     }
 
@@ -1358,6 +1432,261 @@ impl HudSystem {
         );
     }
 
+    fn push_guidance_panel(verts: &mut Vec<HudVertex>) {
+        let panel_x = 0.455;
+        let panel_y = -0.965;
+        let panel_w = 0.515;
+        let panel_h = 0.205;
+
+        Self::push_rect(
+            verts,
+            panel_x,
+            panel_y,
+            panel_w,
+            panel_h,
+            [0.0, 0.0, 0.0, 0.48],
+        );
+        Self::push_outline_rect(
+            verts,
+            panel_x,
+            panel_y,
+            panel_w,
+            panel_h,
+            0.004,
+            [0.95, 0.95, 0.95, 0.16],
+        );
+        Self::push_text(
+            verts,
+            panel_x + 0.025,
+            panel_y + 0.158,
+            "GUIDE",
+            0.58,
+            [0.9, 0.93, 0.95, 0.66],
+        );
+
+        Self::push_text(
+            verts,
+            panel_x + 0.025,
+            panel_y + 0.096,
+            "WASD MOVE",
+            0.46,
+            [0.82, 0.90, 1.0, 0.72],
+        );
+        Self::push_text(
+            verts,
+            panel_x + 0.250,
+            panel_y + 0.096,
+            "M1 FIRE",
+            0.46,
+            [1.0, 0.72, 0.48, 0.76],
+        );
+        Self::push_text(
+            verts,
+            panel_x + 0.025,
+            panel_y + 0.036,
+            "Q DASH",
+            0.46,
+            [0.95, 0.82, 0.24, 0.76],
+        );
+        Self::push_text(
+            verts,
+            panel_x + 0.185,
+            panel_y + 0.036,
+            "E USE",
+            0.46,
+            [0.65, 0.95, 1.0, 0.72],
+        );
+        Self::push_text(
+            verts,
+            panel_x + 0.325,
+            panel_y + 0.036,
+            "I RELIC",
+            0.46,
+            [1.0, 0.80, 0.24, 0.76],
+        );
+    }
+
+    fn push_editor_panel(verts: &mut Vec<HudVertex>, editor: &EditorHudState) {
+        if !editor.enabled {
+            return;
+        }
+
+        let x = -0.965;
+        let y = -0.575;
+        let w = 0.78;
+        let h = 0.59;
+        Self::push_rect(verts, x, y, w, h, [0.0, 0.0, 0.0, 0.58]);
+        Self::push_outline_rect(verts, x, y, w, h, 0.0045, [0.35, 1.0, 0.95, 0.36]);
+        Self::push_text(
+            verts,
+            x + 0.025,
+            y + 0.525,
+            "EDITOR",
+            0.62,
+            [0.42, 1.0, 0.94, 0.86],
+        );
+        Self::push_text(
+            verts,
+            x + 0.235,
+            y + 0.528,
+            if editor.dirty { "UNSAVED" } else { "SAVED" },
+            0.48,
+            if editor.dirty {
+                [1.0, 0.76, 0.24, 0.82]
+            } else {
+                [0.35, 1.0, 0.55, 0.74]
+            },
+        );
+
+        let validation_color = if editor.validation_has_errors {
+            [1.0, 0.22, 0.12, 0.86]
+        } else if editor.validation_current {
+            [0.35, 1.0, 0.55, 0.78]
+        } else {
+            [1.0, 0.76, 0.24, 0.78]
+        };
+        let prop_text = format!("{}/{}", editor.selected_prop, editor.prop_count);
+        let distance_text = format!("{}M", editor.placement_distance);
+        let cursor_text = format!(
+            "X {} Y {} Z {}",
+            editor.cursor[0], editor.cursor[1], editor.cursor[2]
+        );
+        let label_color = [0.86, 0.92, 1.0, 0.62];
+        let value_color = [0.85, 0.96, 1.0, 0.78];
+        let row_x = x + 0.025;
+        let value_x = x + 0.205;
+
+        Self::push_text(verts, row_x, y + 0.445, "CATEGORY", 0.38, label_color);
+        Self::push_fit_text(
+            verts,
+            value_x,
+            y + 0.445,
+            &editor.mode_label,
+            0.48,
+            0.240,
+            [0.42, 1.0, 0.94, 0.82],
+        );
+        Self::push_text(verts, row_x, y + 0.390, "TEMPLATE", 0.38, label_color);
+        Self::push_fit_text(
+            verts,
+            value_x,
+            y + 0.390,
+            &editor.template_label,
+            0.48,
+            0.240,
+            [1.0, 0.80, 0.24, 0.84],
+        );
+
+        Self::push_text(verts, row_x, y + 0.335, "SELECT", 0.38, label_color);
+        Self::push_text(verts, value_x, y + 0.335, &prop_text, 0.46, value_color);
+        Self::push_text(verts, row_x, y + 0.280, "DISTANCE", 0.38, label_color);
+        Self::push_text(verts, value_x, y + 0.280, &distance_text, 0.46, value_color);
+
+        Self::push_text(verts, row_x, y + 0.225, "CURSOR", 0.38, label_color);
+        Self::push_fit_text(
+            verts,
+            value_x,
+            y + 0.225,
+            &cursor_text,
+            0.40,
+            0.240,
+            [0.72, 0.92, 1.0, 0.76],
+        );
+        Self::push_text(verts, row_x, y + 0.170, "CHECK", 0.38, label_color);
+        Self::push_fit_text(
+            verts,
+            value_x,
+            y + 0.170,
+            &editor.validation_label,
+            0.46,
+            0.240,
+            validation_color,
+        );
+
+        Self::push_fit_text(
+            verts,
+            x + 0.025,
+            y + 0.085,
+            &editor.message,
+            0.42,
+            0.425,
+            [1.0, 0.86, 0.35, 0.78],
+        );
+
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.445,
+            "ENTER PLACE",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.390,
+            "DEL REMOVE",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.335,
+            "V CHECK",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.280,
+            "P SAVE",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.225,
+            "R RELOAD",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.170,
+            "G CATEGORY",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.115,
+            "WHEEL DIST",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.060,
+            "ARROWS PICK",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+        Self::push_text(
+            verts,
+            x + 0.505,
+            y + 0.015,
+            "TAB EXIT",
+            0.38,
+            [0.88, 1.0, 0.94, 0.68],
+        );
+    }
+
     fn push_death_overlay(verts: &mut Vec<HudVertex>, respawn_remaining: f32) {
         Self::push_rect(verts, -1.0, -1.0, 2.0, 2.0, [0.08, 0.0, 0.0, 0.50]);
         Self::push_centered_text(verts, 0.0, 0.14, "DEFEATED", 1.10, [1.0, 0.18, 0.10, 0.88]);
@@ -1422,7 +1751,9 @@ impl HudSystem {
             state.dash_cooldown_ratio,
             health_color,
         );
+        Self::push_guidance_panel(&mut verts);
         Self::push_ascent_panel(&mut verts, &state.ascent);
+        Self::push_editor_panel(&mut verts, &state.editor);
 
         let damage_pulse = Self::pulse(feedback.damage_flash.max(hit_flash), 0.45);
         if damage_pulse > 0.0 {
@@ -1496,15 +1827,59 @@ impl HudSystem {
             let shot_pulse = Self::pulse(feedback.shot_flash, 0.08);
             let hit_pulse = Self::pulse(feedback.hit_marker, 0.18);
             let kill_pulse = Self::pulse(feedback.kill_marker, 0.35);
-            let ch = CROSSHAIR_SIZE * (1.0 + shot_pulse * 0.65 + hit_pulse * 0.55);
+            let blocked_pulse = Self::pulse(feedback.blocked_flash, 0.32);
+            let miss_pulse = Self::pulse(feedback.miss_flash, 0.22);
+            let ch = CROSSHAIR_SIZE
+                * (1.0
+                    + shot_pulse * 0.65
+                    + hit_pulse * 0.55
+                    + blocked_pulse * 0.45
+                    + miss_pulse * 0.25);
             let crosshair_color = if kill_pulse > 0.0 {
                 [1.0, 0.65, 0.15, 0.95]
             } else if hit_pulse > 0.0 || hit_flash > 0.0 {
                 [1.0, 0.3, 0.2, 0.9]
+            } else if blocked_pulse > 0.0 {
+                [0.45, 0.78, 1.0, 0.88]
+            } else if miss_pulse > 0.0 {
+                [0.72, 0.76, 0.82, 0.78]
             } else {
                 [1.0, 1.0, 1.0, 0.7]
             };
             Self::push_rect(&mut verts, -ch, -ch, ch * 2.0, ch * 2.0, crosshair_color);
+
+            if blocked_pulse > 0.0 {
+                let color = [0.45, 0.78, 1.0, 0.78 * blocked_pulse];
+                let ring = 0.072 + (1.0 - blocked_pulse) * 0.030;
+                Self::push_outline_rect(
+                    &mut verts,
+                    -ring,
+                    -ring,
+                    ring * 2.0,
+                    ring * 2.0,
+                    0.006,
+                    color,
+                );
+                Self::push_centered_text(
+                    &mut verts,
+                    0.0,
+                    0.090,
+                    "BLOCK",
+                    0.56,
+                    [0.58, 0.86, 1.0, 0.78 * blocked_pulse],
+                );
+            }
+
+            if miss_pulse > 0.0 && blocked_pulse <= 0.0 && hit_pulse <= 0.0 {
+                Self::push_centered_text(
+                    &mut verts,
+                    0.0,
+                    0.080,
+                    "MISS",
+                    0.48,
+                    [0.74, 0.78, 0.84, 0.62 * miss_pulse],
+                );
+            }
 
             if hit_pulse > 0.0 {
                 let color = [1.0, 0.18, 0.1, 0.85 * hit_pulse];

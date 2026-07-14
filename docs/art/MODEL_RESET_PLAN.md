@@ -93,7 +93,7 @@ Textures should support silhouettes, not rescue unclear models.
 ## Always Run
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/foundation_check.ps1
+powershell -ExecutionPolicy Bypass -File scripts/project_check.ps1
 ```
 
 Manual check:

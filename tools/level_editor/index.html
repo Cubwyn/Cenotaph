@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Cenotaph Level Editor</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Cenotaph Level Editor</h1>
+        <p id="projectSummary">Loading project...</p>
+      </div>
+      <div class="toolbar">
+        <button id="refreshProject">Refresh</button>
+        <button id="newLevel">New Level</button>
+        <button id="duplicateLevel">Duplicate</button>
+        <button id="undoAction">Undo</button>
+        <button id="redoAction">Redo</button>
+        <button id="validateLevel">Validate</button>
+        <button id="saveLevel" class="primary">Save</button>
+      </div>
+    </header>
+
+    <div id="connectionBanner" class="connection-banner" role="alert" hidden>
+      <span id="connectionMessage">Editor session is not connected.</span>
+      <button id="reconnectEditor" type="button">Reconnect</button>
+    </div>
+
+    <main class="shell">
+      <aside class="panel left-panel">
+        <section>
+          <div class="panel-title">
+            <h2>Levels</h2>
+            <span id="levelStatus">No level</span>
+          </div>
+          <div id="levelList" class="level-list"></div>
+        </section>
+
+        <section>
+          <div class="panel-title">
+            <h2>Objects</h2>
+            <span id="objectCount">0</span>
+          </div>
+          <input id="objectFilter" class="field" placeholder="Filter props" />
+          <div id="objectList" class="object-list"></div>
+        </section>
+      </aside>
+
+      <section class="viewport-wrap">
+        <div class="viewport-toolbar">
+          <div class="toolbar-cluster">
+            <div class="segmented" role="group" aria-label="Editor tool">
+              <button id="toolSelect" class="active">Select</button>
+              <button id="toolMove">Move</button>
+              <button id="toolPlace">Place</button>
+              <button id="toolDraw">Draw</button>
+            </div>
+            <div class="segmented compact" role="group" aria-label="Viewport layout">
+              <button id="layoutQuad" class="active">4 View</button>
+              <button id="layoutCamera">Camera</button>
+            </div>
+            <select id="transformAxis" class="toolbar-select" aria-label="Transform axis">
+              <option value="all">XYZ</option>
+              <option value="x">X axis</option>
+              <option value="y">Y axis</option>
+              <option value="z">Z axis</option>
+            </select>
+            <button id="snapToggle" class="small active" type="button" aria-pressed="true">Snap</button>
+          </div>
+          <button id="resetCamera" class="small">Reset Camera</button>
+          <span id="selectionSummary" class="selection-summary">0 selected</span>
+          <span id="viewportHint">WASD/QE fly. Right-drag looks. Draw drag-creates geometry.</span>
+        </div>
+        <div id="viewportGrid" class="viewport-grid quad">
+          <div class="view-cell camera-view">
+            <canvas id="viewport"></canvas>
+            <span class="view-label">Camera</span>
+          </div>
+          <div class="view-cell">
+            <canvas id="topView" class="ortho-view" data-view="top"></canvas>
+            <span id="topViewLabel" class="view-label">Top X/Z</span>
+          </div>
+          <div class="view-cell">
+            <canvas id="frontView" class="ortho-view" data-view="front"></canvas>
+            <span id="frontViewLabel" class="view-label">Front X/Y</span>
+          </div>
+          <div class="view-cell">
+            <canvas id="sideView" class="ortho-view" data-view="side"></canvas>
+            <span id="sideViewLabel" class="view-label">Side Z/Y</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel right-panel">
+        <nav class="workspace-tabs" role="tablist" aria-label="Authoring workspace">
+          <button class="active" type="button" data-editor-tab="create">Create</button>
+          <button type="button" data-editor-tab="props">Props</button>
+          <button type="button" data-editor-tab="assets">Assets</button>
+          <button type="button" data-editor-tab="prefabs">Prefabs</button>
+          <button type="button" data-editor-tab="events">Events</button>
+          <button type="button" data-editor-tab="loot">Loot</button>
+          <button type="button" data-editor-tab="paths">Paths</button>
+          <button type="button" data-editor-tab="dialogue">Dialogue</button>
+          <button type="button" data-editor-tab="validation">Validate</button>
+          <button type="button" data-editor-tab="controls">Keys</button>
+        </nav>
+
+        <div class="workspace-panel" data-editor-panel="create">
+          <section>
+            <div class="panel-title">
+              <h2>Palette</h2>
+              <span id="paletteStatus">Select a template</span>
+            </div>
+            <div id="templateList" class="template-list"></div>
+          </section>
+
+          <section>
+            <div class="panel-title">
+              <h2>Draw Geometry</h2>
+              <span>Brush</span>
+            </div>
+            <div class="form-grid">
+              <div class="form-row">
+                <label for="brushKind">Brush</label>
+                <select id="brushKind">
+                  <option value="floor">Floor</option>
+                  <option value="wall">Wall</option>
+                  <option value="block">Block</option>
+                  <option value="slope">Slope</option>
+                  <option value="cylinder">Cylinder</option>
+                  <option value="stairs">Stairs</option>
+                  <option value="terrain">Terrain</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="brushHeight">Extrude</label>
+                <input id="brushHeight" class="field" type="number" min="0.1" step="0.1" value="3" />
+              </div>
+              <div class="form-row">
+                <label for="brushThickness">Thickness</label>
+                <input id="brushThickness" class="field" type="number" min="0.1" step="0.1" value="0.5" />
+              </div>
+              <div class="form-row" data-brush-field="slope stairs">
+                <label for="brushDirection">Direction</label>
+                <select id="brushDirection">
+                  <option value="x+">+X</option>
+                  <option value="x-">-X</option>
+                  <option value="z+">+Z</option>
+                  <option value="z-">-Z</option>
+                </select>
+              </div>
+              <div class="form-row" data-brush-field="cylinder" hidden>
+                <label for="brushSegments">Sides</label>
+                <input id="brushSegments" class="field" type="number" min="3" max="64" step="1" value="12" />
+              </div>
+              <div class="form-row" data-brush-field="stairs" hidden>
+                <label for="brushSteps">Steps</label>
+                <input id="brushSteps" class="field" type="number" min="2" max="32" step="1" value="6" />
+              </div>
+              <div class="form-row" data-brush-field="terrain" hidden>
+                <label for="terrainResolution">Terrain grid</label>
+                <input id="terrainResolution" class="field" type="number" min="2" max="24" step="1" value="8" />
+              </div>
+              <div class="form-row" data-brush-field="terrain" hidden>
+                <label for="terrainRelief">Relief</label>
+                <input id="terrainRelief" class="field" type="number" min="0" step="0.1" value="3" />
+              </div>
+              <div class="form-row" data-brush-field="terrain" hidden>
+                <label for="terrainSeed">Seed</label>
+                <input id="terrainSeed" class="field" type="number" step="1" value="1" />
+              </div>
+              <div class="form-row">
+                <label for="brushGround">Top Y</label>
+                <input id="brushGround" class="field" type="number" step="0.1" value="126" />
+              </div>
+              <div class="form-row">
+                <label for="brushFrontZ">Front Z</label>
+                <input id="brushFrontZ" class="field" type="number" step="0.1" value="0" />
+              </div>
+              <div class="form-row">
+                <label for="brushSideX">Side X</label>
+                <input id="brushSideX" class="field" type="number" step="0.1" value="0" />
+              </div>
+              <div class="form-row">
+                <label for="gridSize">Grid</label>
+                <input id="gridSize" class="field" type="number" min="0.1" step="0.1" value="1" />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="props" hidden>
+          <section>
+            <div class="panel-title">
+              <h2>Inspector</h2>
+              <button id="deleteSelected" class="danger small">Delete</button>
+            </div>
+            <div id="inspector" class="inspector empty">Select a prop or edit level data.</div>
+          </section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="assets" hidden>
+          <section>
+            <div class="panel-title">
+              <h2>Asset Browser</h2>
+              <span id="assetCount">0</span>
+            </div>
+            <div class="asset-filter-row">
+              <select id="assetKindFilter">
+                <option value="all">All</option>
+                <option value="model">Models</option>
+                <option value="texture">Textures</option>
+                <option value="material">Materials</option>
+                <option value="audio">Audio</option>
+                <option value="dialogue">Dialogue</option>
+                <option value="data">Data</option>
+                <option value="level">Levels</option>
+                <option value="config">Config</option>
+              </select>
+              <input id="assetFilter" class="field" placeholder="Filter assets" />
+            </div>
+            <div id="assetList" class="asset-list"></div>
+          </section>
+          <section id="assetImportsInspector"></section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="prefabs" hidden>
+          <section>
+            <div class="panel-title">
+              <h2>Prefabs</h2>
+              <span id="prefabCount">0</span>
+            </div>
+            <div class="prefab-create-fields">
+              <input id="prefabName" class="field" placeholder="Prefab name" maxlength="80" />
+              <input id="prefabId" class="field" placeholder="prefab_id" maxlength="80" />
+            </div>
+            <div class="inline-actions prefab-actions">
+              <button id="createPrefab" class="primary" type="button">Create from Selection</button>
+              <button id="deletePrefab" class="danger" type="button" disabled>Delete</button>
+            </div>
+            <input id="prefabFilter" class="field" placeholder="Filter prefabs" />
+            <div id="prefabList" class="prefab-list"></div>
+          </section>
+          <section>
+            <div id="prefabStatus" class="inspector empty">No prefab selected.</div>
+          </section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="events" hidden>
+          <section id="eventsInspector"></section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="loot" hidden>
+          <section id="lootInspector"></section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="paths" hidden>
+          <section id="pathsInspector"></section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="dialogue" hidden>
+          <section id="dialogueInspector"></section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="validation" hidden>
+          <section>
+            <div class="panel-title">
+              <h2>Validation</h2>
+              <span id="validationBadge" class="badge warn">Not checked</span>
+            </div>
+            <div id="validationList" class="validation-list">
+              Press Validate before saving or testing.
+            </div>
+          </section>
+        </div>
+
+        <div class="workspace-panel" data-editor-panel="controls" hidden>
+          <section>
+            <div class="panel-title">
+              <h2>Controls</h2>
+              <button id="resetKeybindings" class="small">Reset</button>
+            </div>
+            <div id="keybindingList" class="keybinding-list"></div>
+          </section>
+        </div>
+      </aside>
+    </main>
+
+    <div id="contextMenu" class="context-menu" hidden>
+      <button data-action="selectHere">Select Here</button>
+      <button data-action="placeHere">Place Template Here</button>
+      <button data-action="drawHere">Start Brush Here</button>
+      <button data-action="addPathPointHere">Add Path Point Here</button>
+      <button data-action="addEventTriggerHere">Add Event Trigger Here</button>
+      <button data-action="undo">Undo</button>
+      <button data-action="redo">Redo</button>
+      <button data-action="moveSelectedHere">Move Selected Here</button>
+      <button data-action="copySelected">Copy Selected</button>
+      <button data-action="duplicateSelected">Duplicate Selected</button>
+      <button data-action="pasteHere">Paste Here</button>
+      <button data-action="focusSelected">Focus Selected</button>
+      <button data-action="selectAll">Select All</button>
+      <button data-action="invertSelection">Invert Selection</button>
+      <button data-action="clearSelection">Clear Selection</button>
+      <button data-action="deleteSelected">Delete Selected</button>
+      <button data-action="validate">Validate</button>
+      <button data-action="resetCamera">Reset Camera</button>
+    </div>
+
+    <script src="/prefab-tools.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

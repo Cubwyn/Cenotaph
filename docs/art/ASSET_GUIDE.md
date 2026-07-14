@@ -47,6 +47,8 @@ physics, validation, or runtime loading.
 Use these folders for the scratch model pass:
 
 ```text
+source_assets/maps/
+source_assets/reference/
 assets/blockout/
 assets/props/
 assets/enemies/
@@ -54,6 +56,10 @@ assets/level_kit/
 assets/relics/
 textures/
 ```
+
+Keep editable Blender files, conversion inputs, and visual references under
+`source_assets/`. Only runtime-ready exports belong under `assets/` or
+`textures/`.
 
 Recommended asset IDs:
 

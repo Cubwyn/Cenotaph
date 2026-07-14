@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "name": "Basic Room Shell",
+  "props": [
+    {
+      "id": "floor",
+      "asset_id": "props/test_platform.obj",
+      "position": [0.0, 0.0, 0.0],
+      "scale": [6.0, 1.0, 6.0],
+      "collider_type": "Box"
+    },
+    {
+      "id": "north_wall",
+      "asset_id": "props/test_wall.obj",
+      "position": [0.0, 2.0, -6.0],
+      "scale": [6.0, 2.0, 0.5],
+      "collider_type": "Box"
+    },
+    {
+      "id": "south_wall",
+      "asset_id": "props/test_wall.obj",
+      "position": [0.0, 2.0, 6.0],
+      "scale": [6.0, 2.0, 0.5],
+      "collider_type": "Box"
+    },
+    {
+      "id": "west_wall",
+      "asset_id": "props/test_wall.obj",
+      "position": [-6.0, 2.0, 0.0],
+      "rotation": [0.0, 90.0, 0.0],
+      "scale": [6.0, 2.0, 0.5],
+      "collider_type": "Box"
+    },
+    {
+      "id": "east_wall",
+      "asset_id": "props/test_wall.obj",
+      "position": [6.0, 2.0, 0.0],
+      "rotation": [0.0, 90.0, 0.0],
+      "scale": [6.0, 2.0, 0.5],
+      "collider_type": "Box"
+    }
+  ]
+}

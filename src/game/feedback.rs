@@ -10,6 +10,8 @@ pub enum FeedbackEventKind {
     PlayerDamage,
     EnemyHit,
     EnemyKill,
+    ShotBlocked,
+    ShotMissed,
     Pickup,
     Resource,
     Heal,
@@ -60,6 +62,8 @@ pub struct FeedbackState {
     pub shot_flash_timer: f32,
     pub hit_marker_timer: f32,
     pub kill_marker_timer: f32,
+    pub blocked_flash_timer: f32,
+    pub miss_flash_timer: f32,
     pub pickup_flash_timer: f32,
     pub damage_flash_timer: f32,
     pub debug_flash_timer: f32,
@@ -84,6 +88,8 @@ impl FeedbackState {
         self.shot_flash_timer = decay(self.shot_flash_timer, dt);
         self.hit_marker_timer = decay(self.hit_marker_timer, dt);
         self.kill_marker_timer = decay(self.kill_marker_timer, dt);
+        self.blocked_flash_timer = decay(self.blocked_flash_timer, dt);
+        self.miss_flash_timer = decay(self.miss_flash_timer, dt);
         self.pickup_flash_timer = decay(self.pickup_flash_timer, dt);
         self.damage_flash_timer = decay(self.damage_flash_timer, dt);
         self.debug_flash_timer = decay(self.debug_flash_timer, dt);
@@ -124,6 +130,17 @@ impl FeedbackState {
         self.kill_marker_timer = self.kill_marker_timer.max(0.35);
         self.add_shake(0.08, 0.18);
         self.push_event(FeedbackEventKind::EnemyKill, rounded_amount(amount));
+    }
+
+    pub fn on_shot_blocked(&mut self) {
+        self.blocked_flash_timer = self.blocked_flash_timer.max(0.32);
+        self.add_shake(0.035, 0.10);
+        self.push_event(FeedbackEventKind::ShotBlocked, 0);
+    }
+
+    pub fn on_shot_missed(&mut self) {
+        self.miss_flash_timer = self.miss_flash_timer.max(0.22);
+        self.push_event(FeedbackEventKind::ShotMissed, 0);
     }
 
     pub fn on_pickup(&mut self) {
@@ -260,6 +277,19 @@ mod tests {
         assert!(feedback.hit_marker_timer > 0.0);
         assert!(feedback.kill_marker_timer > 0.0);
         assert!(feedback.camera_offset(0.0).length() > 0.0);
+    }
+
+    #[test]
+    fn blocked_and_missed_shots_emit_distinct_feedback() {
+        let mut feedback = FeedbackState::new();
+
+        feedback.on_shot_missed();
+        feedback.on_shot_blocked();
+
+        assert!(feedback.miss_flash_timer > 0.0);
+        assert!(feedback.blocked_flash_timer > 0.0);
+        assert_eq!(feedback.events[0].kind, FeedbackEventKind::ShotBlocked);
+        assert_eq!(feedback.events[1].kind, FeedbackEventKind::ShotMissed);
     }
 
     #[test]

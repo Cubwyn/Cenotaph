@@ -2,10 +2,11 @@ use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::data::config::gameplay::{parse_key, GameConfig};
+use crate::data::config::gameplay::{is_valid_binding_token, GameConfig, REQUIRED_BINDING_ACTIONS};
 use crate::data::enemy::{normalize_enemy_id, EnemyDefinition};
 use crate::data::relic::{normalize_relic_id, RelicDefinition};
-use crate::data::world::level::LevelData;
+use crate::data::world::level::{LevelData, PropData};
+use crate::data::world::prefab::LevelPrefabData;
 use crate::systems::render::mesh::{try_load_model, ModelData};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,8 +27,10 @@ impl ValidationIssue {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContentValidationReport {
     pub checked_levels: usize,
+    pub checked_prefabs: usize,
     pub checked_configs: usize,
     pub checked_assets: usize,
+    pub checked_textures: usize,
     pub checked_enemy_definitions: usize,
     pub checked_relic_definitions: usize,
     pub issues: Vec<ValidationIssue>,
@@ -41,22 +44,26 @@ impl ContentValidationReport {
     pub fn summary(&self) -> String {
         if self.is_ok() {
             format!(
-                "content validation passed: {} level file(s), {} config file(s), {} enemy definition file(s), {} relic definition file(s), {} asset file(s) checked",
+                "content validation passed: {} level file(s), {} prefab file(s), {} config file(s), {} enemy definition file(s), {} relic definition file(s), {} model asset file(s), {} texture file(s) checked",
                 self.checked_levels,
+                self.checked_prefabs,
                 self.checked_configs,
                 self.checked_enemy_definitions,
                 self.checked_relic_definitions,
-                self.checked_assets
+                self.checked_assets,
+                self.checked_textures
             )
         } else {
             format!(
-                "content validation failed: {} issue(s) across {} level file(s), {} config file(s), {} enemy definition file(s), {} relic definition file(s), {} asset file(s)",
+                "content validation failed: {} issue(s) across {} level file(s), {} prefab file(s), {} config file(s), {} enemy definition file(s), {} relic definition file(s), {} model asset file(s), {} texture file(s)",
                 self.issues.len(),
                 self.checked_levels,
+                self.checked_prefabs,
                 self.checked_configs,
                 self.checked_enemy_definitions,
                 self.checked_relic_definitions,
-                self.checked_assets
+                self.checked_assets,
+                self.checked_textures
             )
         }
     }
@@ -89,10 +96,74 @@ pub fn validate_project_content() -> ContentValidationReport {
         &mut report,
         &mut checked_asset_paths,
     );
+    validate_prefabs_dir(
+        "prefabs",
+        &enemy_ids,
+        &relic_ids,
+        &mut report,
+        &mut checked_asset_paths,
+    );
     validate_all_model_assets_dir("assets", &mut report, &mut checked_asset_paths);
+    validate_texture_assets_dir("textures", &mut report);
     validate_tuning_file("config/tuning.toml", &mut report);
     validate_bindings_file("config/bindings.toml", &mut report);
     report
+}
+
+fn validate_prefabs_dir(
+    prefabs_dir: impl AsRef<Path>,
+    known_enemy_ids: &HashSet<String>,
+    known_relic_ids: &HashSet<String>,
+    report: &mut ContentValidationReport,
+    checked_asset_paths: &mut HashSet<PathBuf>,
+) {
+    let prefabs_dir = prefabs_dir.as_ref();
+    let entries = match std::fs::read_dir(prefabs_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => {
+            report.add_issue(
+                prefabs_dir.to_string_lossy(),
+                format!("failed to read prefabs directory: {}", error),
+            );
+            return;
+        }
+    };
+
+    let mut prefab_paths: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .filter(|path| {
+            path.extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+        })
+        .collect();
+    prefab_paths.sort();
+
+    for prefab_path in prefab_paths {
+        let path_label = prefab_path.to_string_lossy().to_string();
+        report.checked_prefabs += 1;
+        let prefab = match LevelPrefabData::try_load(&prefab_path) {
+            Ok(prefab) => prefab,
+            Err(error) => {
+                report.add_issue(path_label, error);
+                continue;
+            }
+        };
+
+        for error in prefab.validation_errors() {
+            report.add_issue(path_label.clone(), error);
+        }
+        validate_prop_enemy_references(&prefab.props, &path_label, known_enemy_ids, report);
+        validate_prop_item_references(&prefab.props, &path_label, known_relic_ids, report);
+        for asset_path in referenced_prop_model_assets(&prefab.props) {
+            if asset_path.exists() {
+                validate_model_asset_once(&asset_path, report, checked_asset_paths);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -169,6 +240,7 @@ fn validate_levels_dir_into(
         }
         if let Some(relic_ids) = known_relic_ids {
             validate_level_item_references(&level, &path_label, relic_ids, report);
+            validate_level_loot_table_references(&level, &path_label, relic_ids, report);
         }
 
         for asset_path in referenced_model_assets(&level) {
@@ -274,6 +346,61 @@ fn validate_all_model_assets_dir(
 
     for model_path in model_paths {
         validate_model_asset_once(&model_path, report, checked_asset_paths);
+    }
+}
+
+fn validate_texture_assets_dir(
+    textures_dir: impl AsRef<Path>,
+    report: &mut ContentValidationReport,
+) {
+    let textures_dir = textures_dir.as_ref();
+    let mut texture_paths = Vec::new();
+    collect_texture_paths(textures_dir, report, &mut texture_paths);
+    texture_paths.sort();
+
+    for texture_path in texture_paths {
+        report.checked_textures += 1;
+        if let Err(error) = image::open(&texture_path) {
+            report.add_issue(
+                texture_path.to_string_lossy(),
+                format!("failed to decode texture: {}", error),
+            );
+        }
+    }
+}
+
+fn collect_texture_paths(
+    path: &Path,
+    report: &mut ContentValidationReport,
+    texture_paths: &mut Vec<PathBuf>,
+) {
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(error) => {
+            report.add_issue(
+                path.to_string_lossy(),
+                format!("failed to read texture directory: {}", error),
+            );
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_texture_paths(&path, report, texture_paths);
+        } else if path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| {
+                matches!(
+                    extension.to_ascii_lowercase().as_str(),
+                    "png" | "jpg" | "jpeg" | "webp" | "bmp" | "tga"
+                )
+            })
+        {
+            texture_paths.push(path);
+        }
     }
 }
 
@@ -384,7 +511,16 @@ fn validate_level_enemy_references(
     enemy_ids: &HashSet<String>,
     report: &mut ContentValidationReport,
 ) {
-    for (index, prop) in level.props.iter().enumerate() {
+    validate_prop_enemy_references(&level.props, path_label, enemy_ids, report);
+}
+
+fn validate_prop_enemy_references(
+    props: &[PropData],
+    path_label: &str,
+    enemy_ids: &HashSet<String>,
+    report: &mut ContentValidationReport,
+) {
+    for (index, prop) in props.iter().enumerate() {
         let Some(enemy_type) = prop.enemy_type.as_ref() else {
             continue;
         };
@@ -412,7 +548,16 @@ fn validate_level_item_references(
     relic_ids: &HashSet<String>,
     report: &mut ContentValidationReport,
 ) {
-    for (index, prop) in level.props.iter().enumerate() {
+    validate_prop_item_references(&level.props, path_label, relic_ids, report);
+}
+
+fn validate_prop_item_references(
+    props: &[PropData],
+    path_label: &str,
+    relic_ids: &HashSet<String>,
+    report: &mut ContentValidationReport,
+) {
+    for (index, prop) in props.iter().enumerate() {
         let Some(item_id) = prop.item_id.as_ref() else {
             continue;
         };
@@ -434,17 +579,59 @@ fn validate_level_item_references(
     }
 }
 
+fn validate_level_loot_table_references(
+    level: &LevelData,
+    path_label: &str,
+    relic_ids: &HashSet<String>,
+    report: &mut ContentValidationReport,
+) {
+    for (table_index, table) in level.loot_tables.iter().enumerate() {
+        for (entry_index, entry) in table.entries.iter().enumerate() {
+            let Some(item_id) = entry.item_id.as_ref() else {
+                continue;
+            };
+            let normalized = normalize_relic_id(item_id);
+            if normalized.is_empty() {
+                report.add_issue(
+                    path_label.to_string(),
+                    format!(
+                        "loot table {} entry {} item_id must not be empty",
+                        table_index, entry_index
+                    ),
+                );
+            } else if !relic_ids.contains(&normalized) {
+                report.add_issue(
+                    path_label.to_string(),
+                    format!(
+                        "loot table {} entry {} item_id '{}' has no matching relic definition",
+                        table_index, entry_index, item_id
+                    ),
+                );
+            }
+        }
+    }
+}
+
 fn referenced_model_assets(level: &LevelData) -> Vec<PathBuf> {
-    let mut paths = Vec::with_capacity(level.props.len() + 1);
+    let mut paths = Vec::with_capacity(level.props.len() + level.asset_imports.len() + 1);
     if !level.base_map.trim().is_empty() {
         paths.push(PathBuf::from(&level.base_map));
     }
-    for prop in &level.props {
-        if !prop.asset_id.trim().is_empty() {
-            paths.push(PathBuf::from("assets").join(&prop.asset_id));
+    paths.extend(referenced_prop_model_assets(&level.props));
+    for asset in &level.asset_imports {
+        if !asset.asset_id.trim().is_empty() {
+            paths.push(PathBuf::from("assets").join(&asset.asset_id));
         }
     }
     paths
+}
+
+fn referenced_prop_model_assets(props: &[PropData]) -> Vec<PathBuf> {
+    props
+        .iter()
+        .filter(|prop| prop.brush_geometry.is_none() && !prop.asset_id.trim().is_empty())
+        .map(|prop| PathBuf::from("assets").join(&prop.asset_id))
+        .collect()
 }
 
 fn validate_model_asset_once(
@@ -497,7 +684,7 @@ fn validate_model_asset_file(path: &Path, report: &mut ContentValidationReport) 
     }
 }
 
-fn validate_model_geometry(model: &ModelData) -> Vec<String> {
+pub(crate) fn validate_model_geometry(model: &ModelData) -> Vec<String> {
     let (vertices, parts, phys_points, phys_indices) = model;
     let mut issues = Vec::new();
 
@@ -584,12 +771,12 @@ fn validate_tuning_file(path: impl AsRef<Path>, report: &mut ContentValidationRe
         }
     };
 
-    for issue in validate_tuning_values(&config) {
+    for issue in tuning_validation_errors(&config) {
         report.add_issue(path_label.clone(), issue);
     }
 }
 
-fn validate_tuning_values(config: &GameConfig) -> Vec<String> {
+pub(crate) fn tuning_validation_errors(config: &GameConfig) -> Vec<String> {
     let mut issues = Vec::new();
 
     require_positive("player.max_health", config.player.max_health, &mut issues);
@@ -762,21 +949,7 @@ fn validate_bindings_file(path: impl AsRef<Path>, report: &mut ContentValidation
         return;
     };
 
-    let required_actions = [
-        "forward",
-        "backward",
-        "left",
-        "right",
-        "jump",
-        "sprint",
-        "dash",
-        "attack",
-        "interact",
-        "inventory",
-        "pause",
-    ];
-
-    for action in required_actions {
+    for &action in REQUIRED_BINDING_ACTIONS {
         if !bindings.contains_key(action) {
             report.add_issue(path_label.clone(), format!("missing binding '{}'", action));
         }
@@ -815,15 +988,6 @@ fn validate_bindings_file(path: impl AsRef<Path>, report: &mut ContentValidation
             );
         }
     }
-}
-
-fn is_valid_binding_token(token: &str) -> bool {
-    let token = token.to_ascii_uppercase();
-    parse_key(&token).is_some()
-        || matches!(
-            token.as_str(),
-            "MOUSE_LEFT" | "MOUSE_RIGHT" | "MOUSE_MIDDLE" | "NONE" | "UNBOUND"
-        )
 }
 
 fn is_unbound_token(token: &str) -> bool {
@@ -873,10 +1037,35 @@ mod tests {
         let report = validate_project_content();
         assert!(report.is_ok(), "{}", report);
         assert!(report.checked_levels >= 2);
+        assert!(report.checked_prefabs >= 1);
         assert_eq!(report.checked_configs, 2);
         assert!(report.checked_enemy_definitions >= 5);
         assert!(report.checked_relic_definitions >= 1);
         assert!(report.checked_assets >= 3);
+    }
+
+    #[test]
+    fn malformed_texture_is_reported() {
+        let dir = std::env::temp_dir().join(format!(
+            "cenotaph_texture_validation_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("broken.png"), "not an image").unwrap();
+        let mut report = ContentValidationReport::default();
+
+        validate_texture_assets_dir(&dir, &mut report);
+
+        assert_eq!(report.checked_textures, 1);
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.message.contains("failed to decode texture")));
+        std::fs::remove_dir_all(dir).ok();
     }
 
     #[test]
@@ -924,7 +1113,7 @@ mod tests {
         config.combat.enemy_hit_radius = 0.0;
         config.debug.position_log_interval = 0.0;
 
-        let issues = validate_tuning_values(&config);
+        let issues = tuning_validation_errors(&config);
         assert!(issues
             .iter()
             .any(|issue| issue.contains("player.max_health")));
@@ -990,6 +1179,44 @@ mod tests {
         let mut report = ContentValidationReport::default();
 
         validate_level_item_references(&level, "test_level", &relic_ids, &mut report);
+
+        assert!(!report.is_ok());
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.message.contains("no matching relic definition")));
+    }
+
+    #[test]
+    fn reports_unknown_loot_table_item_id() {
+        let level: LevelData = serde_json::from_str(
+            r#"
+            {
+                "name": "Loot Table Reference Test",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": [],
+                "loot_tables": [
+                    {
+                        "id": "bad_drops",
+                        "rolls": 1,
+                        "entries": [
+                            {
+                                "weight": 1,
+                                "item_id": "NotReal",
+                                "quantity": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+            "#,
+        )
+        .unwrap();
+        let relic_ids = HashSet::from(["ash_splinter".to_string()]);
+        let mut report = ContentValidationReport::default();
+
+        validate_level_loot_table_references(&level, "test_level", &relic_ids, &mut report);
 
         assert!(!report.is_ok());
         assert!(report

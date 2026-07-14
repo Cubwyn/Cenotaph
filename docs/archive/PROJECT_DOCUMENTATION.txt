@@ -2,7 +2,7 @@ PROJECT DOCUMENTATION - CENOTAPH: THE GREAT OMISSION
 ====================================================
 
 Version: Foundation Documentation Pass
-Last Updated: July 1, 2026
+Last Updated: July 13, 2026
 Project Type: First-Person Vertical Looter RPG Prototype
 
 NOTE:
@@ -26,11 +26,12 @@ Current implementation status:
 - JSON level data.
 - TOML tuning and bindings.
 - TOML enemy and relic definitions.
-- Foundation gameplay: movement, jump, sprint, dash, pause, HUD, prototype
-  shooting, baseline enemy chase/attack, hurtboxes, death, respawn, prototype
-  resource pickup/Anchor banking, authored relic pickup/reward flow,
-  owned-relic cycling, autosave/resume, basic cycle modifiers, and project
-  content validation.
+- Foundation gameplay/tooling: movement, jump, sprint, dash, pause, readable
+  guided HUD, standalone level editor, in-game quick adjuster, prototype
+  shooting with solid-world obstruction, baseline enemy chase/attack, hurtboxes,
+  death, respawn, prototype resource pickup/Anchor banking, authored relic
+  pickup/reward flow, owned-relic cycling, autosave/resume, basic cycle
+  modifiers, and project content validation.
 
 Current north star:
 First Ascent Prototype.
@@ -108,6 +109,9 @@ Run Ash-Walk:
 Run the foundation smoke-test level:
   cargo run -- foundation_test
 
+Run the standalone level editor:
+  cargo run -- editor
+
 Validate authored project content:
   cargo run -- validate
 
@@ -127,7 +131,8 @@ CONTENT DIRECTORIES
 config/
   bindings.toml
     User-editable keybindings. Current core controls include WASD, Space, Shift,
-    Q dash, left mouse attack, and Escape pause.
+    Q dash, left mouse attack, Escape pause, debug controls, and in-game level
+    editor controls.
 
   tuning.toml
     Designer-tweakable gameplay constants for player, movement, camera, physics,
@@ -184,7 +189,14 @@ SOURCE TREE
 ================================================================================
 
 src/main.rs
-  Entry point. Handles validation CLI arguments and starts the winit app.
+  Entry point. Handles validation/editor CLI arguments and starts the winit app.
+
+src/editor_server.rs
+  Localhost level editor server for `cargo run -- editor`, including static
+  editor serving, project metadata APIs, level read/save APIs, and Rust-backed
+  level validation. Security hardening includes loopback-only bind,
+  per-launch tokenized URLs, token-required API calls, local Host/Origin
+  checks, path-restricted writes, and backup-before-overwrite saves.
 
 src/app.rs
   winit ApplicationHandler. Owns EngineState and routes window/input events.
@@ -207,10 +219,22 @@ src/core/engine/sync.rs
   Render instance buffer rebuilds after prop changes.
 
 src/core/engine/asset_catalog.rs
-  Scans model assets.
+  Scans editor-visible project assets across assets/, textures/, data/,
+  levels/, and config/. Separates runtime-supported models from source-only
+  model, texture, material, audio, dialogue/data, level, and config files.
 
 src/core/engine/validation.rs
   Non-window content validation for level JSON and core config TOML.
+
+tools/level_editor/
+  Standalone browser editor UI: level browser, Hammer-style Camera/Top/Front/Side
+  view panels, 3D WebGL viewport, flying camera, ray-picked and orthographic
+  select/move/place tools, orthographic marquee and multi-selection, grouped
+  transforms with axis and snap controls, transactional undo/redo, floor/wall/
+  block/slope/cylinder/stair brushes, placement palette, asset browser,
+  configurable keybindings, right-click context menu, group duplicate/copy/
+  paste/delete, focus-selected, tabbed prop and level-system inspectors,
+  validation navigation, and save controls.
 
 src/data/
   Pure data definitions.
@@ -227,14 +251,15 @@ src/data/config/gameplay.rs
   CombatConfig, WorldConfig, LightingConfig, DebugConfig, and keybinding parsing.
 
 src/data/world/level.rs
-  LevelData, PropData, ColliderType, level loading, defaults, and validation
-  rules.
+  LevelData, PropData, ColliderType, level loading, JSON saving, defaults, and
+  validation rules.
 
 src/game/
   Gameplay-owned state and rules.
 
 src/game/combat.rs
-  Prototype combat math, including ray/sphere hit checks for primary fire.
+  Prototype combat math, including ray/sphere enemy target checks for primary
+  fire. Solid-world weapon obstruction is queried through the physics wrapper.
 
 src/game/enemy.rs
   Baseline enemy runtime state, chase/attack intent, and attack windup/cooldown
@@ -256,13 +281,20 @@ src/game/cycle.rs
   Basic cycle number/modifier state, reward scaling, enemy damage scaling, relic
   damage scaling, and deterministic prototype enemy reward relic IDs.
 
+src/game/editor.rs
+  In-game level editor state, placement templates, snapped cursor math, dirty
+  state, validation status, reload confirmation, safe deletion, and template
+  materialization rules.
+
 src/game/save.rs
   SaveData snapshot/load helpers for level, cycle, resource, Anchor, respawn,
-  relic inventory, and equipped relic state.
+  relic inventory, equipped relic state, fired level events, and level-local
+  event flags.
 
 src/game/feedback.rs
   Gameplay feedback timers, event feed entries, camera shake, and HUD flash
-  triggers for combat, pickups, relics, debug actions, healing, and death.
+  triggers for combat hits, blocked shots, misses, pickups, relics, debug
+  actions, healing, and death.
 
 src/systems/
   Engine subsystems.
@@ -272,11 +304,13 @@ src/systems/input/
 
 src/systems/physics/
   Rapier3D physics wrapper, player movement, coyote-time jumping, prop
-  colliders, enemy prop position/velocity helpers, and prop removal.
+  colliders, weapon obstruction ray queries, enemy prop position/velocity
+  helpers, path-bound dynamic prop support, and prop removal.
 
 src/systems/render/
   WGPU render pipeline, camera, mesh/model data, instances, textures, lighting,
-  HUD, shaders, and render asset grouping.
+  HUD, thicker block text, guide strip, editor panel/cursor marker,
+  shot-result/event feedback, shaders, and render asset grouping.
 
 src/systems/audio/
   rodio-backed procedural ambient audio, footsteps, one-shot effects, and
@@ -296,6 +330,7 @@ Prop JSON required field:
 - asset_id
 
 Prop JSON fields with defaults:
+- id
 - position
 - rotation
 - scale
@@ -311,6 +346,17 @@ Prop JSON fields with defaults:
 - light_intensity
 - ambient_sound_id
 - trigger_level_id
+- loot_table_id
+- path_id
+- dialogue_id
+- event_id
+
+Level JSON authoring collections with defaults:
+- asset_imports
+- loot_tables
+- paths
+- events
+- dialogues
 
 Validation currently checks:
 - level JSON files can be read and parsed
@@ -323,6 +369,14 @@ Validation currently checks:
 - resource pickups cannot also be enemies
 - level transitions point at existing level files
 - lit props include light color
+- authoring graph IDs are stable and unique per collection
+- prop loot_table_id/path_id/dialogue_id/event_id references resolve
+- asset imports point at real model assets
+- loot tables have valid rolls, weights, quantities, and item/resource grants
+- loot table item_id values match relic definition IDs
+- paths have valid waypoint counts and finite waypoint coordinates
+- event triggers/actions include the references required by their kind
+- dialogues have speakers and non-empty lines
 - enemy definition TOML files parse
 - enemy definition IDs are unique
 - enemy definitions include a readable visual tell
