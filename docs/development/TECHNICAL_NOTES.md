@@ -23,6 +23,8 @@ The architecture should prioritize:
 - Deterministic generation where useful
 - Debug tooling
 - Long-term maintainability
+- Programmer-leveraged production: reusable systems, generated support, and
+  content rules that reduce bespoke art burden
 
 ---
 
@@ -97,6 +99,10 @@ Runtime uses typed IDs.
 Avoid hardcoding content everywhere.
 
 Avoid runtime string lookups for core gameplay logic where typed IDs are safer.
+
+Prefer features that multiply existing content through rules, registries,
+variants, modifiers, and validation. Be cautious with features that mainly add
+manual asset workload without deepening the ascent loop.
 
 ---
 
@@ -222,6 +228,7 @@ Does every route have at least one encounter or reward?
 `cargo run -- validate` currently checks:
 
 - all level JSON files under `levels/`
+- level schema versions and shared legacy migration through every load path
 - level base map references
 - prop asset references
 - referenced model asset extensions
@@ -241,16 +248,19 @@ Does every route have at least one encounter or reward?
 - `config/bindings.toml` required actions, valid tokens, and duplicate bindings
 - level resource/Anchor metadata sanity
 - prefab versioning, prop limits, stable IDs, and forbidden level-local links
-- relic definition parseability, ID uniqueness, and stat sanity
+- relic definition parseability, ID uniqueness, pickup-model existence, and
+  stat sanity
 - level and loot-table relic references
 - level paths, events, dialogue, flags, and their cross-references
+- interaction triggers resolve to stable prop IDs and enemy loot-table links
 - all model assets under `assets/`, including unreferenced files
 - supported textures under `textures/` decode successfully
 
 `cargo doctor` wraps content validation with project-layout, playable-level,
-autosave/backup, source/runtime separation, editor-backup, and interrupted-write
-checks. Runtime startup and F5 reload use strict versions of the same contracts;
-invalid content is rejected before live state is replaced.
+autosave/backup, source/runtime separation, interrupted-write, and static
+content-budget checks. The current budgets report peak level props, moving
+props, and base-map triangles. Runtime startup and F5 reload use strict versions
+of the same contracts; invalid content is rejected before live state is replaced.
 
 ---
 
@@ -401,14 +411,13 @@ Presentation includes:
 
 ## Audio Requirements
 
-- Weapon sounds
-- Enemy sounds
-- Hit feedback
-- Loot pickup sounds
-- Rarity chimes
-- Ambient loops
-- Suppression audio effects
-- Dynamic combat intensity
+- Future one-shots use developer-approved recorded or authored assets.
+- Weapon, enemy, hit, loot, movement, and ritual cues remain silent until those
+  assets exist.
+- Placeholder ambience may use non-tonal wind and pressure noise only.
+- Do not synthesize rarity chimes, UI confirmations, bells, melodic drones, hit
+  tones, or death stings.
+- Dynamic combat intensity must be built from approved layers, not oscillators.
 
 ## Visual Feedback Requirements
 
@@ -474,18 +483,18 @@ MVP requirement:
 - [x] Decide engine/framework.
 - [x] Define current level/config/enemy content formats.
 - [ ] Create typed ID pattern beyond normalized enemy IDs.
-- [ ] Create simple registry.
+- [x] Create simple enemy and relic registries.
 - [x] Create simple validation pass.
 - [x] Create debug test map.
 - [x] Create foundation check script.
 - [x] Create manual foundation smoke checklist.
 - [ ] Create spawn enemy command.
 - [ ] Create spawn relic command.
-- [ ] Create basic save format.
+- [x] Create validated JSON save format with staged writes and backup recovery.
 
 ## Mid
 
-- [ ] Hot reload content data.
+- [x] Hot reload runtime content transactionally.
 - [ ] Loot simulation tool.
 - [ ] Encounter simulation tool.
 - [ ] Build stats inspector.
@@ -498,7 +507,7 @@ MVP requirement:
 - [ ] Advanced validation reports.
 - [ ] Automated run summaries.
 - [ ] Performance profiling overlay.
-- [ ] Asset dependency validation.
+- [x] Asset dependency validation.
 - [ ] Possible mod support.
 
 ---
@@ -507,7 +516,7 @@ MVP requirement:
 
 - [x] Current framework choice: custom winit/wgpu/Rapier3D runtime.
 - [x] Current content format: JSON for level placement, TOML for tuning and bindings.
-- [ ] Should save data use binary, RON, JSON, or another format?
+- [x] Save data uses readable, validated JSON with explicit schema versioning.
 - [ ] Should the content registry load everything at startup?
 - [ ] Should debug tools exist in release builds behind a flag?
 - [ ] Should procedural generation be deterministic by default?

@@ -1,7 +1,25 @@
 {
+  "version": 1,
   "name": "Movement Test",
   "base_map": "assets/test_movement_arena.obj",
   "player_spawn": [0.0, 128.0, 0.0],
+  "atmosphere": {
+    "clear_color": [0.035, 0.04, 0.045],
+    "fog_color": [0.12, 0.14, 0.16],
+    "fog_density": 0.004,
+    "key_light_color": [1.0, 0.9, 0.72],
+    "key_light_intensity": 2.2,
+    "particle_preset": "None",
+    "particle_count": 0,
+    "ambience_preset": "Silent",
+    "ambience_volume": 0.0
+  },
+  "base_material": {
+    "texture": "cenotaph/weathered_stone.png",
+    "tint": [0.95, 0.97, 1.0],
+    "uv_scale": 4.0,
+    "emissive": 0.0
+  },
   "props": [
     {
       "asset_id": "props/test_wall.obj",

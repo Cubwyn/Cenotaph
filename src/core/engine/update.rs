@@ -10,19 +10,24 @@ use std::collections::HashSet;
 
 use glam::Vec3;
 
-use crate::core::engine::state::{EngineState, GameMode};
-use crate::data::relic::normalize_relic_id;
+use crate::core::engine::state::{
+    ActiveDialogueState, EngineState, GameMode, ManualLevelEventStatus,
+};
 use crate::data::world::level::{
     ColliderType, LevelData, LevelEventActionData, LevelEventActionKind, LevelEventData,
     LevelEventTriggerKind, LevelPathData, LootEntryData, LootTableData, PropData,
+    RUNTIME_LOOT_ID_PREFIX,
 };
 use crate::game::combat::closest_ray_sphere_hit;
-use crate::game::editor::{cursor_can_pick_prop, snap_position};
 use crate::game::enemy::{advance_enemy_attack, enemy_ai_intent, EnemyAiIntent, EnemyRuntimeState};
-use crate::game::save::{SaveData, DEFAULT_SAVE_PATH};
+use crate::game::feedback::MotionSample;
+use crate::game::mountain::ActiveMountainReaction;
+use crate::game::progression::{ActiveAnchorRite, AnchorRiteChoice};
+use crate::game::save::{LevelSaveSnapshot, SaveData, SavedRuntimeLoot, DEFAULT_SAVE_PATH};
 use crate::systems::audio::SoundEffect;
 use crate::systems::input::manager::InputManager;
 use crate::systems::render::mesh::try_load_model;
+use crate::systems::render::particles::ParticleBurst;
 
 // ── Public update interface ───────────────────────────────────────────────────
 
@@ -33,22 +38,28 @@ impl EngineState {
             return;
         }
 
+        self.update_mountain_reaction(dt);
+        let particle_center = Vec3::from_array(self.physics.get_player_pos()) + Vec3::Y;
+        self.particles
+            .update(&self.queue, &self.runtime_atmosphere, particle_center, dt);
+
         // Tick the shared cooldown timer
         if self.action_cooldown > 0.0 {
             self.action_cooldown = (self.action_cooldown - dt).max(0.0);
         }
         self.feedback.tick(dt);
-        self.editor.tick(dt);
-
-        if input.was_key_pressed(self.config_data.key("editor_toggle")) {
-            self.toggle_editor_mode();
+        let dialogue_finished = self
+            .active_dialogue
+            .as_mut()
+            .is_some_and(|dialogue| dialogue.tick(dt));
+        if dialogue_finished {
+            self.active_dialogue = None;
         }
-        if self.editor.enabled {
-            self.update_editor_cursor();
-            self.handle_editor_hot_reload(dt);
+        if self.handle_debug_input(input) {
+            return;
         }
-
-        if !self.editor.enabled && self.handle_debug_input(input) {
+        if self.active_anchor_rite.is_some() {
+            self.update_anchor_rite(input);
             return;
         }
 
@@ -65,28 +76,29 @@ impl EngineState {
         let dash_held = input.is_key_down(self.config_data.key("dash"));
 
         self.player.tick_timers(dt);
-        self.player.update_dash_input(
+        let dash_started = self.player.update_dash_input(
             dash_held,
             has_movement,
             &self.config_data.movement,
             &self.config_data.player,
             intent,
         );
+        if dash_started {
+            self.feedback.on_dash();
+            self.play_sound(SoundEffect::Dash);
+            let origin = Vec3::from_array(self.physics.get_player_pos()) + Vec3::Y * 0.55;
+            self.particles.spawn_burst(
+                ParticleBurst::Dash,
+                origin,
+                Vec3::from_array(self.player.dash_direction),
+            );
+        }
 
         // ── Sprint logic ─────────────────────────────────────────────────────
         self.player.is_sprinting = !self.player.is_dashing
             && sprint_held
             && has_movement
             && self.player.stamina.current > 0.0;
-
-        if let Some(audio) = self.audio.as_mut() {
-            let movement_mag = (intent[0] * intent[0] + intent[2] * intent[2]).sqrt();
-            audio.tick_footsteps(
-                dt,
-                movement_mag,
-                self.player.is_sprinting || self.player.is_dashing,
-            );
-        }
 
         // ── Stamina consumption ──────────────────────────────────────────────
         let walk_speed = self.config_data.player.walk_speed;
@@ -130,7 +142,7 @@ impl EngineState {
 
         // ── Level transition check ────────────────────────────────────────────
         // Check if player is near a prop with trigger_level_id
-        if !self.editor.enabled && self.pending_transition.is_none() {
+        if self.pending_transition.is_none() {
             let player_pos = self.physics.get_player_pos();
             let player_v = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
             for prop in &self.level_data.props {
@@ -148,43 +160,55 @@ impl EngineState {
             }
         }
 
-        if !self.editor.enabled && self.pending_transition.is_none() {
-            self.update_level_events();
+        let mut world_interact_pressed = false;
+        if self.pending_transition.is_none() {
+            let interact_pressed = input.was_key_pressed(self.config_data.key("interact"));
+            let dialogue_consumed = interact_pressed && self.active_dialogue.is_some();
+            if dialogue_consumed {
+                let dialogue_finished = self
+                    .active_dialogue
+                    .as_mut()
+                    .is_some_and(ActiveDialogueState::advance);
+                if dialogue_finished {
+                    self.active_dialogue = None;
+                }
+            }
+            let available_interact = interact_pressed && !dialogue_consumed;
+            let event_consumed = self.update_level_events(available_interact);
+            world_interact_pressed = available_interact && !event_consumed;
         }
 
         // Process pending level transition
-        if !self.editor.enabled {
-            if let Some(ref next_level) = self.pending_transition.clone() {
-                println!("[LEVEL] Loading level: {}", next_level);
-                match self.load_level(next_level) {
-                    Ok(()) => {
-                        if let Some(audio) = self.audio.as_ref() {
-                            audio.play(crate::systems::audio::SoundEffect::LevelTransition);
-                        }
-                        self.feedback.on_transition();
-                        self.autosave("level transition");
+        if let Some(ref next_level) = self.pending_transition.clone() {
+            println!("[LEVEL] Loading level: {}", next_level);
+            match self.load_level(next_level) {
+                Ok(()) => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        audio.play(crate::systems::audio::SoundEffect::LevelTransition);
                     }
-                    Err(error) => {
-                        self.failed_transition = Some(next_level.clone());
-                        self.feedback.on_debug();
-                        eprintln!(
-                            "[LEVEL] Transition to '{}' was rejected; current level remains active: {}",
-                            next_level, error
-                        );
-                    }
+                    self.feedback.on_transition();
+                    self.autosave("level transition");
                 }
-                self.pending_transition = None;
+                Err(error) => {
+                    self.failed_transition = Some(next_level.clone());
+                    self.feedback.on_debug();
+                    eprintln!(
+                        "[LEVEL] Transition to '{}' was rejected; current level remains active: {}",
+                        next_level, error
+                    );
+                }
             }
+            self.pending_transition = None;
         }
 
         // Skip movement + combat if player is dead
         if !self.player.is_dead {
-            if !self.editor.enabled {
-                self.update_enemy_ai(dt);
-                self.update_non_enemy_path_followers();
-            }
+            self.update_enemy_ai(dt);
+            self.update_non_enemy_path_followers();
 
-            self.physics.apply_player_movement(
+            let grounded_before = self.physics.is_player_grounded();
+            let velocity_before = self.physics.get_player_velocity();
+            let jumped = self.physics.apply_player_movement(
                 if self.player.is_dashing {
                     self.player.dash_direction
                 } else {
@@ -196,18 +220,58 @@ impl EngineState {
                 speed_multiplier,
             );
             self.physics.step(&self.config_data.physics, dt);
+            let grounded_after = self.physics.is_player_grounded();
+            let velocity_after = self.physics.get_player_velocity();
+            let horizontal_speed = (velocity_after[0] * velocity_after[0]
+                + velocity_after[2] * velocity_after[2])
+                .sqrt();
+            let landing_speed = if !grounded_before && grounded_after {
+                (-velocity_before[1]).max(0.0)
+            } else {
+                0.0
+            };
+            self.feedback.update_motion(
+                dt,
+                MotionSample {
+                    horizontal_speed,
+                    walk_speed,
+                    grounded: grounded_after,
+                    sprinting: self.player.is_sprinting,
+                    dashing: self.player.is_dashing,
+                    landing_speed,
+                },
+            );
+            if landing_speed > 2.0 {
+                let position = Vec3::from_array(self.physics.get_player_pos()) - Vec3::Y * 0.85;
+                self.particles
+                    .spawn_burst(ParticleBurst::Land, position, Vec3::Y);
+            }
+            if let Some(audio) = self.audio.as_mut() {
+                audio.tick_movement(
+                    dt,
+                    horizontal_speed / walk_speed.max(0.001),
+                    self.player.is_sprinting || self.player.is_dashing,
+                    grounded_after,
+                    jumped,
+                    landing_speed,
+                );
+            }
             if self.sync_dynamic_prop_positions_from_physics() {
-                self.sync_instances();
+                self.sync_dynamic_instances();
             }
 
-            if self.editor.enabled {
-                self.update_editor_cursor();
-                self.handle_editor_input(input);
-            } else {
-                self.update_progression_interactions();
+            self.update_progression_interactions(world_interact_pressed);
+            if self.active_anchor_rite.is_none() {
                 self.handle_gameplay_input(input);
             }
         } else {
+            self.feedback.update_motion(
+                dt,
+                MotionSample {
+                    walk_speed,
+                    ..MotionSample::default()
+                },
+            );
             // Dead state: process respawn timer
             self.player.respawn_timer -= dt;
             if self.player.respawn_timer <= 0.0 {
@@ -234,7 +298,6 @@ impl EngineState {
         if !self.player.is_dead
             && !self.player.health.is_depleted()
             && self.player.hurtbox_cooldown <= 0.0
-            && !self.editor.enabled
         {
             let player_pos = self.physics.get_player_pos();
             let player_v = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
@@ -293,13 +356,11 @@ impl EngineState {
 
     /// Visuals pass: mouse look → camera → GPU buffer write.
     pub fn update_visuals(&mut self, input: &mut InputManager) {
-        let scroll = input.take_scroll();
-        if self.editor.enabled && scroll.abs() > f32::EPSILON {
-            self.editor.adjust_distance(scroll.signum());
-            self.update_editor_cursor();
-        }
+        input.take_scroll();
 
-        if input.mouse_delta.0 != 0.0 || input.mouse_delta.1 != 0.0 {
+        if self.active_anchor_rite.is_none()
+            && (input.mouse_delta.0 != 0.0 || input.mouse_delta.1 != 0.0)
+        {
             self.camera_controller.process_mouse(
                 input.mouse_delta.0,
                 input.mouse_delta.1,
@@ -307,12 +368,21 @@ impl EngineState {
             );
         }
 
+        let visual_dt = (self.frame_time_ms * 0.001).clamp(1.0 / 240.0, 1.0 / 20.0);
+        let [visual_yaw, visual_pitch] = self.feedback.camera_rotation_offset();
+        self.camera.visual_yaw_offset = visual_yaw;
+        self.camera.visual_pitch_offset = visual_pitch;
+        let target_fovy =
+            crate::systems::render::camera::BASE_FOVY + self.feedback.camera_fov_offset();
+        self.camera.fovy += (target_fovy - self.camera.fovy) * (1.0 - (-visual_dt * 10.0).exp());
+
         // In gameplay mode the camera follows the physics body.
         let p = self.physics.get_player_pos();
         self.camera.position =
             Vec3::new(p[0], p[1] + 1.0, p[2]) + self.feedback.camera_offset(self.camera.yaw);
 
-        self.camera_uniform.update_view_proj(&self.camera);
+        self.camera_uniform
+            .update_view_proj(&self.camera, self.feedback.time);
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -326,315 +396,93 @@ impl EngineState {
 // ── Gameplay input (always compiled) ─────────────────────────────────────────
 
 impl EngineState {
-    fn play_sound(&self, effect: SoundEffect) {
-        if let Some(audio) = self.audio.as_ref() {
+    fn play_sound(&mut self, effect: SoundEffect) {
+        if let Some(audio) = self.audio.as_mut() {
             audio.play(effect);
         }
     }
 
-    fn level_file_path(&self) -> String {
-        format!("levels/{}.json", self.level_name)
-    }
-
-    fn current_level_modified(&self) -> Option<std::time::SystemTime> {
-        std::fs::metadata(self.level_file_path())
-            .and_then(|metadata| metadata.modified())
-            .ok()
-    }
-
-    fn toggle_editor_mode(&mut self) {
-        self.editor.toggle();
-        self.editor.clamp_selection(self.level_data.props.len());
-        self.editor
-            .set_known_file_modified(self.current_level_modified());
-        self.update_editor_cursor();
-        self.feedback.on_debug();
-        println!(
-            "[EDITOR] {} for level '{}' ({} prop(s))",
-            if self.editor.enabled {
-                "Enabled"
+    fn update_mountain_reaction(&mut self, dt: f32) {
+        if self.mountain_reaction.is_none() {
+            if let Some(next_reaction) = self.queued_mountain_reactions.pop_front() {
+                self.start_mountain_reaction(&next_reaction);
             } else {
-                "Disabled"
-            },
-            self.level_name,
-            self.level_data.props.len()
-        );
-        if self.editor.enabled {
-            self.editor_validate_level();
+                self.runtime_atmosphere = self.level_data.atmosphere.clone();
+                return;
+            }
         }
-    }
+        let Some(reaction) = self.mountain_reaction.as_mut() else {
+            return;
+        };
 
-    fn update_editor_cursor(&mut self) {
-        if !self.editor.enabled {
+        let finished = reaction.tick(dt);
+        self.runtime_atmosphere = reaction.atmosphere(&self.level_data.atmosphere);
+        if !finished {
             return;
         }
 
-        let player_pos = self.physics.get_player_pos();
-        let origin = Vec3::new(player_pos[0], player_pos[1] + 1.0, player_pos[2]);
-        let forward = self.camera.get_forward();
-        let placement_distance = self
-            .physics
-            .weapon_obstruction_distance(origin, forward, self.editor.placement_distance)
-            .unwrap_or(self.editor.placement_distance);
-        let target = origin + forward * placement_distance;
-        let snapped = snap_position([target.x, target.y, target.z], self.editor.grid_size);
-        self.editor.set_cursor_position(snapped);
-    }
-
-    fn handle_editor_hot_reload(&mut self, dt: f32) {
-        if !self.editor.should_check_hot_reload(dt) {
-            return;
-        }
-
-        let modified = self.current_level_modified();
-        if !self.editor.disk_changed(modified) {
-            return;
-        }
-
-        if self.editor.dirty {
-            self.editor.set_message("DISK CHANGED SAVE FIRST");
-            println!(
-                "[EDITOR] '{}' changed on disk, but editor has unsaved changes.",
-                self.level_file_path()
+        self.mountain_reaction = None;
+        self.runtime_atmosphere = self.level_data.atmosphere.clone();
+        if let Some(next_reaction) = self.queued_mountain_reactions.pop_front() {
+            self.start_mountain_reaction(&next_reaction);
+        } else if let Some(audio) = self.audio.as_mut() {
+            audio.set_ambience(
+                self.runtime_atmosphere.ambience_preset,
+                self.runtime_atmosphere.ambience_volume,
             );
+        }
+        self.autosave("mountain reaction completion");
+    }
+
+    fn start_mountain_reaction(&mut self, reaction_id: &str) {
+        if self
+            .mountain_reaction
+            .as_ref()
+            .is_some_and(|reaction| reaction.id() == reaction_id)
+            || self
+                .queued_mountain_reactions
+                .iter()
+                .any(|queued| queued == reaction_id)
+        {
             return;
         }
-
-        let level_name = self.level_name.clone();
-        println!("[EDITOR] Hot reloading '{}'", self.level_file_path());
-        match self.load_level(&level_name) {
-            Ok(()) => {
-                self.editor.enabled = true;
-                self.editor.mark_reloaded(self.current_level_modified());
-                self.update_editor_cursor();
-                self.editor_validate_level();
-            }
-            Err(error) => {
-                self.editor.enabled = true;
-                self.editor.set_known_file_modified(modified);
-                self.editor.set_message("HOT RELOAD FAILED CHECK CONSOLE");
-                self.feedback.on_debug();
-                eprintln!(
-                    "[EDITOR] Hot reload rejected; current level remains active: {}",
-                    error
-                );
-            }
-        }
-    }
-
-    fn handle_editor_input(&mut self, input: &InputManager) {
-        if input.was_key_pressed(self.config_data.key("editor_next_mode")) {
-            self.editor.next_mode();
-            self.feedback.on_debug();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_next_template")) {
-            self.editor.next_template();
-            self.feedback.on_debug();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_previous_template")) {
-            self.editor.previous_template();
-            self.feedback.on_debug();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_select_next")) {
-            self.editor.select_next(self.level_data.props.len());
-            self.feedback.on_debug();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_select_previous")) {
-            self.editor.select_previous(self.level_data.props.len());
-            self.feedback.on_debug();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_place")) {
-            self.editor_place_current();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_delete")) {
-            self.editor_delete_selected();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_save")) {
-            self.editor_save_level();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_reload")) {
-            self.editor_reload_level();
-        }
-        if input.was_key_pressed(self.config_data.key("editor_validate")) {
-            self.editor_validate_level();
-        }
-    }
-
-    fn editor_place_current(&mut self) {
-        let template = *self.editor.current_template();
-        let mut prop = template.prop_at(self.editor.cursor_position);
-        self.materialize_editor_prop(&mut prop);
-        let position = prop.position;
-
-        self.add_runtime_prop(prop);
-        self.sync_instances();
-        let new_index = self.level_data.props.len().saturating_sub(1);
-        self.editor.selected_prop = Some(new_index);
-        self.editor.mark_dirty(format!("PLACED {}", template.label));
-        self.feedback.on_debug_spawn_count(1);
-        println!(
-            "[EDITOR] Placed {} at ({:.1}, {:.1}, {:.1})",
-            template.label, position[0], position[1], position[2]
-        );
-    }
-
-    fn materialize_editor_prop(&self, prop: &mut PropData) {
-        if let Some(enemy_type) = prop.enemy_type.as_deref() {
-            if let Some(enemy) = self.enemy_registry.get(enemy_type) {
-                prop.asset_id = enemy.model_asset.clone();
-                prop.collider_type = enemy.collider_type;
-                prop.enemy_health = enemy.health;
-            }
-        }
-
-        if prop.anchor_id.as_deref() == Some("editor_anchor") {
-            prop.anchor_id = Some(format!("editor_anchor_{}", self.level_data.props.len() + 1));
-        }
-    }
-
-    fn editor_delete_selected(&mut self) {
-        let index = self
-            .editor
-            .selected_prop
-            .filter(|index| *index < self.level_data.props.len())
-            .or_else(|| self.nearest_prop_to_editor_cursor());
-
-        let Some(index) = index else {
-            self.editor.set_message("NO PROP NEAR");
-            self.feedback.on_debug();
-            return;
-        };
-
-        let Some(prop) = self.remove_prop_data(index) else {
-            self.editor.set_message("NO PROP NEAR");
-            self.feedback.on_debug();
-            return;
-        };
-
-        self.editor.clamp_selection(self.level_data.props.len());
-        self.editor
-            .mark_dirty(format!("REMOVED PROP {}", index + 1));
-        self.feedback.on_debug();
-        println!("[EDITOR] Removed prop {} '{}'", index, prop.asset_id);
-    }
-
-    fn nearest_prop_to_editor_cursor(&self) -> Option<usize> {
-        let cursor = self.editor.cursor_position;
-        let cursor_v = Vec3::new(cursor[0], cursor[1], cursor[2]);
-        self.level_data
-            .props
+        let Some(profile) = self
+            .level_data
+            .mountain_reactions
             .iter()
-            .enumerate()
-            .filter(|(_, prop)| cursor_can_pick_prop(cursor, prop))
-            .map(|(index, prop)| {
-                let pos = Vec3::new(prop.position[0], prop.position[1], prop.position[2]);
-                (index, pos.distance_squared(cursor_v))
-            })
-            .min_by(|(_, left), (_, right)| left.total_cmp(right))
-            .map(|(index, _)| index)
-    }
-
-    fn editor_save_level(&mut self) {
-        if let Err(errors) = self.level_data.validate() {
-            self.editor_apply_validation_errors(&errors, "SAVE BLOCKED");
-            return;
-        }
-
-        let path = self.level_file_path();
-        match self.level_data.save_to_path(&path) {
-            Ok(()) => {
-                let modified = self.current_level_modified();
-                self.editor.mark_saved(modified);
-                self.feedback.on_debug_reload();
-                println!("[EDITOR] Saved {}", path);
-            }
-            Err(error) => {
-                self.editor.set_message("SAVE FAILED CHECK CONSOLE");
-                self.feedback.on_debug();
-                eprintln!("[EDITOR] Save failed for '{}': {}", path, error);
-            }
-        }
-    }
-
-    fn editor_reload_level(&mut self) {
-        if !self.editor.request_reload() {
+            .find(|reaction| reaction.id == reaction_id)
+            .cloned()
+        else {
+            eprintln!("[MOUNTAIN] Missing reaction profile '{}'", reaction_id);
             self.feedback.on_debug();
             return;
-        }
+        };
 
-        let level_name = self.level_name.clone();
-        match self.load_level(&level_name) {
-            Ok(()) => {
-                self.editor.enabled = true;
-                self.editor.mark_reloaded(self.current_level_modified());
-                self.update_editor_cursor();
-                self.editor_validate_level();
-                println!("[EDITOR] Reloaded {}", self.level_file_path());
-            }
-            Err(error) => {
-                self.editor.enabled = true;
-                self.editor.set_message("RELOAD FAILED CHECK CONSOLE");
-                self.feedback.on_debug();
-                eprintln!(
-                    "[EDITOR] Reload rejected; current level remains active: {}",
-                    error
-                );
-            }
-        }
-    }
-
-    fn editor_validate_level(&mut self) -> bool {
-        match self.level_data.validate() {
-            Ok(()) => {
-                self.editor.mark_validation_passed();
-                self.feedback.on_debug_reload();
-                println!(
-                    "[EDITOR] Validation passed for '{}' ({} prop(s))",
-                    self.level_name,
-                    self.level_data.props.len()
-                );
-                true
-            }
-            Err(errors) => {
-                self.editor_apply_validation_errors(&errors, "VALIDATION");
-                false
-            }
-        }
-    }
-
-    fn editor_apply_validation_errors(&mut self, errors: &[String], message_prefix: &str) {
-        let issue_count = errors.len();
-        self.editor.mark_validation_failed(issue_count);
-        self.editor.set_message(format!(
-            "{} {} {}",
-            message_prefix,
-            issue_count,
-            Self::editor_issue_word(issue_count)
-        ));
-        self.feedback.on_debug();
-        eprintln!(
-            "[EDITOR] {} failed for '{}' with {} {}:",
-            message_prefix,
-            self.level_name,
-            issue_count,
-            Self::editor_issue_word(issue_count).to_ascii_lowercase()
-        );
-        for error in errors {
-            eprintln!("  - {}", error);
-        }
-    }
-
-    fn editor_issue_word(issue_count: usize) -> &'static str {
-        if issue_count == 1 {
-            "ISSUE"
-        } else {
-            "ISSUES"
-        }
-    }
-
-    fn update_level_events(&mut self) {
-        if self.level_data.events.is_empty() {
+        if self.mountain_reaction.is_some() {
+            self.queued_mountain_reactions
+                .push_back(reaction_id.to_string());
+            println!("[MOUNTAIN] Reaction '{}' queued", reaction_id);
             return;
+        }
+
+        let ambience_preset = profile
+            .ambience_preset
+            .unwrap_or(self.level_data.atmosphere.ambience_preset);
+        let ambience_volume = (self.level_data.atmosphere.ambience_volume
+            * profile.ambience_volume_multiplier)
+            .clamp(0.0, 1.0);
+        self.mountain_reaction = Some(ActiveMountainReaction::new(profile));
+        if let Some(audio) = self.audio.as_mut() {
+            audio.set_ambience(ambience_preset, ambience_volume);
+            audio.play(SoundEffect::MountainAnswer);
+        }
+        println!("[MOUNTAIN] Reaction '{}' began", reaction_id);
+    }
+
+    fn update_level_events(&mut self, interact_pressed: bool) -> bool {
+        if self.level_data.events.is_empty() {
+            self.queued_manual_level_events.clear();
+            return false;
         }
 
         if self.level_event_fired.len() != self.level_data.events.len() {
@@ -643,6 +491,17 @@ impl EngineState {
 
         let player_pos = self.physics.get_player_pos();
         let player = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
+        let interact_event_index = interact_pressed.then(|| {
+            Self::nearest_interact_event_index(
+                &self.level_data.events,
+                &self.level_data.props,
+                &self.level_event_fired,
+                player,
+                &self.level_flags,
+            )
+        });
+        let interact_event_index = interact_event_index.flatten();
+        let manual_event_ids = std::mem::take(&mut self.queued_manual_level_events);
         let mut queued_actions = Vec::new();
         let mut should_autosave = false;
 
@@ -650,7 +509,18 @@ impl EngineState {
             if event.once && self.level_event_fired.get(index).copied().unwrap_or(false) {
                 continue;
             }
-            if !self.level_event_triggered(event, player) {
+            if !Self::level_event_flag_ready(event, &self.level_flags) {
+                continue;
+            }
+
+            let triggered = match event.trigger.kind {
+                LevelEventTriggerKind::OnEnter | LevelEventTriggerKind::Proximity => {
+                    Self::automatic_level_event_triggered(event, player)
+                }
+                LevelEventTriggerKind::Interact => interact_event_index == Some(index),
+                LevelEventTriggerKind::Manual => manual_event_ids.contains(&event.id),
+            };
+            if !triggered {
                 continue;
             }
 
@@ -659,11 +529,13 @@ impl EngineState {
             }
             should_autosave |= event.once;
             println!("[EVENT] Fired '{}'", event.id);
-            queued_actions.extend(event.actions.iter().cloned());
+            queued_actions.extend(event.actions.iter().enumerate().map(
+                |(action_index, action)| (format!("{}:{action_index}", event.id), action.clone()),
+            ));
         }
 
-        for action in queued_actions {
-            should_autosave |= self.execute_level_event_action(action);
+        for (source_id, action) in queued_actions {
+            should_autosave |= self.execute_level_event_action(action, &source_id);
             if self.pending_transition.is_some() {
                 break;
             }
@@ -672,23 +544,62 @@ impl EngineState {
         if should_autosave {
             self.autosave("level event");
         }
+        interact_event_index.is_some()
     }
 
-    fn level_event_triggered(&self, event: &LevelEventData, player: Vec3) -> bool {
-        Self::level_event_triggered_with_flags(event, player, &self.level_flags)
+    /// Queues an authored manual event for the next gameplay event pass.
+    /// Invalid IDs, automatic event kinds, unmet flags, and consumed one-shot
+    /// events are rejected at the call site instead of failing silently later.
+    #[allow(dead_code)] // Public integration point for upcoming scripted systems.
+    pub fn queue_manual_level_event(&mut self, event_id: &str) -> Result<(), String> {
+        match self.manual_level_event_status(event_id) {
+            ManualLevelEventStatus::Ready => {}
+            ManualLevelEventStatus::AlreadyFired => {
+                return Err(format!(
+                    "manual level event '{}' has already fired",
+                    event_id
+                ));
+            }
+            ManualLevelEventStatus::MissingFlag(flag_id) => {
+                return Err(format!(
+                    "manual level event '{}' requires flag '{}'",
+                    event_id, flag_id
+                ));
+            }
+            ManualLevelEventStatus::MissingEvent => {
+                return Err(format!("manual level event '{}' does not exist", event_id));
+            }
+            ManualLevelEventStatus::WrongTrigger(kind) => {
+                return Err(format!(
+                    "level event '{}' is {:?}, not Manual",
+                    event_id, kind
+                ));
+            }
+        }
+
+        self.queued_manual_level_events.insert(event_id.to_string());
+        Ok(())
     }
 
+    #[cfg(test)]
     fn level_event_triggered_with_flags(
         event: &LevelEventData,
         player: Vec3,
         level_flags: &HashSet<String>,
     ) -> bool {
-        if let Some(flag_id) = event.trigger.flag_id.as_deref() {
-            if !level_flags.contains(flag_id) {
-                return false;
-            }
-        }
+        Self::level_event_flag_ready(event, level_flags)
+            && Self::automatic_level_event_triggered(event, player)
+    }
 
+    fn level_event_flag_ready(event: &LevelEventData, level_flags: &HashSet<String>) -> bool {
+        event
+            .trigger
+            .flag_id
+            .as_deref()
+            .is_none_or(|flag_id| level_flags.contains(flag_id))
+    }
+
+    fn automatic_level_event_triggered(event: &LevelEventData, player: Vec3) -> bool {
         match event.trigger.kind {
             LevelEventTriggerKind::OnEnter => true,
             LevelEventTriggerKind::Proximity => {
@@ -703,7 +614,47 @@ impl EngineState {
         }
     }
 
-    fn execute_level_event_action(&mut self, action: LevelEventActionData) -> bool {
+    pub(super) fn nearest_interact_event_index(
+        events: &[LevelEventData],
+        props: &[PropData],
+        fired: &[bool],
+        player: Vec3,
+        level_flags: &HashSet<String>,
+    ) -> Option<usize> {
+        events
+            .iter()
+            .enumerate()
+            .filter_map(|(index, event)| {
+                if event.trigger.kind != LevelEventTriggerKind::Interact
+                    || (event.once && fired.get(index).copied().unwrap_or(false))
+                    || !Self::level_event_flag_ready(event, level_flags)
+                {
+                    return None;
+                }
+
+                let prop_id = event.trigger.prop_id.as_deref()?;
+                let prop = props
+                    .iter()
+                    .find(|prop| prop.id.as_deref() == Some(prop_id))?;
+                let target = Vec3::from_array(prop.position);
+                let distance = player.distance(target);
+                (distance <= event.trigger.radius.max(0.0)).then_some((index, distance))
+            })
+            .min_by(
+                |(left_index, left_distance), (right_index, right_distance)| {
+                    left_distance
+                        .total_cmp(right_distance)
+                        .then_with(|| left_index.cmp(right_index))
+                },
+            )
+            .map(|(index, _)| index)
+    }
+
+    fn execute_level_event_action(
+        &mut self,
+        action: LevelEventActionData,
+        source_id: &str,
+    ) -> bool {
         match action.kind {
             LevelEventActionKind::LoadLevel => {
                 if let Some(target_level_id) = action.target_level_id {
@@ -729,7 +680,7 @@ impl EngineState {
                 };
                 let fallback = self.physics.get_player_pos();
                 let spawn_position = action.spawn_position.unwrap_or(fallback);
-                return self.spawn_loot_from_table(loot_table_id, spawn_position);
+                return self.spawn_loot_from_table(loot_table_id, spawn_position, source_id);
             }
             LevelEventActionKind::StartDialogue => {
                 if let Some(dialogue_id) = action.dialogue_id.as_deref() {
@@ -739,16 +690,24 @@ impl EngineState {
             LevelEventActionKind::SetFlag => {
                 if let Some(flag_id) = action.flag_id {
                     println!("[EVENT] Set flag '{}'", flag_id);
-                    let inserted = self.level_flags.insert(flag_id);
-                    self.feedback.on_debug();
-                    return inserted;
+                    return self.level_flags.insert(flag_id);
+                }
+            }
+            LevelEventActionKind::ReactMountain => {
+                if let Some(reaction_id) = action.reaction_id.as_deref() {
+                    self.start_mountain_reaction(reaction_id);
                 }
             }
         }
         false
     }
 
-    fn spawn_loot_from_table(&mut self, loot_table_id: &str, position: [f32; 3]) -> bool {
+    fn spawn_loot_from_table(
+        &mut self,
+        loot_table_id: &str,
+        position: [f32; 3],
+        source_id: &str,
+    ) -> bool {
         let Some(table) = self
             .level_data
             .loot_tables
@@ -761,7 +720,12 @@ impl EngineState {
             return false;
         };
 
-        let seed = Self::stable_loot_seed(loot_table_id, self.level_data.props.len() as u64);
+        let seed = Self::stable_loot_seed(
+            &self.level_name,
+            self.cycle.number,
+            loot_table_id,
+            source_id,
+        );
         let entries = Self::loot_entries_for_rolls(&table, seed);
         if entries.is_empty() {
             eprintln!(
@@ -772,24 +736,39 @@ impl EngineState {
             return false;
         }
 
+        let mut slot = 0;
         let mut spawned = 0;
+        let mut already_present = 0;
         for entry in entries {
             let count = entry.quantity.max(1);
             for _ in 0..count {
-                let offset = spawned as f32 * 0.55;
+                let offset = slot as f32 * 0.55;
                 let prop_position = [position[0] + offset, position[1], position[2]];
-                let prop = Self::loot_entry_prop(&entry, prop_position);
+                let runtime_id = format!("{RUNTIME_LOOT_ID_PREFIX}{seed:016x}_{slot}");
+                slot += 1;
+                if self
+                    .level_data
+                    .props
+                    .iter()
+                    .any(|prop| prop.id.as_deref() == Some(runtime_id.as_str()))
+                {
+                    already_present += 1;
+                    continue;
+                }
+                let prop =
+                    Self::loot_entry_prop(&self.relic_registry, &entry, prop_position, runtime_id);
                 self.add_runtime_prop(prop);
                 spawned += 1;
             }
         }
-        self.sync_instances();
-        self.feedback.on_debug_loot_count(spawned);
+        if spawned > 0 {
+            self.sync_instances();
+        }
         println!(
-            "[EVENT] Spawned {} loot prop(s) from table '{}'",
-            spawned, loot_table_id
+            "[EVENT] Manifested {} loot prop(s) from table '{}' ({} already present)",
+            spawned, loot_table_id, already_present
         );
-        true
+        spawned > 0 || already_present > 0
     }
 
     fn loot_entries_for_rolls(table: &LootTableData, seed: u64) -> Vec<LootEntryData> {
@@ -824,28 +803,47 @@ impl EngineState {
         table.entries.iter().find(|entry| entry.weight > 0)
     }
 
-    fn stable_loot_seed(loot_table_id: &str, salt: u64) -> u64 {
-        loot_table_id
+    fn stable_loot_seed(
+        level_name: &str,
+        cycle_number: u32,
+        loot_table_id: &str,
+        source_id: &str,
+    ) -> u64 {
+        level_name
             .bytes()
-            .fold(0xcbf2_9ce4_8422_2325_u64 ^ salt, |hash, byte| {
-                hash.wrapping_mul(0x0000_0100_0000_01b3) ^ byte as u64
+            .chain([0xff])
+            .chain(cycle_number.to_le_bytes())
+            .chain([0xfe])
+            .chain(loot_table_id.bytes())
+            .chain([0xfd])
+            .chain(source_id.bytes())
+            .fold(0xcbf2_9ce4_8422_2325_u64, |hash, byte| {
+                (hash ^ byte as u64).wrapping_mul(0x0000_0100_0000_01b3)
             })
     }
 
-    fn loot_entry_prop(entry: &LootEntryData, position: [f32; 3]) -> PropData {
+    fn loot_entry_prop(
+        relic_registry: &crate::data::relic::RelicRegistry,
+        entry: &LootEntryData,
+        position: [f32; 3],
+        runtime_id: String,
+    ) -> PropData {
         let item_id = entry.item_id.clone();
         let asset_id = item_id
             .as_deref()
-            .map(Self::pickup_asset_for_item)
+            .and_then(|item_id| relic_registry.get(item_id))
+            .map(|relic| relic.pickup_asset.as_str())
             .unwrap_or("pickups/resource_shard.obj")
             .to_string();
         PropData {
-            id: None,
+            id: Some(runtime_id),
+            display_name: None,
             asset_id,
             position,
             rotation: [0.0, 0.0, 0.0],
             scale: [0.35, 0.35, 0.35],
             collider_type: ColliderType::None,
+            surface_material: None,
             brush_geometry: None,
             is_climbable: false,
             is_hurtbox: false,
@@ -865,21 +863,13 @@ impl EngineState {
         }
     }
 
-    fn pickup_asset_for_item(item_id: &str) -> &'static str {
-        match normalize_relic_id(item_id).as_str() {
-            "ash_splinter" => "pickups/relic_ash_splinter.obj",
-            "veil_cinder" => "pickups/relic_veil_cinder.obj",
-            "chain_sigil" => "pickups/relic_chain_sigil.obj",
-            _ => "pickups/relic_ash_splinter.obj",
-        }
-    }
-
     fn start_level_dialogue(&mut self, dialogue_id: &str) {
         let Some(dialogue) = self
             .level_data
             .dialogues
             .iter()
             .find(|dialogue| dialogue.id == dialogue_id)
+            .cloned()
         else {
             eprintln!("[DIALOGUE] Missing dialogue '{}'", dialogue_id);
             self.feedback.on_debug();
@@ -889,7 +879,7 @@ impl EngineState {
         for line in &dialogue.lines {
             println!("[DIALOGUE] {}: {}", dialogue.speaker, line);
         }
-        self.feedback.on_debug();
+        self.active_dialogue = ActiveDialogueState::new(dialogue.speaker, dialogue.lines);
     }
 
     fn handle_debug_input(&mut self, input: &InputManager) -> bool {
@@ -917,8 +907,17 @@ impl EngineState {
         }
 
         if input.was_key_pressed(self.config_data.key("debug_help")) {
+            self.debug_hud_enabled = !self.debug_hud_enabled;
             self.feedback.on_debug();
             self.debug_print_status();
+            println!(
+                "[DEBUG] Performance overlay {}",
+                if self.debug_hud_enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            );
         }
         if input.was_key_pressed(self.config_data.key("debug_heal_player")) {
             self.debug_heal_player();
@@ -970,7 +969,7 @@ impl EngineState {
             .count();
 
         println!(
-            "[DEBUG] Controls: I cycle relic, F1 status, F2 heal, F3 damage 25, F4 set health to 1, F5 reload runtime data, F6 respawn loot, F7 Ashbound, F8 Burdened, F9 Censer, F10 Chainrunner, F11 Harpy, F12 clear enemies"
+            "[DEBUG] Controls: I cycle relic, F1 performance/status, F2 heal, F3 damage 25, F4 set health to 1, F5 reload runtime data, F6 respawn loot, F7 Ashbound, F8 Burdened, F9 Censer, F10 Chainrunner, F11 Harpy, F12 clear enemies"
         );
         println!(
             "[DEBUG] Level '{}' | pos ({:.1}, {:.1}, {:.1}) | health {:.0}/{:.0} | stamina {:.0}/{:.0} | props {} | enemies {} | loot {} | res {}/{} | cycle {}",
@@ -1007,6 +1006,12 @@ impl EngineState {
             self.player.respawn_timer = 0.0;
         }
         self.feedback.on_heal();
+        self.play_sound(SoundEffect::Heal);
+        self.particles.spawn_burst(
+            ParticleBurst::Pickup,
+            Vec3::from_array(self.physics.get_player_pos()) + Vec3::Y * 0.7,
+            Vec3::Y,
+        );
         println!(
             "[DEBUG] Player healed ({:.0} -> {:.0}/{:.0})",
             before, self.player.health.current, self.player.health.max
@@ -1055,11 +1060,13 @@ impl EngineState {
         let spawn = Vec3::new(player_pos[0], player_pos[1], player_pos[2]) + direction * 8.0;
         let prop = PropData {
             id: None,
+            display_name: None,
             asset_id: enemy.model_asset.clone(),
             position: [spawn.x, spawn.y, spawn.z],
             rotation: [0.0, 0.0, 0.0],
             scale: Self::debug_enemy_scale(&enemy.id),
             collider_type: enemy.collider_type,
+            surface_material: None,
             brush_geometry: None,
             is_climbable: false,
             is_hurtbox: false,
@@ -1138,6 +1145,9 @@ impl EngineState {
                 continue;
             }
 
+            if let Some(prop_id) = prop.id.as_deref() {
+                self.removed_prop_ids.remove(prop_id);
+            }
             self.add_runtime_prop(prop);
             restored += 1;
         }
@@ -1170,6 +1180,19 @@ impl EngineState {
     }
 
     fn add_runtime_prop(&mut self, prop: PropData) {
+        if let Some(prop_id) = prop.id.as_deref() {
+            if self
+                .level_data
+                .props
+                .iter()
+                .any(|existing| existing.id.as_deref() == Some(prop_id))
+            {
+                eprintln!("[WORLD] Refused duplicate runtime prop id '{}'", prop_id);
+                self.feedback.on_debug();
+                return;
+            }
+        }
+        let max_health = prop.enemy_type.as_ref().map_or(0.0, |_| prop.enemy_health);
         let asset_path = format!("assets/{}", prop.asset_id);
         match try_load_model(&asset_path) {
             Ok((_vertices, _parts, points, indices)) => {
@@ -1185,7 +1208,8 @@ impl EngineState {
         }
 
         self.level_data.props.push(prop);
-        self.enemy_runtime.push(EnemyRuntimeState::default());
+        self.enemy_runtime
+            .push(EnemyRuntimeState::for_max_health(max_health));
     }
 
     fn debug_enemy_count(&self) -> usize {
@@ -1254,11 +1278,17 @@ impl EngineState {
         self.player.flash_hit(0.2);
         self.feedback
             .on_player_damage_amount((before - after).max(0.0));
+        self.particles.spawn_burst(
+            ParticleBurst::Damage,
+            Vec3::from_array(self.physics.get_player_pos()) + Vec3::Y * 0.65,
+            -self.camera.get_forward(),
+        );
 
         if self.player.health.is_depleted() {
             self.defeat_player();
             true
         } else {
+            self.play_sound(SoundEffect::PlayerDamage);
             false
         }
     }
@@ -1288,6 +1318,7 @@ impl EngineState {
 
         let lost = self.progress.lose_unsecured_on_death();
         self.cycle.advance();
+        self.active_anchor_rite = None;
         self.player
             .begin_death(self.config_data.combat.respawn_delay);
         if lost > 0 {
@@ -1304,14 +1335,30 @@ impl EngineState {
         self.autosave("death");
     }
 
-    fn autosave(&self, reason: &str) {
+    pub(super) fn autosave(&self, reason: &str) {
         let save = SaveData::from_runtime_with_level_state(
             &self.level_name,
             &self.progress,
             &self.equipped_relic,
             &self.cycle,
-            self.fired_level_event_ids(),
-            self.level_flags.iter().cloned().collect(),
+            LevelSaveSnapshot {
+                fired_level_events: self.fired_level_event_ids(),
+                level_flags: self.level_flags.iter().cloned().collect(),
+                removed_prop_ids: self.removed_prop_ids.iter().cloned().collect(),
+                runtime_loot: self
+                    .level_data
+                    .props
+                    .iter()
+                    .filter_map(SavedRuntimeLoot::from_prop)
+                    .collect(),
+                pending_mountain_reactions: self
+                    .mountain_reaction
+                    .as_ref()
+                    .map(|reaction| reaction.id().to_string())
+                    .into_iter()
+                    .chain(self.queued_mountain_reactions.iter().cloned())
+                    .collect(),
+            },
         );
         match save.save_to_path(DEFAULT_SAVE_PATH) {
             Ok(()) => println!("[SAVE] Autosaved after {}", reason),
@@ -1324,21 +1371,50 @@ impl EngineState {
             .events
             .iter()
             .enumerate()
-            .filter(|(index, _)| self.level_event_fired.get(*index).copied().unwrap_or(false))
+            .filter(|(index, event)| {
+                event.once && self.level_event_fired.get(*index).copied().unwrap_or(false)
+            })
             .map(|(_, event)| event.id.clone())
             .collect()
     }
 
     fn grant_enemy_reward(&mut self, index: usize) {
-        let Some(enemy_type) = self
-            .level_data
-            .props
-            .get(index)
-            .and_then(|prop| prop.enemy_type.as_deref())
-            .map(ToOwned::to_owned)
+        let Some((enemy_type, source_id, authored_drop)) =
+            self.level_data.props.get(index).and_then(|prop| {
+                let enemy_type = prop.enemy_type.as_deref()?.to_string();
+                let source_id = prop.id.clone();
+                let authored_drop = prop
+                    .loot_table_id
+                    .as_ref()
+                    .map(|table_id| (table_id.clone(), prop.position));
+                Some((enemy_type, source_id, authored_drop))
+            })
         else {
             return;
         };
+
+        if let Some((loot_table_id, position)) = authored_drop {
+            let Some(source_id) = source_id.as_deref() else {
+                eprintln!(
+                    "[LOOT] Enemy '{}' has authored loot but no stable prop id",
+                    enemy_type
+                );
+                self.feedback.on_debug();
+                return;
+            };
+            if self.spawn_loot_from_table(&loot_table_id, position, source_id) {
+                println!(
+                    "[LOOT] Enemy '{}' dropped authored table '{}'",
+                    enemy_type, loot_table_id
+                );
+                return;
+            }
+            eprintln!(
+                "[LOOT] Enemy '{}' could not spawn table '{}'; using cycle reward",
+                enemy_type, loot_table_id
+            );
+        }
+
         let relic_id = self.cycle.reward_relic_id(&enemy_type);
         let Some(relic) = self.relic_registry.get(relic_id).cloned() else {
             eprintln!(
@@ -1366,9 +1442,16 @@ impl EngineState {
             );
         }
 
+        let outcome = if !acquisition.acquired_new {
+            "ALREADY BOUND"
+        } else if acquisition.equipped {
+            "EQUIPPED"
+        } else {
+            "STORED"
+        };
         self.play_sound(SoundEffect::Pickup);
-        self.feedback.on_relic_changed();
-        self.autosave("enemy reward");
+        self.feedback
+            .on_relic_acquired(&relic.display_name, &relic.rarity, outcome);
     }
 
     fn acquire_relic_pickup(&mut self, relic: crate::data::relic::RelicDefinition) {
@@ -1387,8 +1470,16 @@ impl EngineState {
             );
         }
 
+        let outcome = if !acquisition.acquired_new {
+            "ALREADY BOUND"
+        } else if acquisition.equipped {
+            "EQUIPPED"
+        } else {
+            "STORED"
+        };
         self.play_sound(SoundEffect::Pickup);
-        self.feedback.on_relic_changed();
+        self.feedback
+            .on_relic_acquired(&relic.display_name, &relic.rarity, outcome);
         self.autosave("relic pickup");
     }
 
@@ -1407,9 +1498,22 @@ impl EngineState {
         Some(prop)
     }
 
+    fn remove_persistent_prop_data(
+        &mut self,
+        index: usize,
+    ) -> Option<crate::data::world::level::PropData> {
+        let prop = self.remove_prop_data(index)?;
+        if let Some(prop_id) = prop.id.as_deref() {
+            if !prop_id.starts_with(RUNTIME_LOOT_ID_PREFIX) {
+                self.removed_prop_ids.insert(prop_id.to_string());
+            }
+        }
+        Some(prop)
+    }
+
     /// Removes an enemy prop at `index` from level_data, physics, and render instances.
     fn remove_prop(&mut self, index: usize) {
-        let Some(prop) = self.remove_prop_data(index) else {
+        let Some(prop) = self.remove_persistent_prop_data(index) else {
             return;
         };
         println!(
@@ -1418,7 +1522,156 @@ impl EngineState {
         );
     }
 
-    fn update_progression_interactions(&mut self) {
+    pub(super) fn nearest_anchor_prop_index(
+        props: &[PropData],
+        player: Vec3,
+        radius: f32,
+    ) -> Option<usize> {
+        props
+            .iter()
+            .enumerate()
+            .filter_map(|(index, prop)| {
+                let anchor_id = prop.anchor_id.as_deref()?;
+                if anchor_id.trim().is_empty() {
+                    return None;
+                }
+                let distance = player.distance(Vec3::from_array(prop.position));
+                (distance <= radius.max(0.0)).then_some((index, distance))
+            })
+            .min_by(
+                |(left_index, left_distance), (right_index, right_distance)| {
+                    left_distance
+                        .total_cmp(right_distance)
+                        .then_with(|| left_index.cmp(right_index))
+                },
+            )
+            .map(|(index, _)| index)
+    }
+
+    fn update_anchor_rite(&mut self, input: &InputManager) {
+        let select_previous = input.was_key_pressed(self.config_data.key("forward"))
+            || input.was_key_pressed(self.config_data.key("left"));
+        let select_next = input.was_key_pressed(self.config_data.key("backward"))
+            || input.was_key_pressed(self.config_data.key("right"));
+        if let Some(rite) = self.active_anchor_rite.as_mut() {
+            if select_previous {
+                rite.select_previous();
+            } else if select_next {
+                rite.select_next();
+            }
+        }
+
+        if !input.was_key_pressed(self.config_data.key("interact")) {
+            return;
+        }
+        let Some(rite) = self.active_anchor_rite.clone() else {
+            return;
+        };
+
+        match rite.selected_choice() {
+            AnchorRiteChoice::BindCinders => {
+                let newly_activated =
+                    self.progress.active_anchor_id.as_deref() != Some(rite.anchor_id.as_str());
+                let ritual_event_queued = if newly_activated {
+                    match rite.event_id.as_deref() {
+                        Some(event_id) => match self.manual_level_event_status(event_id) {
+                            ManualLevelEventStatus::Ready => {
+                                self.queued_manual_level_events.insert(event_id.to_string());
+                                true
+                            }
+                            ManualLevelEventStatus::AlreadyFired => false,
+                            ManualLevelEventStatus::MissingFlag(_) => {
+                                self.play_sound(SoundEffect::Blocked);
+                                return;
+                            }
+                            ManualLevelEventStatus::MissingEvent
+                            | ManualLevelEventStatus::WrongTrigger(_) => {
+                                self.queue_prop_manual_event(event_id, "anchor claim");
+                                self.play_sound(SoundEffect::Blocked);
+                                return;
+                            }
+                        },
+                        None => false,
+                    }
+                } else {
+                    false
+                };
+                let activation = self
+                    .progress
+                    .activate_anchor(&rite.anchor_id, rite.position);
+                self.active_anchor_rite = None;
+                if activation.newly_activated || activation.banked_amount > 0 {
+                    println!(
+                        "[ANCHOR] '{}' claimed; bound {} Ash (total bound: {})",
+                        rite.anchor_id, activation.banked_amount, self.progress.banked_resource
+                    );
+                    self.play_sound(if rite.event_id.is_some() {
+                        SoundEffect::Pickup
+                    } else {
+                        SoundEffect::MountainAnswer
+                    });
+                    self.feedback.on_pickup();
+                    self.particles.spawn_burst(
+                        ParticleBurst::Pickup,
+                        Vec3::from_array(rite.position) + Vec3::Y,
+                        Vec3::Y,
+                    );
+                    if !ritual_event_queued {
+                        self.autosave("Anchor rite");
+                    }
+                }
+            }
+            AnchorRiteChoice::MendVessel => {
+                let cost = self.config_data.world.anchor_mend_cost;
+                let vessel_wounded = self.player.health.current < self.player.health.max;
+                if !vessel_wounded || !self.progress.spend_banked_resource(cost) {
+                    self.play_sound(SoundEffect::Blocked);
+                    return;
+                }
+
+                self.player
+                    .health
+                    .restore_full(self.config_data.player.max_health);
+                self.player.hurtbox_cooldown = 0.0;
+                self.feedback.on_heal();
+                self.play_sound(SoundEffect::Heal);
+                self.particles.spawn_burst(
+                    ParticleBurst::Pickup,
+                    Vec3::from_array(rite.position) + Vec3::Y * 0.8,
+                    Vec3::Y,
+                );
+                self.active_anchor_rite = None;
+                println!(
+                    "[ANCHOR] The vessel was mended for {} Bound Ash (remaining: {})",
+                    cost, self.progress.banked_resource
+                );
+                self.autosave("vessel mending rite");
+            }
+            AnchorRiteChoice::TurnAway => {
+                self.active_anchor_rite = None;
+                println!("[ANCHOR] The pilgrim turned away without making a claim");
+            }
+        }
+    }
+
+    fn queue_prop_manual_event(&mut self, event_id: &str, context: &str) -> bool {
+        if self.manual_level_event_status(event_id) == ManualLevelEventStatus::AlreadyFired {
+            return false;
+        }
+        match self.queue_manual_level_event(event_id) {
+            Ok(()) => true,
+            Err(error) => {
+                eprintln!(
+                    "[EVENT] Could not queue prop event '{}' after {}: {}",
+                    event_id, context, error
+                );
+                self.feedback.on_debug();
+                false
+            }
+        }
+    }
+
+    fn update_progression_interactions(&mut self, interact_pressed: bool) {
         let player_pos = self.physics.get_player_pos();
         let player_v = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
 
@@ -1438,7 +1691,12 @@ impl EngineState {
             .map(|(index, _)| index);
 
         if let Some(index) = resource_index {
-            if let Some(prop) = self.remove_prop_data(index) {
+            if let Some(prop) = self.remove_persistent_prop_data(index) {
+                self.particles.spawn_burst(
+                    ParticleBurst::Pickup,
+                    Vec3::from_array(prop.position) + Vec3::Y * 0.25,
+                    Vec3::Y,
+                );
                 let reward = self.cycle.resource_reward(prop.resource_value);
                 if self.progress.collect_resource(reward) {
                     println!(
@@ -1470,7 +1728,12 @@ impl EngineState {
             .map(|(index, _)| index);
 
         if let Some(index) = item_index {
-            if let Some(prop) = self.remove_prop_data(index) {
+            if let Some(prop) = self.remove_persistent_prop_data(index) {
+                self.particles.spawn_burst(
+                    ParticleBurst::Pickup,
+                    Vec3::from_array(prop.position) + Vec3::Y * 0.35,
+                    Vec3::Y,
+                );
                 if let Some(item_id) = prop.item_id.as_deref() {
                     if let Some(relic) = self.relic_registry.get(item_id).cloned() {
                         self.acquire_relic_pickup(relic);
@@ -1481,35 +1744,34 @@ impl EngineState {
             }
         }
 
-        let anchor = self
-            .level_data
-            .props
-            .iter()
-            .filter_map(|prop| {
-                let anchor_id = prop.anchor_id.as_ref()?;
-                let position = prop.position;
-                let distance = player_v.distance(Vec3::new(position[0], position[1], position[2]));
-                (distance < 2.5).then(|| (anchor_id.clone(), position))
-            })
-            .next();
-
-        if let Some((anchor_id, position)) = anchor {
-            let activation = self.progress.activate_anchor(&anchor_id, position);
-            if activation.newly_activated || activation.banked_amount > 0 {
-                println!(
-                    "[ANCHOR] '{}' active; banked {} resource (total banked: {})",
-                    anchor_id, activation.banked_amount, self.progress.banked_resource
-                );
+        if interact_pressed {
+            if let Some(index) = Self::nearest_anchor_prop_index(
+                &self.level_data.props,
+                player_v,
+                self.config_data.world.anchor_interaction_radius,
+            ) {
+                let prop = &self.level_data.props[index];
+                self.active_anchor_rite = Some(ActiveAnchorRite::new(
+                    prop.anchor_id.clone().unwrap_or_default(),
+                    prop.display_name
+                        .clone()
+                        .unwrap_or_else(|| prop.anchor_id.clone().unwrap_or_default()),
+                    prop.position,
+                    prop.event_id.clone(),
+                ));
                 self.play_sound(SoundEffect::Pickup);
-                self.feedback.on_pickup();
-                self.autosave("anchor activation");
+                println!("[ANCHOR] Rite opened at prop {}", index);
             }
         }
     }
 
     fn ensure_enemy_runtime_matches_props(&mut self) {
-        self.enemy_runtime
-            .resize(self.level_data.props.len(), EnemyRuntimeState::default());
+        self.enemy_runtime.truncate(self.level_data.props.len());
+        for prop in self.level_data.props.iter().skip(self.enemy_runtime.len()) {
+            self.enemy_runtime.push(EnemyRuntimeState::for_max_health(
+                prop.enemy_type.as_ref().map_or(0.0, |_| prop.enemy_health),
+            ));
+        }
     }
 
     fn update_enemy_ai(&mut self, dt: f32) {
@@ -1714,9 +1976,12 @@ impl EngineState {
         // Primary fire from DeviceEvent (mouse button 0)
         if input.fire_primary && self.action_cooldown <= 0.0 {
             self.feedback.on_fire();
+            self.play_sound(SoundEffect::Fire);
             let player_pos = self.physics.get_player_pos();
             let ray_origin = Vec3::new(player_pos[0], player_pos[1] + 1.0, player_pos[2]);
             let ray_dir = self.camera.get_forward();
+            self.particles
+                .spawn_burst(ParticleBurst::Muzzle, ray_origin + ray_dir * 0.55, ray_dir);
             let damage = self
                 .equipped_relic
                 .damage(self.cycle.relic_damage(self.config_data.combat.base_damage));
@@ -1763,6 +2028,8 @@ impl EngineState {
                 let prop = &mut self.level_data.props[idx];
                 let enemy_type = prop.enemy_type.as_deref().unwrap_or("enemy");
                 let before = prop.enemy_health;
+                let hit_position = Vec3::from_array(prop.position) + Vec3::Y * 0.85;
+                let death_event_id = prop.event_id.clone();
 
                 prop.enemy_health -= damage;
                 let after = prop.enemy_health.max(0.0);
@@ -1773,19 +2040,35 @@ impl EngineState {
                 );
 
                 if prop.enemy_health <= 0.0 {
+                    self.particles
+                        .spawn_burst(ParticleBurst::Kill, hit_position, -ray_dir);
+                    let death_event_queued = death_event_id.as_deref().is_some_and(|event_id| {
+                        self.queue_prop_manual_event(event_id, "enemy defeat")
+                    });
                     self.grant_enemy_reward(idx);
                     self.feedback
                         .on_enemy_kill_amount((before - after).max(0.0));
                     self.remove_prop(idx);
+                    self.play_sound(SoundEffect::Kill);
+                    if !death_event_queued {
+                        self.autosave("enemy defeat");
+                    }
                 } else if let Some(runtime) = self.enemy_runtime.get_mut(idx) {
+                    self.particles
+                        .spawn_burst(ParticleBurst::Hit, hit_position, -ray_dir);
                     self.feedback.on_enemy_hit_amount((before - after).max(0.0));
                     runtime.stagger(hit_stun);
+                    self.play_sound(SoundEffect::Hit);
                 }
-                self.play_sound(SoundEffect::Hit);
                 self.action_cooldown = attack_cooldown;
             } else {
                 if obstruction_distance.is_some() {
                     self.feedback.on_shot_blocked();
+                    self.play_sound(SoundEffect::Blocked);
+                    let blocked_position =
+                        ray_origin + ray_dir * obstruction_distance.unwrap_or(target_range);
+                    self.particles
+                        .spawn_burst(ParticleBurst::Blocked, blocked_position, -ray_dir);
                     println!("[COMBAT] Shot blocked by solid world geometry");
                 } else {
                     self.feedback.on_shot_missed();
@@ -1802,7 +2085,7 @@ impl EngineState {
                 "[RELIC] Need at least two owned relics to cycle (owned: {})",
                 owned_count
             );
-            self.feedback.on_debug();
+            self.play_sound(SoundEffect::Blocked);
             return;
         };
 
@@ -1891,6 +2174,87 @@ mod tests {
         ));
     }
 
+    fn interact_event(id: &str, prop_id: &str, radius: f32) -> LevelEventData {
+        LevelEventData {
+            id: id.to_string(),
+            once: true,
+            trigger: LevelEventTriggerData {
+                kind: LevelEventTriggerKind::Interact,
+                position: [0.0, 0.0, 0.0],
+                radius,
+                prop_id: Some(prop_id.to_string()),
+                flag_id: None,
+            },
+            actions: Vec::new(),
+        }
+    }
+
+    fn interactable_prop(id: &str, position: [f32; 3]) -> PropData {
+        let mut prop: PropData = serde_json::from_str(r#"{ "asset_id": "Cube.obj" }"#).unwrap();
+        prop.id = Some(id.to_string());
+        prop.position = position;
+        prop
+    }
+
+    #[test]
+    fn interaction_selects_nearest_eligible_authored_prop() {
+        let mut events = vec![
+            interact_event("far_event", "far_prop", 3.0),
+            interact_event("near_event", "near_prop", 3.0),
+        ];
+        events[1].trigger.flag_id = Some("near_unlocked".to_string());
+        let props = vec![
+            interactable_prop("far_prop", [2.0, 0.0, 0.0]),
+            interactable_prop("near_prop", [1.0, 0.0, 0.0]),
+        ];
+        let mut flags = HashSet::new();
+
+        assert_eq!(
+            EngineState::nearest_interact_event_index(
+                &events,
+                &props,
+                &[false, false],
+                Vec3::ZERO,
+                &flags,
+            ),
+            Some(0)
+        );
+
+        flags.insert("near_unlocked".to_string());
+        assert_eq!(
+            EngineState::nearest_interact_event_index(
+                &events,
+                &props,
+                &[false, false],
+                Vec3::ZERO,
+                &flags,
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            EngineState::nearest_interact_event_index(
+                &events,
+                &props,
+                &[false, true],
+                Vec3::ZERO,
+                &flags,
+            ),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn manual_event_never_fires_as_an_automatic_trigger() {
+        let mut event = interact_event("manual_event", "unused", 3.0);
+        event.trigger.kind = LevelEventTriggerKind::Manual;
+
+        assert!(!EngineState::level_event_triggered_with_flags(
+            &event,
+            Vec3::ZERO,
+            &HashSet::new(),
+        ));
+    }
+
     #[test]
     fn loot_rolls_respect_weights_and_roll_count() {
         let table = LootTableData {
@@ -1922,5 +2286,39 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![10, 20, 20]
         );
+    }
+
+    #[test]
+    fn anchor_interaction_selects_the_nearest_rite() {
+        let mut far = interactable_prop("far_anchor", [2.5, 0.0, 0.0]);
+        far.anchor_id = Some("far".to_string());
+        let mut near = interactable_prop("near_anchor", [1.0, 0.0, 0.0]);
+        near.anchor_id = Some("near".to_string());
+
+        assert_eq!(
+            EngineState::nearest_anchor_prop_index(&[far, near], Vec3::ZERO, 3.0),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn loot_seed_uses_the_stable_authored_source() {
+        let first =
+            EngineState::stable_loot_seed("ashwalk_01", 1, "keeper_drop", "ashwarden_elite");
+        let repeated =
+            EngineState::stable_loot_seed("ashwalk_01", 1, "keeper_drop", "ashwarden_elite");
+        let other_source =
+            EngineState::stable_loot_seed("ashwalk_01", 1, "keeper_drop", "another_keeper");
+        let other_action =
+            EngineState::stable_loot_seed("ashwalk_01", 1, "keeper_drop", "keeper_event:1");
+        let first_action =
+            EngineState::stable_loot_seed("ashwalk_01", 1, "keeper_drop", "keeper_event:0");
+        let other_cycle =
+            EngineState::stable_loot_seed("ashwalk_01", 2, "keeper_drop", "ashwarden_elite");
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, other_source);
+        assert_ne!(first_action, other_action);
+        assert_ne!(first, other_cycle);
     }
 }

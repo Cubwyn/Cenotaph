@@ -12,10 +12,11 @@
 //   sync.rs   - sync_instances
 //   loader.rs - load_textures_from_disk / load_prop_assets
 
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
+use std::path::Path;
 use std::sync::Arc;
 
-use glam::{Quat, Vec3};
+use glam::Vec3;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -25,26 +26,31 @@ use crate::core::engine::validation::{tuning_validation_errors, validate_model_g
 use crate::data::config::gameplay::{GameConfig, PhysicsConfig};
 use crate::data::enemy::EnemyRegistry;
 use crate::data::relic::RelicRegistry;
-use crate::data::world::level::{validate_level_id, LevelData, PropData};
+use crate::data::world::level::{
+    validate_level_id, AtmosphereData, LevelData, LevelEventActionKind, LevelEventData,
+    LevelEventTriggerKind, PropData, BASE_MAP_Y_OFFSET,
+};
 use crate::game::cycle::CycleState;
-use crate::game::editor::LevelEditorState;
 use crate::game::enemy::EnemyRuntimeState;
 use crate::game::feedback::{FeedbackEvent, FeedbackEventKind, FeedbackState};
+use crate::game::mountain::ActiveMountainReaction;
 use crate::game::player::PlayerState;
-use crate::game::progression::RunProgress;
+use crate::game::progression::{ActiveAnchorRite, RunProgress};
 use crate::game::relic::EquippedRelic;
 use crate::game::save::{SaveData, DEFAULT_SAVE_PATH};
 use crate::systems::audio::AudioSystem;
 use crate::systems::physics::engine::PhysicsEngine;
 use crate::systems::render::assets::{AssetManager, DrawGroup, RenderAssetMeshPart};
-use crate::systems::render::camera::{Camera, CameraController, CameraUniform};
+use crate::systems::render::camera::{Camera, CameraController, CameraUniform, BASE_FOVY};
 use crate::systems::render::hud::{
-    AscentHudState, DebugHudState, EditorHudState, HudFeedEvent, HudFeedback, HudFrameState,
-    HudMarkerKind, HudMarkerState, HudSystem, HudWorldMarker,
+    AnchorRiteHudState, AscentHudState, DebugHudState, DialogueHudState, HudFeedEvent, HudFeedback,
+    HudFrameState, HudMarkerKind, HudMarkerState, HudSystem, HudWorldMarker,
+    NamedEncounterHudState, NamedNoticeHudState, PlayerHudState,
 };
 use crate::systems::render::instance::InstanceRaw;
 use crate::systems::render::lighting::LightingSystem;
 use crate::systems::render::mesh::{try_load_model, ModelData, RenderMeshPart, Vertex};
+use crate::systems::render::particles::ParticleSystem;
 use crate::systems::render::pipeline::RenderPipeline;
 use crate::systems::render::texture::TextureManager;
 
@@ -54,24 +60,101 @@ pub enum GameMode {
     Paused,
 }
 
-const MAP_Y_OFFSET: f32 = 124.5;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum ManualLevelEventStatus {
+    Ready,
+    AlreadyFired,
+    MissingFlag(String),
+    MissingEvent,
+    WrongTrigger(LevelEventTriggerKind),
+}
 
 struct MapRenderResources {
     vertex_buffer: wgpu::Buffer,
     parts: Vec<RenderAssetMeshPart>,
     instance_buffer: wgpu::Buffer,
+    texture_override: Option<String>,
 }
 
 struct PreparedLevel {
     name: String,
     path: String,
     data: LevelData,
-    file_modified: Option<std::time::SystemTime>,
     model: ModelData,
+}
+
+const DIALOGUE_LINE_DURATION: f32 = 3.8;
+
+#[derive(Debug, Clone)]
+pub(super) struct ActiveDialogueState {
+    speaker: String,
+    lines: Vec<String>,
+    line_index: usize,
+    line_timer: f32,
+}
+
+impl ActiveDialogueState {
+    pub(super) fn new(speaker: String, lines: Vec<String>) -> Option<Self> {
+        let lines = lines
+            .into_iter()
+            .filter_map(|line| {
+                let line = line.trim();
+                (!line.is_empty()).then(|| line.to_string())
+            })
+            .collect::<Vec<_>>();
+        (!lines.is_empty()).then_some(Self {
+            speaker,
+            lines,
+            line_index: 0,
+            line_timer: DIALOGUE_LINE_DURATION,
+        })
+    }
+
+    pub(super) fn tick(&mut self, dt: f32) -> bool {
+        self.line_timer = (self.line_timer - dt.max(0.0)).max(0.0);
+        if self.line_timer > 0.0 {
+            return false;
+        }
+
+        self.advance()
+    }
+
+    pub(super) fn advance(&mut self) -> bool {
+        self.line_index += 1;
+        if self.line_index >= self.lines.len() {
+            return true;
+        }
+        self.line_timer = DIALOGUE_LINE_DURATION;
+        false
+    }
+
+    fn hud_state(&self) -> DialogueHudState {
+        DialogueHudState {
+            speaker: self.speaker.clone(),
+            line: self.lines[self.line_index].clone(),
+            remaining_ratio: (self.line_timer / DIALOGUE_LINE_DURATION).clamp(0.0, 1.0),
+        }
+    }
 }
 
 fn round_to_u32(value: f32) -> u32 {
     value.max(0.0).round().min(u32::MAX as f32) as u32
+}
+
+fn hud_text(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, ' ' | '-' | '/') {
+                character.to_ascii_uppercase()
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 pub struct EngineState {
@@ -92,6 +175,7 @@ pub struct EngineState {
     pub map_vertex_buffer: wgpu::Buffer,
     pub map_parts: Vec<RenderAssetMeshPart>,
     pub map_instance_buffer: wgpu::Buffer,
+    pub map_texture_override: Option<String>,
 
     // Asset / texture registries
     pub assets: AssetManager,
@@ -108,6 +192,7 @@ pub struct EngineState {
 
     // Lighting system
     pub lighting: LightingSystem,
+    pub particles: ParticleSystem,
 
     // HUD system
     pub hud: HudSystem,
@@ -121,6 +206,7 @@ pub struct EngineState {
     pub config_data: GameConfig,
     pub enemy_registry: EnemyRegistry,
     pub relic_registry: RelicRegistry,
+    pub runtime_atmosphere: AtmosphereData,
     pub level_data: LevelData,
     pub level_name: String,
     pub player: PlayerState,
@@ -128,7 +214,12 @@ pub struct EngineState {
     pub equipped_relic: EquippedRelic,
     pub cycle: CycleState,
     pub feedback: FeedbackState,
-    pub editor: LevelEditorState,
+    pub(super) active_dialogue: Option<ActiveDialogueState>,
+    pub(super) active_anchor_rite: Option<ActiveAnchorRite>,
+    pub(super) mountain_reaction: Option<ActiveMountainReaction>,
+    pub(super) queued_mountain_reactions: VecDeque<String>,
+    pub frame_time_ms: f32,
+    pub debug_hud_enabled: bool,
 
     /// Time remaining (seconds) before the next action is allowed.
     pub action_cooldown: f32,
@@ -138,6 +229,10 @@ pub struct EngineState {
     pub level_event_fired: Vec<bool>,
     /// Level-local event flags set by event actions during the current load.
     pub level_flags: HashSet<String>,
+    /// Manual event requests waiting for the next gameplay event pass.
+    pub(crate) queued_manual_level_events: HashSet<String>,
+    /// Stable IDs for authored props consumed or defeated in the current level.
+    pub(crate) removed_prop_ids: HashSet<String>,
     /// Accumulator for debug logging (seconds since last print).
     pub debug_timer: f32,
 
@@ -181,10 +276,21 @@ impl EngineState {
             });
         let mut prepared_level =
             Self::prepare_level(&starting_level_name, &enemy_registry, &relic_registry)?;
+        let mut restored_removed_prop_ids = HashSet::new();
+        let mut restored_progress = None;
+        let mut save_cleanup_needed = false;
         if let Some(save) = saved_game.as_ref() {
-            if let Some(respawn_position) = save.respawn_position {
+            let (removed_prop_ids, world_cleanup_needed) =
+                Self::apply_saved_world_state(&mut prepared_level.data, save, &relic_registry);
+            restored_removed_prop_ids = removed_prop_ids;
+            save_cleanup_needed |= world_cleanup_needed;
+            let (progress, progress_cleanup_needed) =
+                Self::progress_for_saved_level(&prepared_level.data, save);
+            if let Some(respawn_position) = progress.respawn_position {
                 prepared_level.data.player_spawn = respawn_position;
             }
+            restored_progress = Some(progress);
+            save_cleanup_needed |= progress_cleanup_needed;
         }
         let size = window.inner_size();
 
@@ -224,8 +330,10 @@ impl EngineState {
             .ok_or_else(|| "graphics surface reported no supported formats".to_string())?;
         let present_mode = surface_caps
             .present_modes
-            .first()
+            .iter()
             .copied()
+            .find(|mode| *mode == wgpu::PresentMode::Fifo)
+            .or_else(|| surface_caps.present_modes.first().copied())
             .ok_or_else(|| "graphics surface reported no presentation modes".to_string())?;
         let alpha_mode = surface_caps
             .alpha_modes
@@ -273,7 +381,7 @@ impl EngineState {
                 label: Some("camera_bind_group_layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -297,7 +405,6 @@ impl EngineState {
             name: prepared_level_name,
             path: level_path,
             data: level_data,
-            file_modified: level_file_modified,
             model,
         } = prepared_level;
         println!(
@@ -308,7 +415,12 @@ impl EngineState {
 
         let (map_vertices, map_mesh_parts, phys_points, phys_indices) = model;
         Self::log_map_model(&map_vertices, map_mesh_parts.len());
-        let map_resources = Self::build_map_resources(&device, &map_vertices, map_mesh_parts);
+        let map_resources = Self::build_map_resources(
+            &device,
+            &map_vertices,
+            map_mesh_parts,
+            &level_data.base_material,
+        );
 
         let mut assets = AssetManager::new();
         let asset_count = load_prop_assets(&device, &mut assets).into_result("model asset")?;
@@ -322,7 +434,7 @@ impl EngineState {
         );
         let camera_controller = CameraController::new(config_data.camera.sensitivity);
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj(&camera, 0.0);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -356,6 +468,8 @@ impl EngineState {
             &shader,
         )
         .pipeline;
+        let mut particles = ParticleSystem::new(&device, &config, &camera_bind_group_layout);
+        particles.configure(&queue, &level_data.atmosphere, camera.position);
 
         let (depth_texture, depth_view) =
             Self::create_depth_resources(&device, config.width, config.height);
@@ -366,23 +480,26 @@ impl EngineState {
             phys_indices,
         );
 
-        let hud = HudSystem::new(&device, config.format);
+        let hud = HudSystem::new(&device, config.format, &config_data.ui);
         let mut audio = AudioSystem::new();
         if let Some(audio_system) = audio.as_mut() {
-            audio_system.start_ambient();
+            audio_system.set_ambience(
+                level_data.atmosphere.ambience_preset,
+                level_data.atmosphere.ambience_volume,
+            );
         }
 
         let player = PlayerState::new(&config_data.player);
-        let mut progress = RunProgress::new();
+        let progress = restored_progress.unwrap_or_else(RunProgress::new);
         let mut equipped_relic = EquippedRelic::new();
         let mut cycle = CycleState::default();
         if let Some(save) = saved_game.as_ref() {
-            progress = save.to_progress();
             equipped_relic.restore_from_ids(
                 &save.relic_inventory,
                 save.equipped_relic_id.as_deref(),
                 &relic_registry,
             );
+            save_cleanup_needed |= equipped_relic.owned_count() != save.relic_inventory.len();
             cycle = CycleState::new(save.cycle_number);
             println!(
                 "[SAVE] Loaded '{}': cycle {}, {} banked resource, {} relic(s)",
@@ -394,9 +511,16 @@ impl EngineState {
         }
         let feedback = FeedbackState::new();
         let enemy_runtime = Self::enemy_runtime_for_level(&level_data);
-        let level_event_fired =
+        let (level_event_fired, event_cleanup_needed) =
             Self::level_event_runtime_for_saved_level(&level_data, saved_game.as_ref());
-        let level_flags = Self::level_flags_for_saved_level(saved_game.as_ref());
+        save_cleanup_needed |= event_cleanup_needed;
+        let (level_flags, flag_cleanup_needed) =
+            Self::level_flags_for_saved_level(&level_data, saved_game.as_ref());
+        save_cleanup_needed |= flag_cleanup_needed;
+        let removed_prop_ids = restored_removed_prop_ids;
+        let (queued_mountain_reactions, reaction_cleanup_needed) =
+            Self::mountain_reactions_for_saved_level(&level_data, saved_game.as_ref());
+        save_cleanup_needed |= reaction_cleanup_needed;
         let mut state = Self {
             window,
             surface,
@@ -410,6 +534,7 @@ impl EngineState {
             map_vertex_buffer: map_resources.vertex_buffer,
             map_parts: map_resources.parts,
             map_instance_buffer: map_resources.instance_buffer,
+            map_texture_override: map_resources.texture_override,
             assets,
             texture_manager,
             texture_bind_group_layout,
@@ -423,10 +548,12 @@ impl EngineState {
             audio,
             game_mode: GameMode::Playing,
             lighting,
+            particles,
             physics,
             config_data,
             enemy_registry,
             relic_registry,
+            runtime_atmosphere: level_data.atmosphere.clone(),
             level_data,
             level_name: prepared_level_name,
             player,
@@ -434,18 +561,28 @@ impl EngineState {
             equipped_relic,
             cycle,
             feedback,
-            editor: LevelEditorState::new(),
+            active_dialogue: None,
+            active_anchor_rite: None,
+            mountain_reaction: None,
+            queued_mountain_reactions,
+            frame_time_ms: 0.0,
+            debug_hud_enabled: false,
             action_cooldown: 0.0,
             enemy_runtime,
             level_event_fired,
             level_flags,
+            queued_manual_level_events: HashSet::new(),
+            removed_prop_ids,
             debug_timer: 0.0,
             pending_transition: None,
             failed_transition: None,
         };
-        state.editor.set_known_file_modified(level_file_modified);
+        state.feedback.on_level_enter();
 
         state.sync_instances();
+        if save_cleanup_needed {
+            state.autosave("content compatibility cleanup");
+        }
         Ok(state)
     }
 
@@ -463,6 +600,18 @@ impl EngineState {
         self.depth_texture = depth_texture;
         self.depth_view = depth_view;
         self.camera.aspect = self.config.width as f32 / self.config.height as f32;
+    }
+
+    pub fn record_frame_time(&mut self, dt: f32) {
+        if !dt.is_finite() || dt <= 0.0 {
+            return;
+        }
+        let sample_ms = (dt * 1000.0).min(250.0);
+        if self.frame_time_ms <= 0.0 {
+            self.frame_time_ms = sample_ms;
+        } else {
+            self.frame_time_ms += (sample_ms - self.frame_time_ms) * 0.10;
+        }
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -485,9 +634,9 @@ impl EngineState {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.05,
-                            g: 0.04,
-                            b: 0.04,
+                            r: self.runtime_atmosphere.clear_color[0] as f64,
+                            g: self.runtime_atmosphere.clear_color[1] as f64,
+                            b: self.runtime_atmosphere.clear_color[2] as f64,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -515,7 +664,11 @@ impl EngineState {
             rp.set_vertex_buffer(0, self.map_vertex_buffer.slice(..));
             rp.set_vertex_buffer(1, self.map_instance_buffer.slice(..));
             for part in &self.map_parts {
-                let bg = self.texture_manager.get(&part.texture_name);
+                let texture_name = self
+                    .map_texture_override
+                    .as_deref()
+                    .unwrap_or(&part.texture_name);
+                let bg = self.texture_manager.get(texture_name);
                 rp.set_bind_group(1, bg, &[]);
                 rp.set_index_buffer(part.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 rp.draw_indexed(0..part.num_indices, 0, 0..1);
@@ -526,13 +679,19 @@ impl EngineState {
                     rp.set_vertex_buffer(0, asset.vertex_buffer.slice(..));
                     rp.set_vertex_buffer(1, group.instance_buffer.slice(..));
                     for part in &asset.parts {
-                        let bg = self.texture_manager.get(&part.texture_name);
+                        let texture_name = group
+                            .texture_override
+                            .as_deref()
+                            .unwrap_or(&part.texture_name);
+                        let bg = self.texture_manager.get(texture_name);
                         rp.set_bind_group(1, bg, &[]);
                         rp.set_index_buffer(part.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         rp.draw_indexed(0..part.num_indices, 0, 0..group.num_instances);
                     }
                 }
             }
+
+            self.particles.draw(&mut rp, &self.camera_bind_group);
         }
 
         {
@@ -554,6 +713,7 @@ impl EngineState {
             });
 
             let health_ratio = self.player.health.ratio();
+            let health_trail_ratio = self.player.health.trail_ratio();
             let stamina_ratio = self.player.stamina.display_ratio();
             let hud_feedback = HudFeedback {
                 shot_flash: self.feedback.shot_flash_timer,
@@ -571,13 +731,21 @@ impl EngineState {
             };
 
             let hud_state = HudFrameState {
-                health_ratio,
-                stamina_ratio,
-                dash_cooldown_ratio: if self.config_data.movement.dash_cooldown > 0.0 {
-                    (self.player.dash_cooldown_timer / self.config_data.movement.dash_cooldown)
-                        .clamp(0.0, 1.0)
-                } else {
-                    0.0
+                viewport_size: [self.config.width, self.config.height],
+                player: PlayerHudState {
+                    health_ratio,
+                    health_trail_ratio,
+                    stamina_ratio,
+                    dash_cooldown_ratio: if self.config_data.movement.dash_cooldown > 0.0 {
+                        (self.player.dash_cooldown_timer / self.config_data.movement.dash_cooldown)
+                            .clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    },
+                    health_current: self.player.health.current.max(0.0).round() as u32,
+                    health_max: self.player.health.max.max(0.0).round() as u32,
+                    stamina_current: self.player.stamina.current.max(0.0).round() as u32,
+                    stamina_max: self.player.stamina.max.max(0.0).round() as u32,
                 },
                 hit_flash: self.player.hit_flash_timer,
                 paused: self.game_mode == GameMode::Paused,
@@ -587,9 +755,20 @@ impl EngineState {
                 feedback: hud_feedback,
                 debug: self.debug_hud_state(),
                 ascent: self.ascent_hud_state(),
-                editor: self.editor_hud_state(),
                 markers: self.hud_world_markers(),
                 event_feed: self.hud_event_feed(),
+                interaction_prompt: self.interaction_prompt(),
+                dialogue: self.dialogue_hud_state(),
+                anchor_rite: self.anchor_rite_hud_state(),
+                named_notice: self.named_notice_hud_state(),
+                named_encounter: self.named_encounter_hud_state(),
+                level_arrival_ratio: self.feedback.level_arrival_ratio(),
+                level_title: hud_text(&self.level_data.name),
+                level_subtitle: format!(
+                    "CYCLE {} / {}",
+                    self.cycle.number,
+                    hud_text(self.cycle.modifier.display_label())
+                ),
             };
 
             self.hud.draw(&mut rp, &self.queue, hud_state);
@@ -621,17 +800,19 @@ impl EngineState {
             .count() as u32;
 
         DebugHudState {
-            enabled: true,
-            health_current: round_to_u32(self.player.health.current),
-            health_max: round_to_u32(self.player.health.max),
-            stamina_current: round_to_u32(self.player.stamina.current),
-            stamina_max: round_to_u32(self.player.stamina.max),
+            enabled: self.debug_hud_enabled,
             enemies,
             loot,
             unsecured_resource: self.progress.unsecured_resource,
             banked_resource: self.progress.banked_resource,
             cycle: self.cycle.number,
             props: self.level_data.props.len() as u32,
+            fps: if self.frame_time_ms > 0.0 {
+                round_to_u32(1000.0 / self.frame_time_ms)
+            } else {
+                0
+            },
+            frame_ms: round_to_u32(self.frame_time_ms),
         }
     }
 
@@ -644,43 +825,8 @@ impl EngineState {
             relic_name: current_relic
                 .map(|relic| relic.display_name.clone())
                 .unwrap_or_else(|| "UNCLAIMED".to_string()),
-            relic_family: current_relic
-                .map(|relic| relic.family.clone())
-                .unwrap_or_else(|| "PILGRIM".to_string()),
-            relic_rarity: current_relic
-                .map(|relic| relic.rarity.clone())
-                .unwrap_or_else(|| "BASE".to_string()),
-            owned_relics: self.equipped_relic.owned_count() as u32,
             unsecured_resource: self.progress.unsecured_resource,
             banked_resource: self.progress.banked_resource,
-        }
-    }
-
-    fn editor_hud_state(&self) -> EditorHudState {
-        let selected_prop = self
-            .editor
-            .selected_prop
-            .map(|index| (index + 1) as u32)
-            .unwrap_or(0);
-        let cursor = self.editor.cursor_position;
-
-        EditorHudState {
-            enabled: self.editor.enabled,
-            dirty: self.editor.dirty,
-            mode_label: self.editor.mode().label().to_string(),
-            template_label: self.editor.current_template_label().to_string(),
-            selected_prop,
-            prop_count: self.level_data.props.len() as u32,
-            placement_distance: self.editor.placement_distance.round().max(0.0) as u32,
-            cursor: [
-                cursor[0].round() as i32,
-                cursor[1].round() as i32,
-                cursor[2].round() as i32,
-            ],
-            message: self.editor.message().to_string(),
-            validation_label: self.editor.validation_label().to_string(),
-            validation_current: self.editor.validation_current(),
-            validation_has_errors: self.editor.validation_has_errors(),
         }
     }
 
@@ -691,6 +837,127 @@ impl EngineState {
             .filter(|event| event.is_active())
             .filter_map(Self::hud_event_for_feedback)
             .collect()
+    }
+
+    fn interaction_prompt(&self) -> String {
+        if self.player.is_dead
+            || self.game_mode != GameMode::Playing
+            || self.active_anchor_rite.is_some()
+        {
+            return String::new();
+        }
+
+        let player = Vec3::from_array(self.physics.get_player_pos());
+        if Self::nearest_interact_event_index(
+            &self.level_data.events,
+            &self.level_data.props,
+            &self.level_event_fired,
+            player,
+            &self.level_flags,
+        )
+        .is_some()
+        {
+            return "INTERACT".to_string();
+        }
+
+        Self::nearest_anchor_prop_index(
+            &self.level_data.props,
+            player,
+            self.config_data.world.anchor_interaction_radius,
+        )
+        .map(|_| "COMMUNE WITH ANCHOR".to_string())
+        .unwrap_or_default()
+    }
+
+    fn anchor_rite_hud_state(&self) -> AnchorRiteHudState {
+        let Some(rite) = self.active_anchor_rite.as_ref() else {
+            return AnchorRiteHudState::default();
+        };
+        let mend_cost = self.config_data.world.anchor_mend_cost;
+        let newly_activated =
+            self.progress.active_anchor_id.as_deref() != Some(rite.anchor_id.as_str());
+        let bind_event_status = newly_activated
+            .then_some(rite.event_id.as_deref())
+            .flatten()
+            .map(|event_id| self.manual_level_event_status(event_id));
+        let (can_bind, bind_requirement) = match bind_event_status {
+            Some(ManualLevelEventStatus::MissingFlag(flag_id)) => (
+                false,
+                format!("REQUIRES {}", hud_text(&flag_id.replace('_', " "))),
+            ),
+            Some(
+                ManualLevelEventStatus::MissingEvent | ManualLevelEventStatus::WrongTrigger(_),
+            ) => (false, "RITE UNAVAILABLE".to_string()),
+            Some(ManualLevelEventStatus::Ready | ManualLevelEventStatus::AlreadyFired) | None => {
+                (true, String::new())
+            }
+        };
+
+        AnchorRiteHudState {
+            active: true,
+            anchor_name: hud_text(&rite.display_name),
+            selected_option: rite.selected_option,
+            carried_ash: self.progress.unsecured_resource,
+            bound_ash: self.progress.banked_resource,
+            mend_cost,
+            can_bind,
+            bind_requirement,
+            can_mend: self.progress.banked_resource >= mend_cost
+                && self.player.health.current < self.player.health.max,
+            vessel_wounded: self.player.health.current < self.player.health.max,
+        }
+    }
+
+    fn dialogue_hud_state(&self) -> DialogueHudState {
+        self.active_dialogue
+            .as_ref()
+            .map(ActiveDialogueState::hud_state)
+            .unwrap_or_default()
+    }
+
+    fn named_notice_hud_state(&self) -> NamedNoticeHudState {
+        self.feedback
+            .named_notice
+            .as_ref()
+            .map(|notice| NamedNoticeHudState {
+                active: true,
+                title: hud_text(&notice.title),
+                subtitle: hud_text(&notice.subtitle),
+                remaining_ratio: notice.remaining_ratio(),
+            })
+            .unwrap_or_default()
+    }
+
+    fn named_encounter_hud_state(&self) -> NamedEncounterHudState {
+        let player = Vec3::from_array(self.physics.get_player_pos());
+        self.level_data
+            .props
+            .iter()
+            .enumerate()
+            .filter_map(|(index, prop)| {
+                if prop.enemy_type.is_none() || prop.enemy_health <= 0.0 {
+                    return None;
+                }
+                let display_name = prop
+                    .display_name
+                    .as_deref()
+                    .filter(|name| !name.trim().is_empty())?;
+                let (state, _) =
+                    self.marker_state_for_prop(index, prop, HudMarkerKind::Enemy, player);
+                if state == HudMarkerState::Neutral {
+                    return None;
+                }
+                let distance = player.distance(Vec3::from_array(prop.position));
+                let health_ratio = self.marker_ratio_for_prop(index, prop, HudMarkerKind::Enemy);
+                Some((distance, display_name, health_ratio))
+            })
+            .min_by(|left, right| left.0.total_cmp(&right.0))
+            .map(|(_, display_name, health_ratio)| NamedEncounterHudState {
+                active: true,
+                name: hud_text(display_name),
+                health_ratio,
+            })
+            .unwrap_or_default()
     }
 
     fn hud_event_for_feedback(event: &FeedbackEvent) -> Option<HudFeedEvent> {
@@ -726,24 +993,6 @@ impl EngineState {
         let player = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
         let mut markers = Vec::new();
 
-        if self.editor.enabled {
-            let cursor = self.editor.cursor_position;
-            let cursor_pos = Vec3::new(cursor[0], cursor[1], cursor[2]);
-            if let Some(screen_pos) = self.project_to_hud(cursor_pos) {
-                markers.push((
-                    player.distance(cursor_pos),
-                    HudWorldMarker {
-                        screen_pos,
-                        ratio: 1.0,
-                        distance_m: round_to_u32(player.distance(cursor_pos)),
-                        kind: HudMarkerKind::EditorCursor,
-                        state: HudMarkerState::Neutral,
-                        state_ratio: 1.0,
-                    },
-                ));
-            }
-        }
-
         for (index, prop) in self.level_data.props.iter().enumerate() {
             let Some(kind) = self.marker_kind_for_prop(prop) else {
                 continue;
@@ -760,11 +1009,14 @@ impl EngineState {
             };
             let distance = player.distance(world_pos);
             let (state, state_ratio) = self.marker_state_for_prop(index, prop, kind, player);
+            if kind == HudMarkerKind::Enemy && state == HudMarkerState::Neutral {
+                continue;
+            }
             markers.push((
                 distance,
                 HudWorldMarker {
                     screen_pos,
-                    ratio: self.marker_ratio_for_prop(prop, kind),
+                    ratio: self.marker_ratio_for_prop(index, prop, kind),
                     distance_m: round_to_u32(distance),
                     kind,
                     state,
@@ -857,17 +1109,22 @@ impl EngineState {
 
     fn marker_ratio_for_prop(
         &self,
+        index: usize,
         prop: &crate::data::world::level::PropData,
         kind: HudMarkerKind,
     ) -> f32 {
         match kind {
-            HudMarkerKind::Enemy => prop
-                .enemy_type
-                .as_deref()
-                .and_then(|enemy_type| self.enemy_registry.get(enemy_type))
-                .map(|enemy| prop.enemy_health / enemy.health.max(1.0))
-                .unwrap_or(1.0)
-                .clamp(0.0, 1.0),
+            HudMarkerKind::Enemy => {
+                let fallback_max_health = prop
+                    .enemy_type
+                    .as_deref()
+                    .and_then(|enemy_type| self.enemy_registry.get(enemy_type))
+                    .map_or(1.0, |enemy| enemy.health);
+                self.enemy_runtime.get(index).map_or_else(
+                    || (prop.enemy_health / fallback_max_health.max(1.0)).clamp(0.0, 1.0),
+                    |runtime| runtime.health_ratio(prop.enemy_health, fallback_max_health),
+                )
+            }
             _ => 1.0,
         }
     }
@@ -937,6 +1194,7 @@ impl EngineState {
             .set_sensitivity(config.camera.sensitivity);
         self.camera.zfar = config.world.draw_distance;
         self.config_data = config;
+        self.hud.set_ui_config(&self.config_data.ui);
         self.enemy_registry = enemy_registry;
         self.relic_registry = relic_registry;
         self.assets = assets;
@@ -970,11 +1228,15 @@ impl EngineState {
             name,
             path,
             data: level_data,
-            file_modified,
             model,
         } = prepared;
         let (map_vertices, map_mesh_parts, phys_points, phys_indices) = model;
-        let map_resources = Self::build_map_resources(&self.device, &map_vertices, map_mesh_parts);
+        let map_resources = Self::build_map_resources(
+            &self.device,
+            &map_vertices,
+            map_mesh_parts,
+            &level_data.base_material,
+        );
         let physics = Self::build_physics_for_level(
             &level_data,
             &self.config_data.physics,
@@ -989,15 +1251,28 @@ impl EngineState {
         self.map_vertex_buffer = map_resources.vertex_buffer;
         self.map_parts = map_resources.parts;
         self.map_instance_buffer = map_resources.instance_buffer;
+        self.map_texture_override = map_resources.texture_override;
         self.level_data = level_data;
+        self.runtime_atmosphere = self.level_data.atmosphere.clone();
         self.level_name = name;
         self.enemy_runtime = enemy_runtime;
         self.level_event_fired = level_event_fired;
         self.level_flags.clear();
+        self.queued_manual_level_events.clear();
+        self.active_dialogue = None;
+        self.active_anchor_rite = None;
+        self.mountain_reaction = None;
+        self.queued_mountain_reactions.clear();
+        self.removed_prop_ids.clear();
         self.failed_transition = None;
-        self.editor.dirty = false;
-        self.editor.set_known_file_modified(file_modified);
-        self.editor.clamp_selection(self.level_data.props.len());
+        self.particles
+            .configure(&self.queue, &self.runtime_atmosphere, self.camera.position);
+        if let Some(audio) = self.audio.as_mut() {
+            audio.set_ambience(
+                self.runtime_atmosphere.ambience_preset,
+                self.runtime_atmosphere.ambience_volume,
+            );
+        }
 
         self.action_cooldown = 0.0;
         self.progress.clear_anchor();
@@ -1022,14 +1297,14 @@ impl EngineState {
         self.lighting.update_light(
             &self.queue,
             light_pos,
-            self.config_data.lighting.sun_color,
-            self.config_data.lighting.sun_intensity,
+            self.runtime_atmosphere.key_light_color,
+            self.runtime_atmosphere.key_light_intensity,
         );
 
         self.lighting.update_fog(
             &self.queue,
-            self.config_data.world.fog_density,
-            self.config_data.lighting.ambient_color,
+            self.runtime_atmosphere.fog_density,
+            self.runtime_atmosphere.fog_color,
         );
     }
 
@@ -1037,6 +1312,7 @@ impl EngineState {
         device: &wgpu::Device,
         vertices: &[Vertex],
         mesh_parts: Vec<RenderMeshPart>,
+        material: &crate::data::world::level::SurfaceMaterialData,
     ) -> MapRenderResources {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Map Vertex Buffer"),
@@ -1065,8 +1341,15 @@ impl EngineState {
                 [1.0, 0.0, 0.0, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
                 [0.0, 0.0, 1.0, 0.0],
-                [0.0, MAP_Y_OFFSET, 0.0, 1.0],
+                [0.0, BASE_MAP_Y_OFFSET, 0.0, 1.0],
             ],
+            tint: [
+                0.72 * material.tint[0],
+                0.74 * material.tint[1],
+                0.78 * material.tint[2],
+                1.0,
+            ],
+            material: [material.uv_scale, material.emissive, 0.0, 0.0],
         }];
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Map Instance Buffer"),
@@ -1078,6 +1361,7 @@ impl EngineState {
             vertex_buffer,
             parts,
             instance_buffer,
+            texture_override: material.texture.clone(),
         }
     }
 
@@ -1116,13 +1400,10 @@ impl EngineState {
 
     fn brush_physics_mesh(prop: &PropData) -> Option<(Vec<Vec3>, Vec<[u32; 3]>)> {
         let geometry = prop.brush_geometry.as_ref()?;
-        let rotation = prop.rotation_radians();
-        let rotation = Quat::from_euler(glam::EulerRot::XYZ, rotation[0], rotation[1], rotation[2]);
-        let scale = Vec3::new(prop.scale[0], prop.scale[1], prop.scale[2]);
         let points = geometry
             .vertices
             .iter()
-            .map(|vertex| rotation * (Vec3::from_array(*vertex) * scale))
+            .map(|vertex| Vec3::from_array(*vertex))
             .collect();
         Some((points, geometry.faces.clone()))
     }
@@ -1132,15 +1413,17 @@ impl EngineState {
             position: Self::camera_position_for_spawn(spawn),
             yaw: -1.5,
             pitch: 0.0,
+            visual_yaw_offset: 0.0,
+            visual_pitch_offset: 0.0,
             aspect: width as f32 / height as f32,
-            fovy: 0.78,
+            fovy: BASE_FOVY,
             znear: 0.1,
             zfar: draw_distance,
         }
     }
 
     fn camera_position_for_spawn(spawn: [f32; 3]) -> Vec3 {
-        Vec3::new(spawn[0], spawn[1] + MAP_Y_OFFSET + 1.0, spawn[2])
+        Vec3::new(spawn[0], spawn[1] + BASE_MAP_Y_OFFSET + 1.0, spawn[2])
     }
 
     fn create_depth_resources(
@@ -1209,14 +1492,10 @@ impl EngineState {
             ));
         }
 
-        let file_modified = std::fs::metadata(&path)
-            .and_then(|metadata| metadata.modified())
-            .ok();
         Ok(PreparedLevel {
             name: level_name.to_string(),
             path,
             data,
-            file_modified,
             model,
         })
     }
@@ -1240,7 +1519,9 @@ impl EngineState {
 
             prop.asset_id = enemy.model_asset.clone();
             prop.collider_type = enemy.collider_type;
-            prop.enemy_health = enemy.health;
+            if prop.enemy_health <= 0.0 {
+                prop.enemy_health = enemy.health;
+            }
         }
         Ok(())
     }
@@ -1276,32 +1557,229 @@ impl EngineState {
     }
 
     fn enemy_runtime_for_level(level_data: &LevelData) -> Vec<EnemyRuntimeState> {
-        vec![EnemyRuntimeState::default(); level_data.props.len()]
+        level_data
+            .props
+            .iter()
+            .map(|prop| {
+                EnemyRuntimeState::for_max_health(
+                    prop.enemy_type.as_ref().map_or(0.0, |_| prop.enemy_health),
+                )
+            })
+            .collect()
     }
 
     fn level_event_runtime_for_level(level_data: &LevelData) -> Vec<bool> {
         vec![false; level_data.events.len()]
     }
 
+    pub(super) fn manual_level_event_status(&self, event_id: &str) -> ManualLevelEventStatus {
+        Self::manual_level_event_status_for(
+            &self.level_data.events,
+            &self.level_event_fired,
+            &self.level_flags,
+            event_id,
+        )
+    }
+
+    fn manual_level_event_status_for(
+        events: &[LevelEventData],
+        fired: &[bool],
+        flags: &HashSet<String>,
+        event_id: &str,
+    ) -> ManualLevelEventStatus {
+        let Some((index, event)) = events
+            .iter()
+            .enumerate()
+            .find(|(_, event)| event.id == event_id)
+        else {
+            return ManualLevelEventStatus::MissingEvent;
+        };
+        if event.trigger.kind != LevelEventTriggerKind::Manual {
+            return ManualLevelEventStatus::WrongTrigger(event.trigger.kind);
+        }
+        if let Some(flag_id) = event.trigger.flag_id.as_deref() {
+            if !flags.contains(flag_id) {
+                return ManualLevelEventStatus::MissingFlag(flag_id.to_string());
+            }
+        }
+        if event.once && fired.get(index).copied().unwrap_or(false) {
+            return ManualLevelEventStatus::AlreadyFired;
+        }
+        ManualLevelEventStatus::Ready
+    }
+
     fn level_event_runtime_for_saved_level(
         level_data: &LevelData,
         save: Option<&SaveData>,
-    ) -> Vec<bool> {
+    ) -> (Vec<bool>, bool) {
         let Some(save) = save else {
-            return Self::level_event_runtime_for_level(level_data);
+            return (Self::level_event_runtime_for_level(level_data), false);
         };
 
         let fired: HashSet<&str> = save.fired_level_events.iter().map(String::as_str).collect();
-        level_data
+        let runtime = level_data
             .events
             .iter()
-            .map(|event| fired.contains(event.id.as_str()))
-            .collect()
+            .map(|event| event.once && fired.contains(event.id.as_str()))
+            .collect::<Vec<_>>();
+        let restored_count = runtime.iter().filter(|fired| **fired).count();
+        (runtime, restored_count != save.fired_level_events.len())
     }
 
-    fn level_flags_for_saved_level(save: Option<&SaveData>) -> HashSet<String> {
-        save.map(|save| save.level_flags.iter().cloned().collect())
-            .unwrap_or_default()
+    fn level_flags_for_saved_level(
+        level_data: &LevelData,
+        save: Option<&SaveData>,
+    ) -> (HashSet<String>, bool) {
+        let Some(save) = save else {
+            return (HashSet::new(), false);
+        };
+        let known_ids = level_data
+            .events
+            .iter()
+            .flat_map(|event| {
+                event
+                    .trigger
+                    .flag_id
+                    .iter()
+                    .chain(event.actions.iter().filter_map(|action| {
+                        (action.kind == LevelEventActionKind::SetFlag)
+                            .then_some(action.flag_id.as_ref())
+                            .flatten()
+                    }))
+            })
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        let flags = save
+            .level_flags
+            .iter()
+            .filter(|flag_id| known_ids.contains(flag_id.as_str()))
+            .cloned()
+            .collect::<HashSet<_>>();
+        let cleanup_needed = flags.len() != save.level_flags.len();
+        (flags, cleanup_needed)
+    }
+
+    fn progress_for_saved_level(level_data: &LevelData, save: &SaveData) -> (RunProgress, bool) {
+        let mut progress = save.to_progress();
+        match (
+            save.active_anchor_id.as_deref(),
+            save.respawn_position.as_ref(),
+        ) {
+            (None, None) => (progress, false),
+            (Some(anchor_id), Some(saved_position)) => {
+                let current_position = level_data
+                    .props
+                    .iter()
+                    .find(|prop| prop.anchor_id.as_deref() == Some(anchor_id))
+                    .map(|prop| prop.position);
+                if let Some(current_position) = current_position {
+                    let cleanup_needed = current_position != *saved_position;
+                    progress.respawn_position = Some(current_position);
+                    (progress, cleanup_needed)
+                } else {
+                    eprintln!("[SAVE] Ignoring obsolete active anchor '{}'", anchor_id);
+                    progress.clear_anchor();
+                    (progress, true)
+                }
+            }
+            _ => {
+                eprintln!("[SAVE] Ignoring incomplete active anchor state");
+                progress.clear_anchor();
+                (progress, true)
+            }
+        }
+    }
+
+    fn mountain_reactions_for_saved_level(
+        level_data: &LevelData,
+        save: Option<&SaveData>,
+    ) -> (VecDeque<String>, bool) {
+        let Some(save) = save else {
+            return (VecDeque::new(), false);
+        };
+        let known_ids = level_data
+            .mountain_reactions
+            .iter()
+            .map(|reaction| reaction.id.as_str())
+            .collect::<HashSet<_>>();
+        let queue = save
+            .pending_mountain_reactions
+            .iter()
+            .filter_map(|reaction_id| {
+                if known_ids.contains(reaction_id.as_str()) {
+                    Some(reaction_id.clone())
+                } else {
+                    eprintln!(
+                        "[SAVE] Ignoring obsolete mountain reaction '{}'",
+                        reaction_id
+                    );
+                    None
+                }
+            })
+            .collect::<VecDeque<_>>();
+        let cleanup_needed = queue.len() != save.pending_mountain_reactions.len();
+        (queue, cleanup_needed)
+    }
+
+    fn apply_saved_world_state(
+        level_data: &mut LevelData,
+        save: &SaveData,
+        relic_registry: &RelicRegistry,
+    ) -> (HashSet<String>, bool) {
+        let removable_authored_ids = level_data
+            .props
+            .iter()
+            .filter(|prop| {
+                prop.enemy_type.is_some() || prop.item_id.is_some() || prop.resource_value > 0
+            })
+            .filter_map(|prop| prop.id.as_deref())
+            .collect::<HashSet<_>>();
+        let removed_prop_ids = save
+            .removed_prop_ids
+            .iter()
+            .filter(|prop_id| removable_authored_ids.contains(prop_id.as_str()))
+            .cloned()
+            .collect::<HashSet<_>>();
+        let mut cleanup_needed = removed_prop_ids.len() != save.removed_prop_ids.len();
+        level_data.props.retain(|prop| {
+            prop.id
+                .as_deref()
+                .is_none_or(|prop_id| !removed_prop_ids.contains(prop_id))
+        });
+
+        for loot in &save.runtime_loot {
+            let already_present = level_data
+                .props
+                .iter()
+                .any(|prop| prop.id.as_deref() == Some(loot.id.as_str()));
+            if already_present {
+                cleanup_needed = true;
+                continue;
+            }
+
+            let mut prop = loot.to_prop();
+            if let Some(item_id) = loot.item_id.as_deref() {
+                let Some(relic) = relic_registry.get(item_id) else {
+                    eprintln!(
+                        "[SAVE] Ignoring runtime loot '{}' for removed relic '{}'",
+                        loot.id, item_id
+                    );
+                    cleanup_needed = true;
+                    continue;
+                };
+                cleanup_needed |= prop.asset_id != relic.pickup_asset;
+                prop.asset_id = relic.pickup_asset.clone();
+            } else if !Path::new("assets").join(&loot.asset_id).is_file() {
+                eprintln!(
+                    "[SAVE] Ignoring runtime resource '{}' with missing asset 'assets/{}'",
+                    loot.id, loot.asset_id
+                );
+                cleanup_needed = true;
+                continue;
+            }
+            level_data.props.push(prop);
+        }
+        (removed_prop_ids, cleanup_needed)
     }
 }
 
@@ -1326,6 +1804,87 @@ mod tests {
     }
 
     #[test]
+    fn dialogue_filters_blank_lines_and_can_be_advanced() {
+        let mut dialogue = ActiveDialogueState::new(
+            "Waystone".to_string(),
+            vec![
+                " First line. ".to_string(),
+                "  ".to_string(),
+                "Second line.".to_string(),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(dialogue.hud_state().line, "First line.");
+        assert!(!dialogue.advance());
+        assert_eq!(dialogue.hud_state().line, "Second line.");
+        assert!(dialogue.advance());
+    }
+
+    #[test]
+    fn dialogue_advances_when_its_line_timer_expires() {
+        let mut dialogue = ActiveDialogueState::new(
+            "Waystone".to_string(),
+            vec!["First".to_string(), "Second".to_string()],
+        )
+        .unwrap();
+
+        assert!(!dialogue.tick(DIALOGUE_LINE_DURATION));
+        assert_eq!(dialogue.hud_state().line, "Second");
+        assert!(dialogue.tick(DIALOGUE_LINE_DURATION));
+    }
+
+    #[test]
+    fn first_ascent_prepares_with_materialized_enemies() {
+        let enemies = EnemyRegistry::try_load_dir("data/enemies").unwrap();
+        let relics = RelicRegistry::try_load_dir("data/relics").unwrap();
+
+        let prepared = EngineState::prepare_level("ashwalk_01", &enemies, &relics).unwrap();
+
+        assert!(prepared.data.props.len() <= 14);
+        assert!(!prepared.model.0.is_empty());
+        assert!(prepared
+            .data
+            .props
+            .iter()
+            .filter(|prop| prop.enemy_type.is_some())
+            .all(|prop| prop.enemy_health > 0.0));
+        let ashwarden = prepared
+            .data
+            .props
+            .iter()
+            .find(|prop| prop.id.as_deref() == Some("ashwarden_elite"))
+            .unwrap();
+        assert_eq!(ashwarden.enemy_type.as_deref(), Some("ashwarden"));
+        assert_eq!(ashwarden.enemy_health, 220.0);
+        assert_eq!(ashwarden.event_id.as_deref(), Some("ashwarden_fall"));
+        let activation_range = enemies.get("ashwarden").unwrap().activation_range;
+        let warden_position = Vec3::from_array(ashwarden.position);
+        let final_trail_position = prepared
+            .data
+            .props
+            .iter()
+            .find(|prop| prop.id.as_deref() == Some("trail_resource_03"))
+            .map(|prop| Vec3::from_array(prop.position))
+            .unwrap();
+        let anchor_position = prepared
+            .data
+            .props
+            .iter()
+            .find(|prop| prop.anchor_id.as_deref() == Some("ashwalk_summit"))
+            .map(|prop| Vec3::from_array(prop.position))
+            .unwrap();
+        assert!(
+            Vec3::from_array(prepared.data.player_spawn).distance(warden_position)
+                > activation_range
+        );
+        assert!(final_trail_position.distance(warden_position) < activation_range);
+        assert!(anchor_position.distance(warden_position) < activation_range);
+        assert_eq!(prepared.data.mountain_reactions.len(), 2);
+        assert!(relics.get("debt_of_the_last_keeper").is_some());
+    }
+
+    #[test]
     fn enemy_definitions_materialize_level_props() {
         let enemy_registry = EnemyRegistry::from_definitions(vec![EnemyDefinition {
             id: "burdened".to_string(),
@@ -1345,16 +1904,22 @@ mod tests {
         }])
         .unwrap();
         let mut level = LevelData {
+            version: crate::data::world::level::CURRENT_LEVEL_VERSION,
             name: "Materialize Test".to_string(),
             base_map: "assets/Cube.obj".to_string(),
             player_spawn: [0.0, 0.0, 0.0],
+            atmosphere: Default::default(),
+            base_material: Default::default(),
+            mountain_reactions: Vec::new(),
             props: vec![PropData {
                 id: None,
+                display_name: None,
                 asset_id: "Cube.obj".to_string(),
                 position: [0.0, 0.0, 0.0],
                 rotation: [0.0, 0.0, 0.0],
                 scale: [1.0, 1.0, 1.0],
                 collider_type: ColliderType::None,
+                surface_material: None,
                 brush_geometry: None,
                 is_climbable: false,
                 is_hurtbox: false,
@@ -1378,6 +1943,10 @@ mod tests {
             events: Vec::new(),
             dialogues: Vec::new(),
         };
+        let mut authored_elite = level.props[0].clone();
+        authored_elite.id = Some("named_elite".to_string());
+        authored_elite.enemy_health = 220.0;
+        level.props.push(authored_elite);
 
         EngineState::apply_enemy_definitions(&mut level, &enemy_registry, "test").unwrap();
 
@@ -1385,22 +1954,29 @@ mod tests {
         assert_eq!(prop.asset_id, "enemies/burdened.obj");
         assert_eq!(prop.collider_type, ColliderType::Sphere);
         assert_eq!(prop.enemy_health, 120.0);
+        assert_eq!(level.props[1].enemy_health, 220.0);
     }
 
     #[test]
     fn enemy_runtime_state_matches_prop_slots() {
         let level = LevelData {
+            version: crate::data::world::level::CURRENT_LEVEL_VERSION,
             name: "Cooldown Test".to_string(),
             base_map: "assets/Cube.obj".to_string(),
             player_spawn: [0.0, 0.0, 0.0],
+            atmosphere: Default::default(),
+            base_material: Default::default(),
+            mountain_reactions: Vec::new(),
             props: vec![
                 PropData {
                     id: None,
+                    display_name: None,
                     asset_id: "Cube.obj".to_string(),
                     position: [0.0, 0.0, 0.0],
                     rotation: [0.0, 0.0, 0.0],
                     scale: [1.0, 1.0, 1.0],
                     collider_type: ColliderType::None,
+                    surface_material: None,
                     brush_geometry: None,
                     is_climbable: false,
                     is_hurtbox: false,
@@ -1420,11 +1996,13 @@ mod tests {
                 },
                 PropData {
                     id: None,
+                    display_name: None,
                     asset_id: "Cube.obj".to_string(),
                     position: [1.0, 0.0, 0.0],
                     rotation: [0.0, 0.0, 0.0],
                     scale: [1.0, 1.0, 1.0],
                     collider_type: ColliderType::Sphere,
+                    surface_material: None,
                     brush_geometry: None,
                     is_climbable: false,
                     is_hurtbox: false,
@@ -1452,21 +2030,30 @@ mod tests {
 
         assert_eq!(
             EngineState::enemy_runtime_for_level(&level),
-            vec![EnemyRuntimeState::default(), EnemyRuntimeState::default()]
+            vec![
+                EnemyRuntimeState::default(),
+                EnemyRuntimeState::for_max_health(40.0)
+            ]
         );
     }
 
     #[test]
     fn saved_level_event_state_restores_against_current_level_ids() {
         let mut level = LevelData::default_level();
+        let mut boss_door = test_level_event("boss_door");
+        boss_door.trigger.flag_id = Some("gate_open".to_string());
+        let mut repeatable_rite = test_level_event("repeatable_rite");
+        repeatable_rite.once = false;
+        repeatable_rite.trigger.kind = LevelEventTriggerKind::Interact;
         level.events = vec![
             test_level_event("intro"),
             test_level_event("gate_open_reward"),
-            test_level_event("boss_door"),
+            boss_door,
+            repeatable_rite,
         ];
         let save = crate::game::save::SaveData {
             version: crate::game::save::SAVE_VERSION,
-            level_name: "editor_systems_test".to_string(),
+            level_name: "foundation_test".to_string(),
             cycle_number: 1,
             unsecured_resource: 0,
             banked_resource: 0,
@@ -1477,16 +2064,192 @@ mod tests {
             fired_level_events: vec![
                 "missing_old_event".to_string(),
                 "gate_open_reward".to_string(),
+                "repeatable_rite".to_string(),
             ],
-            level_flags: vec!["gate_open".to_string(), "gate_open".to_string()],
+            level_flags: vec!["gate_open".to_string(), "obsolete_flag".to_string()],
+            removed_prop_ids: Vec::new(),
+            runtime_loot: Vec::new(),
+            pending_mountain_reactions: Vec::new(),
         };
 
-        let fired = EngineState::level_event_runtime_for_saved_level(&level, Some(&save));
-        let flags = EngineState::level_flags_for_saved_level(Some(&save));
+        let (fired, event_cleanup_needed) =
+            EngineState::level_event_runtime_for_saved_level(&level, Some(&save));
+        let (flags, flag_cleanup_needed) =
+            EngineState::level_flags_for_saved_level(&level, Some(&save));
 
-        assert_eq!(fired, vec![false, true, false]);
+        assert_eq!(fired, vec![false, true, false, false]);
+        assert!(event_cleanup_needed);
         assert!(flags.contains("gate_open"));
         assert_eq!(flags.len(), 1);
+        assert!(flag_cleanup_needed);
+    }
+
+    #[test]
+    fn manual_event_readiness_distinguishes_requirements_from_consumed_events() {
+        let mut event = test_level_event("anchor_claim");
+        event.trigger.kind = LevelEventTriggerKind::Manual;
+        event.trigger.flag_id = Some("keeper_fallen".to_string());
+        let events = vec![event];
+        let mut flags = HashSet::new();
+
+        assert_eq!(
+            EngineState::manual_level_event_status_for(&events, &[false], &flags, "anchor_claim"),
+            ManualLevelEventStatus::MissingFlag("keeper_fallen".to_string())
+        );
+
+        flags.insert("keeper_fallen".to_string());
+        assert_eq!(
+            EngineState::manual_level_event_status_for(&events, &[false], &flags, "anchor_claim"),
+            ManualLevelEventStatus::Ready
+        );
+        assert_eq!(
+            EngineState::manual_level_event_status_for(&events, &[true], &flags, "anchor_claim"),
+            ManualLevelEventStatus::AlreadyFired
+        );
+    }
+
+    #[test]
+    fn saved_world_state_removes_authored_props_and_restores_loose_loot() {
+        let relics = RelicRegistry::try_load_dir("data/relics").unwrap();
+        let mut level = LevelData::default_level();
+        let mut defeated: PropData =
+            serde_json::from_str(r#"{ "id": "warden", "asset_id": "Cube.obj" }"#).unwrap();
+        defeated.enemy_type = Some("ashbound".to_string());
+        defeated.enemy_health = 50.0;
+        let remaining: PropData = serde_json::from_str(
+            r#"{ "id": "remaining_pickup", "asset_id": "Cube.obj", "resource_value": 5 }"#,
+        )
+        .unwrap();
+        level.props = vec![defeated, remaining];
+
+        let mut save = SaveData::from_runtime(
+            "foundation_test",
+            &RunProgress::new(),
+            &EquippedRelic::new(),
+            &CycleState::new(1),
+        );
+        save.removed_prop_ids = vec!["warden".to_string()];
+        save.runtime_loot = vec![
+            crate::game::save::SavedRuntimeLoot {
+                id: "runtime_loot_abcd_0".to_string(),
+                asset_id: "pickups/resource_shard.obj".to_string(),
+                position: [3.0, 4.0, 5.0],
+                scale: [0.35, 0.35, 0.35],
+                item_id: None,
+                resource_value: 10,
+            },
+            crate::game::save::SavedRuntimeLoot {
+                id: "runtime_loot_abcd_1".to_string(),
+                asset_id: "obsolete/relic.obj".to_string(),
+                position: [4.0, 4.0, 5.0],
+                scale: [0.35, 0.35, 0.35],
+                item_id: Some("debt_of_the_last_keeper".to_string()),
+                resource_value: 0,
+            },
+        ];
+
+        let (removed_ids, cleanup_needed) =
+            EngineState::apply_saved_world_state(&mut level, &save, &relics);
+
+        assert_eq!(removed_ids, HashSet::from(["warden".to_string()]));
+        assert!(cleanup_needed);
+        assert!(level
+            .props
+            .iter()
+            .all(|prop| prop.id.as_deref() != Some("warden")));
+        assert!(level
+            .props
+            .iter()
+            .any(|prop| prop.id.as_deref() == Some("remaining_pickup")));
+        assert!(level
+            .props
+            .iter()
+            .any(|prop| prop.id.as_deref() == Some("runtime_loot_abcd_0")));
+        let restored_relic = level
+            .props
+            .iter()
+            .find(|prop| prop.id.as_deref() == Some("runtime_loot_abcd_1"))
+            .unwrap();
+        assert_eq!(restored_relic.asset_id, "pickups/relic_chain_sigil.obj");
+    }
+
+    #[test]
+    fn saved_mountain_queue_ignores_profiles_removed_by_content_updates() {
+        let level = LevelData::try_load("levels/ashwalk_01.json").unwrap();
+        let mut save = SaveData::from_runtime(
+            "ashwalk_01",
+            &RunProgress::new(),
+            &EquippedRelic::new(),
+            &CycleState::new(1),
+        );
+        save.pending_mountain_reactions = vec![
+            "obsolete_answer".to_string(),
+            "first_claim_bound".to_string(),
+        ];
+
+        assert_eq!(
+            EngineState::mountain_reactions_for_saved_level(&level, Some(&save)),
+            (VecDeque::from(["first_claim_bound".to_string()]), true)
+        );
+    }
+
+    #[test]
+    fn saved_anchor_uses_current_authored_position_and_rejects_removed_anchors() {
+        let mut level = LevelData::default_level();
+        let mut anchor: PropData = serde_json::from_str(
+            r#"{ "id": "first_anchor_prop", "asset_id": "Cube.obj", "position": [5.0, 6.0, 7.0], "anchor_id": "first_anchor" }"#,
+        )
+        .unwrap();
+        anchor.display_name = Some("The First Anchor".to_string());
+        level.props = vec![anchor];
+        let mut save = SaveData::from_runtime(
+            "foundation_test",
+            &RunProgress::new(),
+            &EquippedRelic::new(),
+            &CycleState::new(1),
+        );
+        save.active_anchor_id = Some("first_anchor".to_string());
+        save.respawn_position = Some([1.0, 2.0, 3.0]);
+
+        let (progress, cleanup_needed) = EngineState::progress_for_saved_level(&level, &save);
+
+        assert_eq!(progress.active_anchor_id.as_deref(), Some("first_anchor"));
+        assert_eq!(progress.respawn_position, Some([5.0, 6.0, 7.0]));
+        assert!(cleanup_needed);
+
+        level.props.clear();
+        let (progress, cleanup_needed) = EngineState::progress_for_saved_level(&level, &save);
+        assert!(progress.active_anchor_id.is_none());
+        assert!(progress.respawn_position.is_none());
+        assert!(cleanup_needed);
+    }
+
+    #[test]
+    fn saved_removals_cannot_delete_non_consumable_world_props() {
+        let relics = RelicRegistry::try_load_dir("data/relics").unwrap();
+        let mut level = LevelData::default_level();
+        let anchor: PropData = serde_json::from_str(
+            r#"{ "id": "anchor_prop", "asset_id": "Cube.obj", "anchor_id": "anchor" }"#,
+        )
+        .unwrap();
+        level.props = vec![anchor];
+        let mut save = SaveData::from_runtime(
+            "foundation_test",
+            &RunProgress::new(),
+            &EquippedRelic::new(),
+            &CycleState::new(1),
+        );
+        save.removed_prop_ids = vec!["anchor_prop".to_string()];
+
+        let (removed_ids, cleanup_needed) =
+            EngineState::apply_saved_world_state(&mut level, &save, &relics);
+
+        assert!(removed_ids.is_empty());
+        assert!(cleanup_needed);
+        assert!(level
+            .props
+            .iter()
+            .any(|prop| prop.id.as_deref() == Some("anchor_prop")));
     }
 
     fn test_level_event(id: &str) -> LevelEventData {

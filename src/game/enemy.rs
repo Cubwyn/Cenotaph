@@ -4,6 +4,8 @@ use crate::data::enemy::EnemyDefinition;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct EnemyRuntimeState {
+    /// Initial per-instance health, preserved after `PropData.enemy_health` mutates.
+    pub max_health: f32,
     pub attack_cooldown_remaining: f32,
     pub attack_windup_remaining: f32,
     pub stagger_remaining: f32,
@@ -11,6 +13,22 @@ pub struct EnemyRuntimeState {
 }
 
 impl EnemyRuntimeState {
+    pub fn for_max_health(max_health: f32) -> Self {
+        Self {
+            max_health: max_health.max(0.0),
+            ..Self::default()
+        }
+    }
+
+    pub fn health_ratio(&self, current_health: f32, fallback_max_health: f32) -> f32 {
+        let max_health = if self.max_health.is_finite() && self.max_health > 0.0 {
+            self.max_health
+        } else {
+            fallback_max_health.max(1.0)
+        };
+        (current_health / max_health).clamp(0.0, 1.0)
+    }
+
     pub fn tick(&mut self, dt: f32) {
         self.attack_cooldown_remaining = (self.attack_cooldown_remaining - dt).max(0.0);
         self.stagger_remaining = (self.stagger_remaining - dt).max(0.0);
@@ -233,6 +251,7 @@ mod tests {
     fn enemy_attack_cooldown_blocks_windup() {
         let enemy = enemy_fixture();
         let mut runtime = EnemyRuntimeState {
+            max_health: 35.0,
             attack_cooldown_remaining: 0.25,
             attack_windup_remaining: 0.1,
             stagger_remaining: 0.0,
@@ -298,5 +317,12 @@ mod tests {
 
         assert!(!advance_enemy_attack(&mut runtime, &enemy, 0.5));
         assert_eq!(runtime.attack_windup_remaining, 0.0);
+    }
+
+    #[test]
+    fn health_ratio_uses_the_authored_instance_maximum() {
+        let runtime = EnemyRuntimeState::for_max_health(220.0);
+
+        assert!((runtime.health_ratio(110.0, 120.0) - 0.5).abs() < 0.001);
     }
 }

@@ -1,6 +1,396 @@
 {
-  "name": "Ashwalk",
+  "version": 1,
+  "name": "Ash-Walk: The First Claim",
   "base_map": "assets/ashwalk_001.obj",
   "player_spawn": [1.0, 130.0, 80.0],
-  "props": []
+  "atmosphere": {
+    "clear_color": [0.018, 0.014, 0.016],
+    "fog_color": [0.18, 0.1, 0.075],
+    "fog_density": 0.012,
+    "key_light_color": [1.0, 0.58, 0.3],
+    "key_light_intensity": 2.3,
+    "particle_preset": "Ashfall",
+    "particle_count": 240,
+    "particle_color": [0.65, 0.56, 0.48],
+    "particle_opacity": 0.4,
+    "particle_size": 0.07,
+    "particle_radius": 30.0,
+    "particle_height": 18.0,
+    "particle_speed": 0.55,
+    "wind": [0.18, -0.03, 0.06],
+    "ambience_preset": "AshWind",
+    "ambience_volume": 0.2
+  },
+  "base_material": {
+    "texture": "cenotaph/ash_stone.png",
+    "tint": [1.0, 0.94, 0.88],
+    "uv_scale": 5.0,
+    "emissive": 0.0
+  },
+  "mountain_reactions": [
+    {
+      "id": "last_chain_severed",
+      "duration": 5.0,
+      "clear_color": [0.035, 0.006, 0.008],
+      "fog_color": [0.34, 0.055, 0.04],
+      "fog_density_multiplier": 2.7,
+      "key_light_color": [1.0, 0.18, 0.06],
+      "key_light_intensity_multiplier": 0.38,
+      "particle_color": [0.9, 0.24, 0.1],
+      "particle_speed_multiplier": -0.85,
+      "wind": [-0.75, 0.2, -0.32],
+      "ambience_preset": "EmberVault",
+      "ambience_volume_multiplier": 1.4
+    },
+    {
+      "id": "first_claim_bound",
+      "duration": 4.5,
+      "clear_color": [0.008, 0.015, 0.022],
+      "fog_color": [0.12, 0.3, 0.38],
+      "fog_density_multiplier": 1.8,
+      "key_light_color": [0.34, 0.82, 1.0],
+      "key_light_intensity_multiplier": 1.65,
+      "particle_color": [0.52, 0.86, 1.0],
+      "particle_speed_multiplier": 0.2,
+      "wind": [0.0, 0.65, 0.0],
+      "ambience_preset": "Omission",
+      "ambience_volume_multiplier": 1.25
+    }
+  ],
+  "props": [
+    {
+      "id": "oath_stone",
+      "asset_id": "props/test_obelisk.obj",
+      "position": [3.0, 125.5, 75.0],
+      "scale": [0.8, 1.3, 0.8],
+      "collider_type": "Box",
+      "surface_material": {
+        "texture": "cenotaph/ember_cracks.png",
+        "tint": [1.0, 0.72, 0.5],
+        "uv_scale": 2.5,
+        "emissive": 0.28
+      },
+      "light_color": [1.0, 0.42, 0.16],
+      "light_intensity": 2.0,
+      "dialogue_id": "oath_stone_words"
+    },
+    {
+      "id": "trail_resource_01",
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [10.0, 125.0, 68.0],
+      "scale": [0.5, 0.5, 0.5],
+      "resource_value": 25
+    },
+    {
+      "id": "lower_ashbound",
+      "asset_id": "enemies/ashbound.obj",
+      "position": [17.0, 125.2, 61.0],
+      "scale": [0.9, 0.9, 0.9],
+      "collider_type": "Sphere",
+      "enemy_type": "Ashbound",
+      "path_id": "lower_patrol"
+    },
+    {
+      "id": "lower_waystone",
+      "asset_id": "props/test_obelisk.obj",
+      "position": [27.0, 125.0, 52.0],
+      "scale": [0.45, 0.9, 0.45],
+      "surface_material": {
+        "texture": "cenotaph/pale_waystone.png",
+        "tint": [0.8, 0.95, 1.0],
+        "uv_scale": 3.0,
+        "emissive": 0.12
+      },
+      "light_color": [0.24, 0.72, 1.0],
+      "light_intensity": 1.5
+    },
+    {
+      "id": "ash_spike_crossing",
+      "asset_id": "world/hurtbox_warning.obj",
+      "position": [32.0, 125.3, 48.0],
+      "scale": [1.35, 1.0, 1.35],
+      "collider_type": "Sphere",
+      "is_hurtbox": true
+    },
+    {
+      "id": "trail_resource_02",
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [36.0, 125.0, 44.0],
+      "scale": [0.55, 0.55, 0.55],
+      "resource_value": 35
+    },
+    {
+      "id": "mid_censer",
+      "asset_id": "enemies/censer.obj",
+      "position": [42.0, 125.2, 38.0],
+      "scale": [0.95, 0.95, 0.95],
+      "collider_type": "Sphere",
+      "enemy_type": "Censer"
+    },
+    {
+      "id": "first_relic",
+      "asset_id": "pickups/relic_ash_splinter.obj",
+      "position": [46.0, 125.0, 34.0],
+      "scale": [0.48, 0.48, 0.48],
+      "item_id": "ash_splinter"
+    },
+    {
+      "id": "upper_waystone",
+      "asset_id": "props/test_obelisk.obj",
+      "position": [51.0, 125.0, 27.0],
+      "scale": [0.45, 0.9, 0.45],
+      "surface_material": {
+        "texture": "cenotaph/pale_waystone.png",
+        "tint": [0.8, 0.95, 1.0],
+        "uv_scale": 3.0,
+        "emissive": 0.12
+      },
+      "light_color": [0.24, 0.72, 1.0],
+      "light_intensity": 1.5
+    },
+    {
+      "id": "trail_resource_03",
+      "asset_id": "pickups/resource_shard.obj",
+      "position": [55.0, 125.0, 17.0],
+      "scale": [0.6, 0.6, 0.6],
+      "resource_value": 45
+    },
+    {
+      "id": "ashwarden_elite",
+      "display_name": "The Ash-Warden, Bearer of the Last Chain",
+      "asset_id": "enemies/burdened.obj",
+      "position": [57.0, 129.0, 0.0],
+      "scale": [1.35, 1.35, 1.35],
+      "collider_type": "Sphere",
+      "surface_material": {
+        "texture": "cenotaph/black_iron.png",
+        "tint": [0.82, 0.84, 0.9],
+        "uv_scale": 4.0,
+        "emissive": 0.0
+      },
+      "enemy_type": "ashwarden",
+      "enemy_health": 220.0,
+      "loot_table_id": "ashwarden_drop",
+      "event_id": "ashwarden_fall"
+    },
+    {
+      "id": "summit_anchor",
+      "display_name": "The First Anchor",
+      "asset_id": "world/anchor_marker.obj",
+      "position": [47.5, 131.0, -4.0],
+      "scale": [0.9, 1.5, 0.9],
+      "surface_material": {
+        "texture": "cenotaph/pale_waystone.png",
+        "tint": [0.7, 0.92, 1.0],
+        "uv_scale": 3.0,
+        "emissive": 0.24
+      },
+      "anchor_id": "ashwalk_summit",
+      "event_id": "summit_anchor_claim",
+      "light_color": [0.24, 0.78, 1.0],
+      "light_intensity": 3.0
+    },
+    {
+      "id": "return_gate",
+      "asset_id": "world/transition_gate.obj",
+      "position": [50.5, 136.0, 0.0],
+      "scale": [1.2, 1.4, 1.2],
+      "surface_material": {
+        "texture": "cenotaph/black_iron.png",
+        "tint": [0.85, 0.94, 1.0],
+        "uv_scale": 3.0,
+        "emissive": 0.08
+      },
+      "light_color": [0.58, 0.76, 0.9],
+      "light_intensity": 1.5,
+      "trigger_level_id": "foundation_test"
+    }
+  ],
+  "asset_imports": [],
+  "loot_tables": [
+    {
+      "id": "ashwarden_drop",
+      "rolls": 1,
+      "entries": [
+        {
+          "weight": 1,
+          "item_id": "debt_of_the_last_keeper",
+          "quantity": 1
+        }
+      ]
+    }
+  ],
+  "paths": [
+    {
+      "id": "lower_patrol",
+      "kind": "Enemy",
+      "looped": true,
+      "speed_multiplier": 0.5,
+      "waypoints": [
+        [14.0, 125.2, 64.0],
+        [22.0, 125.2, 57.0]
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "ashwalk_arrival",
+      "once": true,
+      "trigger": {
+        "kind": "OnEnter"
+      },
+      "actions": [
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "arrival_words"
+        }
+      ]
+    },
+    {
+      "id": "oath_stone_rite",
+      "once": true,
+      "trigger": {
+        "kind": "Interact",
+        "prop_id": "oath_stone",
+        "radius": 3.0
+      },
+      "actions": [
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "oath_stone_words"
+        },
+        {
+          "kind": "GrantResource",
+          "resource_value": 10
+        },
+        {
+          "kind": "SetFlag",
+          "flag_id": "oath_remembered"
+        }
+      ]
+    },
+    {
+      "id": "upper_route_words",
+      "once": true,
+      "trigger": {
+        "kind": "Proximity",
+        "position": [51.0, 125.0, 27.0],
+        "radius": 4.0
+      },
+      "actions": [
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "upper_route_warning"
+        }
+      ]
+    },
+    {
+      "id": "summit_words",
+      "once": true,
+      "trigger": {
+        "kind": "Proximity",
+        "position": [50.0, 132.0, -3.0],
+        "radius": 5.0
+      },
+      "actions": [
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "anchor_words"
+        }
+      ]
+    },
+    {
+      "id": "ashwarden_fall",
+      "once": true,
+      "trigger": {
+        "kind": "Manual"
+      },
+      "actions": [
+        {
+          "kind": "ReactMountain",
+          "reaction_id": "last_chain_severed"
+        },
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "ashwarden_fall_words"
+        },
+        {
+          "kind": "SetFlag",
+          "flag_id": "last_chain_broken"
+        }
+      ]
+    },
+    {
+      "id": "summit_anchor_claim",
+      "once": true,
+      "trigger": {
+        "kind": "Manual",
+        "flag_id": "last_chain_broken"
+      },
+      "actions": [
+        {
+          "kind": "ReactMountain",
+          "reaction_id": "first_claim_bound"
+        },
+        {
+          "kind": "StartDialogue",
+          "dialogue_id": "first_claim_words"
+        },
+        {
+          "kind": "SetFlag",
+          "flag_id": "first_claim_bound"
+        }
+      ]
+    }
+  ],
+  "dialogues": [
+    {
+      "id": "arrival_words",
+      "speaker": "The Ash-Walk",
+      "lines": [
+        "Pale waystones climb toward the Anchor.",
+        "Nothing else here is a promise."
+      ]
+    },
+    {
+      "id": "oath_stone_words",
+      "speaker": "Oath Stone",
+      "lines": [
+        "What is carried may still be lost.",
+        "What is remembered may be carried again."
+      ]
+    },
+    {
+      "id": "upper_route_warning",
+      "speaker": "The Ash-Walk",
+      "lines": [
+        "The Ash-Warden bears the last chain above the pale stone.",
+        "It has forgotten whom the chain was meant to hold."
+      ]
+    },
+    {
+      "id": "anchor_words",
+      "speaker": "Anchor",
+      "lines": [
+        "The mountain releases nothing.",
+        "For a moment, neither do you."
+      ]
+    },
+    {
+      "id": "ashwarden_fall_words",
+      "speaker": "The Ash-Walk",
+      "lines": [
+        "The last chain falls upward.",
+        "Something beneath the road has noticed the missing weight."
+      ]
+    },
+    {
+      "id": "first_claim_words",
+      "speaker": "The First Anchor",
+      "lines": [
+        "Your Ash is bound. Your ascent is not.",
+        "The mountain will remember this claim incorrectly."
+      ]
+    }
+  ]
 }

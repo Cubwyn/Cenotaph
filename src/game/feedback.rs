@@ -2,6 +2,26 @@ use glam::Vec3;
 
 pub const FEEDBACK_EVENT_CAPACITY: usize = 5;
 const FEEDBACK_EVENT_DURATION: f32 = 4.5;
+const LEVEL_ARRIVAL_DURATION: f32 = 3.4;
+const NAMED_NOTICE_DURATION: f32 = 5.2;
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NamedNotice {
+    pub title: String,
+    pub subtitle: String,
+    pub timer: f32,
+    pub duration: f32,
+}
+
+impl NamedNotice {
+    pub fn remaining_ratio(&self) -> f32 {
+        if self.duration <= 0.0 {
+            0.0
+        } else {
+            (self.timer / self.duration).clamp(0.0, 1.0)
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum FeedbackEventKind {
@@ -56,7 +76,7 @@ impl Default for FeedbackEvent {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct FeedbackState {
     pub time: f32,
     pub shot_flash_timer: f32,
@@ -71,10 +91,33 @@ pub struct FeedbackState {
     pub reload_flash_timer: f32,
     pub loot_flash_timer: f32,
     pub heal_flash_timer: f32,
+    pub level_arrival_timer: f32,
+    pub named_notice: Option<NamedNotice>,
     pub events: [FeedbackEvent; FEEDBACK_EVENT_CAPACITY],
     shake_timer: f32,
     shake_duration: f32,
     shake_strength: f32,
+    stride_phase: f32,
+    stride_weight: f32,
+    movement_speed_ratio: f32,
+    landing_timer: f32,
+    landing_duration: f32,
+    landing_strength: f32,
+    recoil_timer: f32,
+    recoil_duration: f32,
+    recoil_strength: f32,
+    motion_fov: f32,
+    was_grounded: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct MotionSample {
+    pub horizontal_speed: f32,
+    pub walk_speed: f32,
+    pub grounded: bool,
+    pub sprinting: bool,
+    pub dashing: bool,
+    pub landing_speed: f32,
 }
 
 impl FeedbackState {
@@ -97,7 +140,16 @@ impl FeedbackState {
         self.reload_flash_timer = decay(self.reload_flash_timer, dt);
         self.loot_flash_timer = decay(self.loot_flash_timer, dt);
         self.heal_flash_timer = decay(self.heal_flash_timer, dt);
+        self.level_arrival_timer = decay(self.level_arrival_timer, dt);
+        if let Some(notice) = self.named_notice.as_mut() {
+            notice.timer = decay(notice.timer, dt);
+            if notice.timer <= 0.0 {
+                self.named_notice = None;
+            }
+        }
         self.shake_timer = decay(self.shake_timer, dt);
+        self.landing_timer = decay(self.landing_timer, dt);
+        self.recoil_timer = decay(self.recoil_timer, dt);
         for event in &mut self.events {
             if !event.is_active() {
                 continue;
@@ -112,11 +164,27 @@ impl FeedbackState {
             self.shake_duration = 0.0;
             self.shake_strength = 0.0;
         }
+        if self.landing_timer <= 0.0 {
+            self.landing_duration = 0.0;
+            self.landing_strength = 0.0;
+        }
+        if self.recoil_timer <= 0.0 {
+            self.recoil_duration = 0.0;
+            self.recoil_strength = 0.0;
+        }
     }
 
     pub fn on_fire(&mut self) {
         self.shot_flash_timer = self.shot_flash_timer.max(0.08);
         self.add_shake(0.025, 0.08);
+        self.recoil_timer = 0.13;
+        self.recoil_duration = 0.13;
+        self.recoil_strength = 0.020;
+    }
+
+    pub fn on_dash(&mut self) {
+        self.add_shake(0.045, 0.14);
+        self.motion_fov = self.motion_fov.max(0.055);
     }
 
     pub fn on_enemy_hit_amount(&mut self, amount: f32) {
@@ -162,6 +230,16 @@ impl FeedbackState {
         self.push_event(FeedbackEventKind::Relic, 0);
     }
 
+    pub fn on_relic_acquired(&mut self, display_name: &str, rarity: &str, outcome: &str) {
+        self.on_relic_changed();
+        self.named_notice = Some(NamedNotice {
+            title: display_name.trim().to_string(),
+            subtitle: format!("{} RELIC / {}", rarity.trim(), outcome.trim()),
+            timer: NAMED_NOTICE_DURATION,
+            duration: NAMED_NOTICE_DURATION,
+        });
+    }
+
     pub fn on_heal(&mut self) {
         self.heal_flash_timer = self.heal_flash_timer.max(0.45);
         self.pickup_flash_timer = self.pickup_flash_timer.max(0.25);
@@ -184,6 +262,15 @@ impl FeedbackState {
     pub fn on_transition(&mut self) {
         self.pickup_flash_timer = self.pickup_flash_timer.max(0.25);
         self.add_shake(0.06, 0.2);
+        self.on_level_enter();
+    }
+
+    pub fn on_level_enter(&mut self) {
+        self.level_arrival_timer = LEVEL_ARRIVAL_DURATION;
+    }
+
+    pub fn level_arrival_ratio(&self) -> f32 {
+        (self.level_arrival_timer / LEVEL_ARRIVAL_DURATION).clamp(0.0, 1.0)
     }
 
     pub fn on_debug(&mut self) {
@@ -211,18 +298,94 @@ impl FeedbackState {
         self.push_event(FeedbackEventKind::Loot, count);
     }
 
-    pub fn camera_offset(&self, yaw: f32) -> Vec3 {
-        if self.shake_timer <= 0.0 || self.shake_duration <= 0.0 {
-            return Vec3::ZERO;
+    pub fn update_motion(&mut self, dt: f32, sample: MotionSample) {
+        let dt = dt.clamp(0.0, 0.1);
+        let speed_ratio = if sample.walk_speed > 0.001 {
+            (sample.horizontal_speed / sample.walk_speed).clamp(0.0, 1.8)
+        } else {
+            0.0
+        };
+        let moving = sample.grounded && speed_ratio > 0.08;
+        let target_weight = if moving { 1.0 } else { 0.0 };
+        let weight_lerp = 1.0 - (-dt * if moving { 12.0 } else { 8.0 }).exp();
+        self.stride_weight += (target_weight - self.stride_weight) * weight_lerp;
+        self.movement_speed_ratio +=
+            (speed_ratio - self.movement_speed_ratio) * (1.0 - (-dt * 9.0).exp());
+
+        if moving {
+            let cadence = if sample.sprinting { 11.5 } else { 8.2 };
+            self.stride_phase = (self.stride_phase + dt * cadence * speed_ratio.clamp(0.55, 1.65))
+                .rem_euclid(std::f32::consts::TAU);
         }
 
-        let remaining = (self.shake_timer / self.shake_duration).clamp(0.0, 1.0);
-        let amplitude = self.shake_strength * remaining * remaining;
+        if sample.grounded && !self.was_grounded && sample.landing_speed > 2.0 {
+            self.landing_duration = 0.30;
+            self.landing_timer = self.landing_duration;
+            self.landing_strength = ((sample.landing_speed - 2.0) / 9.0).clamp(0.15, 1.0);
+            self.add_shake(0.025 + self.landing_strength * 0.035, 0.14);
+        }
+        self.was_grounded = sample.grounded;
+
+        let target_fov = if sample.dashing {
+            0.080
+        } else if sample.sprinting && moving {
+            0.035
+        } else {
+            0.0
+        };
+        self.motion_fov += (target_fov - self.motion_fov) * (1.0 - (-dt * 8.5).exp());
+    }
+
+    pub fn camera_offset(&self, yaw: f32) -> Vec3 {
         let right = Vec3::new(-yaw.sin(), 0.0, yaw.cos());
-        let phase = self.time * 71.0;
-        let x = phase.sin() * amplitude;
-        let y = (phase * 1.37).cos() * amplitude * 0.55;
-        right * x + Vec3::Y * y
+        let mut offset = Vec3::ZERO;
+
+        if self.shake_timer > 0.0 && self.shake_duration > 0.0 {
+            let remaining = (self.shake_timer / self.shake_duration).clamp(0.0, 1.0);
+            let amplitude = self.shake_strength * remaining * remaining;
+            let phase = self.time * 71.0;
+            offset += right * (phase.sin() * amplitude);
+            offset += Vec3::Y * ((phase * 1.37).cos() * amplitude * 0.55);
+        }
+
+        let bob_strength = self.stride_weight * self.movement_speed_ratio.clamp(0.0, 1.35);
+        offset += right * (self.stride_phase.sin() * 0.012 * bob_strength);
+        offset += Vec3::Y * ((self.stride_phase * 2.0).cos() * 0.010 * bob_strength);
+
+        if self.landing_timer > 0.0 && self.landing_duration > 0.0 {
+            let progress = 1.0 - (self.landing_timer / self.landing_duration).clamp(0.0, 1.0);
+            offset -=
+                Vec3::Y * (progress * std::f32::consts::PI).sin() * self.landing_strength * 0.065;
+        }
+
+        offset
+    }
+
+    pub fn camera_rotation_offset(&self) -> [f32; 2] {
+        let bob_strength = self.stride_weight * self.movement_speed_ratio.clamp(0.0, 1.35);
+        let mut yaw = self.stride_phase.sin() * 0.0018 * bob_strength;
+        let mut pitch = (self.stride_phase * 2.0).cos() * 0.0022 * bob_strength;
+
+        if self.recoil_timer > 0.0 && self.recoil_duration > 0.0 {
+            let remaining = (self.recoil_timer / self.recoil_duration).clamp(0.0, 1.0);
+            pitch += self.recoil_strength * remaining * remaining;
+            yaw += (self.time * 47.0).sin() * self.recoil_strength * remaining * 0.12;
+        }
+        if self.landing_timer > 0.0 && self.landing_duration > 0.0 {
+            let progress = 1.0 - (self.landing_timer / self.landing_duration).clamp(0.0, 1.0);
+            pitch -= (progress * std::f32::consts::PI).sin() * self.landing_strength * 0.010;
+        }
+
+        [yaw, pitch]
+    }
+
+    pub fn camera_fov_offset(&self) -> f32 {
+        let recoil = if self.recoil_duration > 0.0 {
+            (self.recoil_timer / self.recoil_duration).clamp(0.0, 1.0) * 0.012
+        } else {
+            0.0
+        };
+        self.motion_fov + recoil
     }
 
     fn add_shake(&mut self, strength: f32, duration: f32) {
@@ -328,5 +491,59 @@ mod tests {
         assert!(feedback.pickup_flash_timer > 0.0);
         assert!(feedback.loot_flash_timer > 0.0);
         assert_eq!(feedback.events[0].kind, FeedbackEventKind::Relic);
+    }
+
+    #[test]
+    fn named_relic_notice_carries_identity_rarity_and_outcome() {
+        let mut feedback = FeedbackState::new();
+
+        feedback.on_relic_acquired("Debt of the Last Keeper", "Rare", "Stored");
+
+        let notice = feedback.named_notice.as_ref().unwrap();
+        assert_eq!(notice.title, "Debt of the Last Keeper");
+        assert_eq!(notice.subtitle, "Rare RELIC / Stored");
+        assert_eq!(notice.remaining_ratio(), 1.0);
+
+        feedback.tick(NAMED_NOTICE_DURATION + 0.1);
+        assert!(feedback.named_notice.is_none());
+    }
+
+    #[test]
+    fn grounded_motion_drives_bob_and_sprint_fov() {
+        let mut feedback = FeedbackState::new();
+        feedback.update_motion(
+            0.1,
+            MotionSample {
+                horizontal_speed: 7.0,
+                walk_speed: 5.0,
+                grounded: true,
+                sprinting: true,
+                ..MotionSample::default()
+            },
+        );
+
+        assert!(feedback.camera_offset(0.0).length() > 0.0);
+        assert!(feedback.camera_fov_offset() > 0.0);
+    }
+
+    #[test]
+    fn recoil_is_visual_only_and_decays() {
+        let mut feedback = FeedbackState::new();
+        feedback.on_fire();
+        let initial = feedback.camera_rotation_offset();
+        assert!(initial[1] > 0.0);
+
+        feedback.tick(1.0);
+        assert_eq!(feedback.camera_rotation_offset(), [0.0, 0.0]);
+    }
+
+    #[test]
+    fn level_arrival_timer_expires() {
+        let mut feedback = FeedbackState::new();
+        feedback.on_level_enter();
+        assert_eq!(feedback.level_arrival_ratio(), 1.0);
+
+        feedback.tick(LEVEL_ARRIVAL_DURATION + 0.1);
+        assert_eq!(feedback.level_arrival_ratio(), 0.0);
     }
 }

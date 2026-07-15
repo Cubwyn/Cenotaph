@@ -161,6 +161,7 @@ impl ApplicationHandler for App {
                     let now = std::time::Instant::now();
                     let dt = now.duration_since(self.last_frame).as_secs_f32();
                     self.last_frame = now;
+                    engine.record_frame_time(dt);
 
                     // Cap delta time to prevent physics issues on frame drops
                     let capped_dt = dt.min(1.0 / 30.0);

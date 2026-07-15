@@ -97,6 +97,12 @@ The stable core must be small, reliable, and boringly solid.
 
 The expandable content can be strange, ambitious, and endless.
 
+Because Cenotaph is a solo project, the production model must lean on
+programming leverage: reusable assets, data-driven content, generated support,
+strict validation, strong atmosphere, and systemic variation. The game should
+not require large volumes of bespoke modeling, animation, cinematics, or
+hand-authored detail before the core ascent loop feels real.
+
 ---
 
 ## Golden Rules
@@ -111,6 +117,7 @@ The expandable content can be strange, ambitious, and endless.
 8. The game must always have a playable version.
 9. A feature is not real until it works inside an ascent.
 10. If a feature does not improve the climb, survival, relic hunting, buildcraft, replayability, or mystery, cut it.
+11. Prefer reusable systems and asset-efficient presentation over bespoke content volume.
 
 ---
 
@@ -119,10 +126,13 @@ The expandable content can be strange, ambitious, and endless.
 This README is the master overview. The categorized documentation index lives
 at [`docs/README.md`](docs/README.md):
 
+- `docs/design/IDENTITY_CONTRACT.md` is the top-level identity guardrail for
+  future design, content, and coding-agent work.
+- `docs/design/ASH_WALK_PILGRIMAGE.md` is the current playable milestone and
+  acceptance gate before adding another Stratum.
 - `docs/design/` contains systems, lore, content rules, and the roadmap.
 - `docs/development/` contains the current foundation, smoke checklist,
   technical notes, and ordered project-wide improvement backlog.
-- `docs/editor/` contains the standalone editor backlog.
 - `docs/art/` contains asset rules and enemy art/model briefs.
 - `docs/archive/` preserves superseded project inventories for history only.
 
@@ -139,11 +149,10 @@ scripts/        Repeatable project checks
 source_assets/  Blender files, conversion inputs, and visual references
 src/            Rust runtime, data contracts, systems, and developer tooling
 textures/       Runtime textures
-tools/          Standalone editor web UI
 ```
 
-Generated caches and editor backups are ignored. Launching the game no longer
-writes an asset catalog into `assets/`.
+Generated caches are ignored. Launching the game does not write generated
+content into the level, prefab, asset, or texture directories.
 
 ---
 
@@ -157,6 +166,9 @@ The current codebase is a foundation prototype built on:
 - Rapier3D
 - rodio
 - JSON level data
+- Level-authored materials, fog, particles, wind, and procedural ambience
+- Camera-aware fog/lighting, shader-driven prop motion, and bounded impact particles
+- Grounded movement cadence plus distinct procedural movement and combat cues
 - TOML tuning and bindings
 - TOML enemy definitions
 - TOML relic definitions
@@ -201,30 +213,19 @@ cargo run -- validate
 
 Run the broader project diagnosis. This also checks required directories,
 default-level availability, save/backup health, source/runtime separation,
-pending write sidecars, and retained editor backups:
+pending write sidecars, and level prop/dynamic-instance/base-map triangle
+budgets:
 
 ```powershell
 cargo doctor
 ```
 
-Run the standalone level editor:
+Regenerate the deterministic prototype texture kit without third-party Python
+packages:
 
 ```powershell
-cargo run -- editor
-# Short project alias:
-cargo editor
+powershell -ExecutionPolicy Bypass -File scripts/generate_prototype_textures.ps1
 ```
-
-Then open the printed localhost URL. The editor lists real project levels,
-assets, enemies, and relics; edits `levels/<level>.json`; validates through the
-same Rust level contract as the game; and saves through the shared staged-write
-system so the running game can hot-reload clean changes.
-
-Security model: the editor binds only to `127.0.0.1`, prints a per-launch
-tokenized URL, requires that token on all `/api/*` calls, rejects unexpected
-`Host`/`Origin` headers, never serves arbitrary files, only writes safe
-`levels/<id>.json` and `prefabs/<id>.json` paths, and creates ignored backup
-copies before overwriting existing content or deleting a prefab.
 
 Run the full project check:
 
@@ -267,81 +268,37 @@ Core controls:
 - `Space` jump
 - `Shift` sprint
 - `Q` dash
+- `E` interact or advance the active dialogue line
 - mouse look
 - left mouse primary fire
 - `I` cycle owned relics
+- `F1` toggle the smoothed FPS/frame-time and world-count overlay
 - `F5` transactionally reload tuning, bindings, models, textures, enemy/relic
   definitions, and the current level; invalid changes leave play state intact
 - `Escape` pause/unpause
 
-Standalone editor workflow:
+Controlled level authoring workflow:
 
-- choose a level from the Levels panel
-- use the Hammer-style `4 View` layout: Camera, Top X/Z, Front X/Y, and Side
-  Z/Y panels
-- use the Camera viewport to select, place, or move props with ray picking
-- use the Top/Front/Side panels to select, place, move, pan, zoom, and draw on
-  exact orthographic grids; `Top Y`, `Front Z`, and `Side X` set each work plane
-- fly the FPS-style editor camera with `WASD`/`QE`, right-drag to look, and
-  wheel to move forward/back
-- use the Keys workspace to inspect or remap editor keybindings; bindings are
-  stored locally in the browser
-- right-click Camera or orthographic views for context commands: select, place,
-  create brush, paste, duplicate, focus, delete, validate, and reset camera
-- use the Draw tool in Camera, Top, Front, or Side to create floor, wall, block,
-  directional slope, configurable cylinder, directional stair, and closed
-  terrain brushes
-- select terrain geometry to raise/lower its center, smooth, flatten,
-  regenerate, or generate a new seeded heightfield while preserving collision
-- Ctrl-click or Shift-click the object list for multi-selection, or drag a
-  marquee in an orthographic Select view; group operations preserve relative
-  placement and show primary/secondary selection outlines
-- use the XYZ axis selector, Snap toggle, grid value, transform inspector,
-  arrow/PageUp/PageDown nudges, and Move tool for precise group transforms
-- use the Palette for geometry, pickups, enemies, Anchors, hazards, and gates
-- use the Asset Browser to place runtime-supported models or stage files from
-  `source_assets/` for models, textures, materials, audio, dialogue/data,
-  levels, and config
-- use the dedicated Props, Assets, Events, Loot, Paths, Dialogue, and Validate
-  workspaces for level metadata, prop transforms, gameplay fields, guided
-  system editing, raw JSON escape hatches, and issue-to-prop navigation
-- use Prefabs to capture the current selection around its bottom-center pivot,
-  then place the validated group from Camera, Top, Front, or Side as one Undo
-  operation
-- use `F` to focus selected, `Ctrl+D` to duplicate, and `Ctrl+C`/`Ctrl+V` to
-  copy/paste selected props with the default bindings
-- `Validate` checks the current unsaved level through the Rust validator
-- `Save` writes the real level file only after validation passes
-- undo/redo coalesces a drag or focused field edit into one history step and
-  reports Saved again when history returns exactly to the on-disk snapshot
-- unsaved edits are stored as a browser-local draft; reopening the level offers
-  recovery and warns when the on-disk level changed since the draft began
+- build base-map geometry in a source DCC file, export it into `assets/`, and
+  reference it with the level's `base_map` field
+- make deliberate JSON changes under `levels/`, `prefabs/`, `data/`, and
+  `config/`; the game has no content-writing or freeform generation surface
+- use stable prop IDs and explicit asset imports, loot tables, paths, events,
+  dialogue blocks, materials, and atmosphere settings
+- run `cargo run -- validate` before launching or reloading a changed level
+- use `F5` in play mode to transactionally reload valid content; rejected
+  changes leave the current play state intact
 
-Runtime quick-adjust controls:
+The runtime can execute on-enter/proximity events, grant resources, spawn
+weighted loot rolls, queue level transitions, present timed or advanceable
+dialogue, persist level-local flags and once-event state, and move path-bound
+enemies or props. Continue also reconstructs removed authored props and loose
+generated loot instead of replaying or discarding the encounter state.
 
-- `Tab` toggle in-game level editor
-- `G` cycle editor mode: geometry, items, enemies, entities
-- left/right arrows cycle the current placement template
-- up/down arrows select existing props
-- mouse wheel adjusts placement distance
-- `Enter` place the current template at the snapped cursor
-- `Delete` remove the selected or nearest prop
-- `V` validate the current level in-editor
-- `P` save the current `levels/<level>.json` after validation passes
-- `R` hot reload the current level from disk
-
-Editor-supported authoring data now includes stable prop IDs, imported asset
-metadata, loot tables, authored paths, level events, and dialogue blocks. The
-runtime can execute on-enter/proximity events, grant resources, spawn weighted
-loot rolls, queue level transitions, log dialogue, set/save level-local flags,
-restore once-event state on continue, and move path-bound enemies/props.
-The editor HUD shows saved/unsaved state, validation state, cursor coordinates,
-selected prop count, placement distance, and the core edit keys while active.
-
-The editor expansion checklist lives in `docs/editor/LEVEL_EDITOR_BACKLOG.md`.
-
-The in-game HUD now mirrors these core verbs with a compact guide strip, thicker
-high-contrast block text, shot-result feedback, and the event feed.
+The in-game HUD keeps permanent chrome restrained and surfaces contextual
+interaction prompts, dialogue, shot-result feedback, and the event feed only
+when they matter. Health includes a delayed loss trail, the reticle reacts to
+combat results, and short level-arrival titles establish place without blocking play.
 
 See `docs/development/FOUNDATION.md` for the current runtime contracts and stable groundwork checklist.
 
@@ -452,24 +409,37 @@ Do not build forever content until the core can survive expansion.
 
 ## Current Limits
 
-The current build is still a foundation prototype, not the First Ascent
-Prototype.
+The current build now contains a test-protected First Ascent candidate, but it
+remains a foundation prototype until the Ashwalk route, combat, and reward loop
+pass the manual smoke checklist and feel worth replaying.
 
 Implemented now:
 
-- movement, sprint, dash, pause, readable guided HUD, standalone level editor,
-  in-game quick adjuster, audio feedback, level loading, config loading,
+- movement, sprint, dash, pause, readable guided HUD, audio feedback, level
+  loading, config loading,
   hurtbox damage, death/respawn, prototype prop shooting with solid-world
   obstruction, baseline data-driven enemy chase/attack, prototype resource
-  pickup/Anchor banking, authored relic pickups, deterministic enemy relic
-  rewards, owned-relic cycling, autosave/resume, basic cycle modifiers, and
-  full project content validation
+  pickup, explicit Anchor rites, authored relic pickups, stable-source enemy relic
+  rewards, named encounter/reward HUD, world-state autosave/resume, basic cycle modifiers, and
+  full project content validation; Ashwalk now composes those systems into a
+  compact readable climb with one hazard, paced resources, a relic choice, an
+  authored named Ash-Warden and relic drop, a summit rite, reusable mountain
+  reactions, and a return gate
 
 Not implemented yet:
 
 - advanced enemy AI, role-specific enemy behavior, production enemy models,
-  generated relic rolls/affixes, item comparison UI, full Anchor/Sanctuary UI,
-  full run-contract Cycle Director, and procedural route generation
+  generated relic rolls/affixes, item comparison UI, data-authored Anchor rite
+  variants and full Sanctuary UI,
+  a data-driven elite modifier, upgrade/perk choice, full run-contract Cycle
+  Director, and procedural route generation
+
+The deterministic prototype model kit can be regenerated without Blender or
+third-party Python packages:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/generate_prototype_models.ps1
+```
 
 
 ---

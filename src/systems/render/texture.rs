@@ -35,11 +35,10 @@ impl TextureManager {
         queue: &wgpu::Queue,
         layout: &wgpu::BindGroupLayout,
     ) -> wgpu::BindGroup {
-        // 2x2 single-pixel checkerboard. Combined with Linear filtering,
-        // the GPU interpolates between pixels, producing a smooth, fine-grained
-        // pattern that is much less visually distracting than a sharp checker.
-        let light = [180u8, 180, 180, 255];
-        let dark = [90u8, 90, 90, 255];
+        // Neutral low-contrast fallback. Per-instance role tints keep untextured
+        // blockout assets readable without turning every surface into a checker.
+        let light = [214u8, 211, 205, 255];
+        let dark = [176u8, 173, 168, 255];
         let data = [light, dark, dark, light].concat();
 
         let size = wgpu::Extent3d {

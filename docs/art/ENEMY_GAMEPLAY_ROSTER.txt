@@ -6,11 +6,20 @@ This file rethinks Cenotaph enemies by gameplay role first.
 The goal is not "many monsters." The goal is a readable enemy ecosystem where
 each enemy asks the player a different survival question during the climb.
 
+Visual Authority
+
+This is a gameplay roster, not a model-generation brief. The "Model read"
+entries preserve possible thematic intent only. They do not authorize a coding
+agent, procedural tool, or generative model to invent anatomy, equipment,
+ornament, or a production silhouette. Runtime placeholders remain one box,
+frustum, or octahedron until the developer supplies a sketch, reference,
+authored asset, or precise visual direction for that enemy.
+
 Core Rule
 
 Every enemy must have:
 - A clear combat job.
-- A clear silhouette.
+- A clear gameplay read, using scale, tint, motion, and timing while primitive.
 - A clear warning tell.
 - A clear counterplay option.
 - A reason to exist in an encounter group.

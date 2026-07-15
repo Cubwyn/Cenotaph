@@ -1,16 +1,135 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::core::persistence::{recover_interrupted_write, write_file_staged};
-use crate::data::world::level::validate_level_id;
+use crate::data::world::level::{
+    validate_level_id, ColliderType, PropData, RUNTIME_LOOT_ID_PREFIX,
+};
 use crate::game::cycle::CycleState;
 use crate::game::progression::RunProgress;
 use crate::game::relic::EquippedRelic;
 
 pub const SAVE_VERSION: u32 = 1;
 pub const DEFAULT_SAVE_PATH: &str = "save/cenotaph_save.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SavedRuntimeLoot {
+    pub id: String,
+    pub asset_id: String,
+    pub position: [f32; 3],
+    pub scale: [f32; 3],
+    pub item_id: Option<String>,
+    pub resource_value: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct LevelSaveSnapshot {
+    pub fired_level_events: Vec<String>,
+    pub level_flags: Vec<String>,
+    pub removed_prop_ids: Vec<String>,
+    pub runtime_loot: Vec<SavedRuntimeLoot>,
+    pub pending_mountain_reactions: Vec<String>,
+}
+
+impl SavedRuntimeLoot {
+    pub fn from_prop(prop: &PropData) -> Option<Self> {
+        let id = prop.id.as_deref()?;
+        if !id.starts_with(RUNTIME_LOOT_ID_PREFIX)
+            || (prop.item_id.is_none() && prop.resource_value == 0)
+        {
+            return None;
+        }
+
+        Some(Self {
+            id: id.to_string(),
+            asset_id: prop.asset_id.clone(),
+            position: prop.position,
+            scale: prop.scale,
+            item_id: prop.item_id.clone(),
+            resource_value: prop.resource_value,
+        })
+    }
+
+    pub fn to_prop(&self) -> PropData {
+        PropData {
+            id: Some(self.id.clone()),
+            display_name: None,
+            asset_id: self.asset_id.clone(),
+            position: self.position,
+            rotation: [0.0, 0.0, 0.0],
+            scale: self.scale,
+            collider_type: ColliderType::None,
+            surface_material: None,
+            brush_geometry: None,
+            is_climbable: false,
+            is_hurtbox: false,
+            item_id: self.item_id.clone(),
+            resource_value: self.resource_value,
+            anchor_id: None,
+            enemy_type: None,
+            enemy_health: 0.0,
+            light_color: None,
+            light_intensity: 0.0,
+            ambient_sound_id: None,
+            trigger_level_id: None,
+            loot_table_id: None,
+            path_id: None,
+            dialogue_id: None,
+            event_id: None,
+        }
+    }
+
+    fn validation_errors(&self, index: usize) -> Vec<String> {
+        let mut errors = Vec::new();
+        let label = format!("runtime_loot {} ('{}')", index, self.id);
+        if !self.id.starts_with(RUNTIME_LOOT_ID_PREFIX)
+            || self.id.len() == RUNTIME_LOOT_ID_PREFIX.len()
+        {
+            errors.push(format!(
+                "{} id must start with '{}' and include a suffix",
+                label, RUNTIME_LOOT_ID_PREFIX
+            ));
+        }
+        let asset_path = Path::new(&self.asset_id);
+        if self.asset_id.trim().is_empty()
+            || asset_path.is_absolute()
+            || !asset_path
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)))
+        {
+            errors.push(format!("{} asset_id must be a relative asset path", label));
+        }
+        if !self.position.iter().all(|value| value.is_finite()) {
+            errors.push(format!("{} position must contain finite numbers", label));
+        }
+        if !self
+            .scale
+            .iter()
+            .all(|value| value.is_finite() && value.abs() > f32::EPSILON)
+        {
+            errors.push(format!(
+                "{} scale must contain finite non-zero numbers",
+                label
+            ));
+        }
+        if self
+            .item_id
+            .as_ref()
+            .is_some_and(|item_id| item_id.trim().is_empty())
+        {
+            errors.push(format!("{} item_id must not be empty", label));
+        }
+        if self.item_id.is_some() == (self.resource_value > 0) {
+            errors.push(format!(
+                "{} must contain exactly one of item_id or resource_value",
+                label
+            ));
+        }
+        errors
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SaveFileHealth {
@@ -41,6 +160,12 @@ pub struct SaveData {
     pub fired_level_events: Vec<String>,
     #[serde(default)]
     pub level_flags: Vec<String>,
+    #[serde(default)]
+    pub removed_prop_ids: Vec<String>,
+    #[serde(default)]
+    pub runtime_loot: Vec<SavedRuntimeLoot>,
+    #[serde(default)]
+    pub pending_mountain_reactions: Vec<String>,
 }
 
 impl SaveData {
@@ -62,6 +187,9 @@ impl SaveData {
             equipped_relic_id: equipped_relic.equipped_id().map(ToOwned::to_owned),
             fired_level_events: Vec::new(),
             level_flags: Vec::new(),
+            removed_prop_ids: Vec::new(),
+            runtime_loot: Vec::new(),
+            pending_mountain_reactions: Vec::new(),
         }
     }
 
@@ -70,17 +198,24 @@ impl SaveData {
         progress: &RunProgress,
         equipped_relic: &EquippedRelic,
         cycle: &CycleState,
-        mut fired_level_events: Vec<String>,
-        mut level_flags: Vec<String>,
+        mut level_state: LevelSaveSnapshot,
     ) -> Self {
-        fired_level_events.sort();
-        fired_level_events.dedup();
-        level_flags.sort();
-        level_flags.dedup();
+        level_state.fired_level_events.sort();
+        level_state.fired_level_events.dedup();
+        level_state.level_flags.sort();
+        level_state.level_flags.dedup();
+        level_state.removed_prop_ids.sort();
+        level_state.removed_prop_ids.dedup();
+        level_state
+            .runtime_loot
+            .sort_by(|left, right| left.id.cmp(&right.id));
 
         let mut save = Self::from_runtime(level_name, progress, equipped_relic, cycle);
-        save.fired_level_events = fired_level_events;
-        save.level_flags = level_flags;
+        save.fired_level_events = level_state.fired_level_events;
+        save.level_flags = level_state.level_flags;
+        save.removed_prop_ids = level_state.removed_prop_ids;
+        save.runtime_loot = level_state.runtime_loot;
+        save.pending_mountain_reactions = level_state.pending_mountain_reactions;
         save
     }
 
@@ -127,6 +262,21 @@ impl SaveData {
         validate_unique_ids("relic_inventory", &self.relic_inventory, &mut errors);
         validate_unique_ids("fired_level_events", &self.fired_level_events, &mut errors);
         validate_unique_ids("level_flags", &self.level_flags, &mut errors);
+        validate_unique_ids("removed_prop_ids", &self.removed_prop_ids, &mut errors);
+        let runtime_loot_ids = self
+            .runtime_loot
+            .iter()
+            .map(|loot| loot.id.clone())
+            .collect::<Vec<_>>();
+        validate_unique_ids("runtime_loot ids", &runtime_loot_ids, &mut errors);
+        for (index, loot) in self.runtime_loot.iter().enumerate() {
+            errors.extend(loot.validation_errors(index));
+        }
+        validate_non_empty_ids(
+            "pending_mountain_reactions",
+            &self.pending_mountain_reactions,
+            &mut errors,
+        );
         if let Some(equipped_id) = self.equipped_relic_id.as_deref() {
             if equipped_id.trim().is_empty() {
                 errors.push("equipped_relic_id must not be empty when present".to_string());
@@ -313,6 +463,12 @@ fn validate_unique_ids(label: &str, values: &[String], errors: &mut Vec<String>)
     }
 }
 
+fn validate_non_empty_ids(label: &str, values: &[String], errors: &mut Vec<String>) {
+    if values.iter().any(|value| value.trim().is_empty()) {
+        errors.push(format!("{} must not contain empty ids", label));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,6 +478,7 @@ mod tests {
         RelicDefinition {
             id: "ash_splinter".to_string(),
             display_name: "Ash Splinter".to_string(),
+            pickup_asset: "pickups/relic_ash_splinter.obj".to_string(),
             family: "Sovereign".to_string(),
             rarity: "Common".to_string(),
             damage_multiplier: 1.2,
@@ -345,6 +502,9 @@ mod tests {
             equipped_relic_id: Some("ash_splinter".to_string()),
             fired_level_events: vec!["intro".to_string()],
             level_flags: vec!["door_open".to_string()],
+            removed_prop_ids: vec!["claimed_pickup".to_string()],
+            runtime_loot: Vec::new(),
+            pending_mountain_reactions: Vec::new(),
         }
     }
 
@@ -385,6 +545,9 @@ mod tests {
         assert_eq!(save.equipped_relic_id.as_deref(), Some("ash_splinter"));
         assert!(save.fired_level_events.is_empty());
         assert!(save.level_flags.is_empty());
+        assert!(save.removed_prop_ids.is_empty());
+        assert!(save.runtime_loot.is_empty());
+        assert!(save.pending_mountain_reactions.is_empty());
     }
 
     #[test]
@@ -393,16 +556,51 @@ mod tests {
         let equipped = EquippedRelic::new();
 
         let save = SaveData::from_runtime_with_level_state(
-            "editor_systems_test",
+            "foundation_test",
             &progress,
             &equipped,
             &CycleState::new(1),
-            vec!["arrival".to_string(), "arrival".to_string()],
-            vec!["opened_gate".to_string()],
+            LevelSaveSnapshot {
+                fired_level_events: vec!["arrival".to_string(), "arrival".to_string()],
+                level_flags: vec!["opened_gate".to_string()],
+                removed_prop_ids: vec!["spent_pickup".to_string()],
+                runtime_loot: Vec::new(),
+                pending_mountain_reactions: vec!["last_chain_severed".to_string()],
+            },
         );
 
         assert_eq!(save.fired_level_events, vec!["arrival".to_string()]);
         assert_eq!(save.level_flags, vec!["opened_gate".to_string()]);
+        assert_eq!(save.removed_prop_ids, vec!["spent_pickup".to_string()]);
+        assert_eq!(
+            save.pending_mountain_reactions,
+            vec!["last_chain_severed".to_string()]
+        );
+    }
+
+    #[test]
+    fn mountain_reaction_queue_allows_reusing_a_profile_in_order() {
+        let mut save = save_fixture("foundation_test", 1);
+        save.pending_mountain_reactions =
+            vec!["mountain_answer".to_string(), "mountain_answer".to_string()];
+
+        assert_eq!(save.validate(), Ok(()));
+    }
+
+    #[test]
+    fn runtime_loot_round_trips_without_serializing_engine_state() {
+        let loot = SavedRuntimeLoot {
+            id: "runtime_loot_0123_0".to_string(),
+            asset_id: "pickups/relic_chain_sigil.obj".to_string(),
+            position: [2.0, 3.0, 4.0],
+            scale: [0.35, 0.35, 0.35],
+            item_id: Some("debt_of_the_last_keeper".to_string()),
+            resource_value: 0,
+        };
+
+        assert!(loot.validation_errors(0).is_empty());
+        let restored = SavedRuntimeLoot::from_prop(&loot.to_prop()).unwrap();
+        assert_eq!(restored, loot);
     }
 
     #[test]
@@ -426,6 +624,9 @@ mod tests {
 
         assert!(save.fired_level_events.is_empty());
         assert!(save.level_flags.is_empty());
+        assert!(save.removed_prop_ids.is_empty());
+        assert!(save.runtime_loot.is_empty());
+        assert!(save.pending_mountain_reactions.is_empty());
     }
 
     #[test]

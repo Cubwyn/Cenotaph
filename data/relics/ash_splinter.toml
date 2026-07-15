@@ -1,5 +1,6 @@
 id = "ash_splinter"
 display_name = "Ash Splinter"
+pickup_asset = "pickups/relic_ash_splinter.obj"
 family = "Sovereign"
 rarity = "Common"
 damage_multiplier = 1.2

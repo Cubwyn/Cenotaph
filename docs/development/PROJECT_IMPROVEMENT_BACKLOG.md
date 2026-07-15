@@ -1,8 +1,7 @@
 # Project-Wide Improvement Backlog
 
 This is the ordered backlog for improvements that affect the game runtime,
-content pipeline, testing, and everyday development. Standalone editor work
-continues in `docs/editor/LEVEL_EDITOR_BACKLOG.md`.
+controlled content pipeline, testing, and everyday development.
 
 Status key: `[x]` complete, `[ ]` pending. Finish and verify one item before
 marking it complete.
@@ -12,17 +11,19 @@ marking it complete.
 - [x] Strict command parsing, safe level IDs, explicit play syntax, and useful
   help/level-list errors.
 - [x] Project doctor for layout, content, save health, source/runtime hygiene,
-  editor backups, and pending write sidecars.
+  pending write sidecars, and static level content budgets.
 - [x] Strict startup for tuning, bindings, enemy/relic registries, level JSON,
   and base-map geometry.
 - [x] Transactional F5 reload across config, bindings, registries, models,
   textures, and the current level.
-- [x] Shared staged writes with cross-process locking and interrupted-write
-  recovery for levels, prefabs, and saves.
+- [x] Staged save-game writes with cross-process locking and interrupted-write
+  recovery.
 - [x] Validated autosaves with a rolling last-known-good backup.
 - [x] Full project check covering format, all-target Clippy, tests, and doctor.
-- [ ] Version every long-lived authored data contract and add explicit migration
-  functions instead of ad hoc compatibility defaults.
+- [x] Add explicit level schema versioning and a shared version-0-to-version-1
+  migration path for all runtime load requests.
+- [ ] Version the remaining long-lived authored contracts and add explicit
+  forward-only migrations instead of ad hoc compatibility defaults.
 - [ ] Add save profiles/slots, metadata previews, manual backup restore, and
   forward-only save migrations.
 - [ ] Add a crash report containing build ID, active level, recent structured
@@ -35,10 +36,12 @@ marking it complete.
 - [ ] Build an asset dependency graph so reload can update only changed models,
   textures, definitions, and affected draw groups.
 - [ ] Add shader hot reload with validation and last-known-good pipeline fallback.
-- [ ] Add a runtime diagnostics overlay for frame time, physics time, draw calls,
-  triangles, entities, memory estimates, and reload status.
+- [x] Add an opt-in runtime diagnostics overlay for smoothed FPS/frame time and
+  enemy, loot, resource, cycle, and prop counts.
+- [ ] Expand runtime diagnostics with physics time, draw calls, triangles,
+  memory estimates, and reload status.
 - [ ] Add deterministic input recording/replay for reproducing movement, combat,
-  transition, and editor bugs.
+  transition, and content-reload bugs.
 - [ ] Add developer teleport, level bookmark, free-camera, time-scale, and
   invulnerability commands through the shared console.
 - [ ] Add a content packaging command that emits a clean runtime bundle and
@@ -46,6 +49,8 @@ marking it complete.
 
 ## Automated Confidence
 
+- [x] Add a headless First Ascent content contract and runtime-preparation test
+  covering route, hazard, resource, relic, loot, Anchor, and transition wiring.
 - [ ] Add headless gameplay scenarios for spawn, movement, combat, pickups,
   death, respawn, Anchor banking, events, and level transitions.
 - [ ] Add deterministic multi-level ascent simulations with seeded loot and cycle
@@ -54,7 +59,9 @@ marking it complete.
 - [ ] Add save interruption/fault-injection tests around every persistence phase.
 - [ ] Add render smoke captures for representative levels and compare nonblank
   output, framing, and key HUD regions.
-- [ ] Add performance budgets and regression checks for startup, reload, frame
+- [x] Add project-doctor warning budgets for per-level prop count, moving prop
+  count, and base-map triangles.
+- [ ] Add automated performance regression checks for startup, reload, frame
   time, collider count, and asset memory.
 - [ ] Add CI profiles for fast checks, full content validation, render smoke, and
   packaged-build smoke tests.
@@ -66,6 +73,12 @@ marking it complete.
 - [ ] Introduce stable entity handles so runtime state no longer depends on prop
   vector indices.
 - [ ] Separate authored level data from mutable runtime entity state.
+- [ ] Add separate render-mesh and simplified collision-proxy references so
+  detailed maps do not become equally detailed physics meshes.
+- [ ] Add view-frustum and distance culling, then measured LOD thresholds for
+  levels that exceed the compact-slice budget.
+- [ ] Move gameplay physics to a fixed-step accumulator with bounded substeps so
+  low frame rates do not change movement or combat behavior.
 - [ ] Add a queued event bus for gameplay, presentation, audio, save, and debug
   events with bounded history.
 - [ ] Add level streaming/loading states with progress, cancellation, and clean
@@ -77,6 +90,8 @@ marking it complete.
 
 ## World And Gameplay Tooling
 
+- [x] Honor authored enemy `loot_table_id` values through the deterministic
+  runtime loot spawner.
 - [ ] Add navmesh generation/import, validation, path preview, blocked-path
   diagnostics, and runtime navmesh reload.
 - [ ] Add encounter definitions, spawn groups, waves, budgets, and encounter
@@ -87,6 +102,10 @@ marking it complete.
   and conversation-state tests.
 - [ ] Add event graph tracing, breakpoint-style debug pauses, and fired-action
   history.
+- [ ] Add authored objective/wayfinding markers with conditions and debug
+  previews instead of relying on hard-coded HUD locations.
+- [x] Add a small generated material palette, recursive runtime texture loading,
+  OBJ/GLTF diffuse references, and validated base-map/prop material overrides.
 - [ ] Add run-contract and Cycle Director authoring data with deterministic
   preview/simulation tools.
 - [ ] Add relic affix generation, compatibility rules, balance summaries, and
@@ -96,6 +115,9 @@ marking it complete.
 
 ## Player-Facing Completeness
 
+- [x] Add a compact peripheral HUD, health loss trail, responsive reticle,
+  arrival title, movement camera response, grounded cadence, distinct combat
+  cues, and bounded transient gameplay particles.
 - [ ] Add settings UI for controls, mouse, audio, graphics, accessibility, and
   safe reset-to-default behavior.
 - [ ] Add save-slot UI with corruption/recovery messaging and profile metadata.
@@ -115,5 +137,5 @@ marking it complete.
 - [ ] Add configuration tiers for development, playtest, profiling, and release.
 - [ ] Add compatibility checks for GPU limits, audio availability, writable save
   paths, and unsupported platforms before gameplay starts.
-- [ ] Add automated backup retention policies for editor history, saves, logs,
-  screenshots, and crash reports.
+- [ ] Add automated backup retention policies for saves, logs, screenshots, and
+  crash reports.

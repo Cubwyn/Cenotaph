@@ -41,7 +41,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
         ProjectCommand::Validate => run_validation(),
         ProjectCommand::Doctor => run_doctor(),
-        ProjectCommand::Editor => developer::editor_server::run(),
         ProjectCommand::Continue => run_game("continue".to_string()),
         ProjectCommand::Play { level_id } => {
             resolve_level_path(".", &level_id).map_err(invalid_input)?;

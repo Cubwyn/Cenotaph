@@ -1,7 +1,5 @@
 /target
 /save
-/levels/.editor_backups/
-/prefabs/.editor_backups/
 /levels/.*.lock
 /levels/.*.recover
 /levels/.*.tmp.*

@@ -1,103 +1,69 @@
-# Cenotaph Model Reset Plan
+# Cenotaph Primitive Placeholder Policy
 
 ## Purpose
 
-This is the scratch rebuild plan for models and placeholder assets.
+The runtime uses deliberately neutral geometry while Cenotaph's visual forms
+remain developer-directed. Placeholder models must expose gameplay scale,
+collision, material, movement, and placement without pretending to solve enemy,
+relic, Anchor, hazard, or architectural design.
 
-The current assets can remain as scaffolding while the new model set is built.
-The reset should be incremental: replace one category at a time, validate, then
-move to the next.
+## Hard Rule
 
-## Phase 0: Freeze The Current Scaffolding
+Every model under these runtime directories is exactly one basic primitive:
 
-- Keep `assets/Cube.obj`, current test maps, and current enemy silhouettes for
-  compatibility.
-- Do not delete or rename referenced assets during the reset.
-- Treat new asset paths as the future-stable IDs.
+- `assets/enemies/`
+- `assets/pickups/`
+- `assets/props/`
+- `assets/world/`
 
-## Phase 1: Build The Blockout Kit
+Allowed placeholder forms are a box, frustum, or octahedron. A placeholder may
+change dimensions, tint, emissive role, motion, or authored scale. It must not
+combine primitives or add limbs, wings, chains, rings, faces, weapons, clothing,
+ornament, damage, asymmetry, or lore-derived iconography.
 
-Create:
+`cargo run -- validate` enforces one mesh part, no more than eight physics
+vertices, and no more than twelve render or physics triangles for these files.
 
-- `assets/props/anchor_placeholder.obj`
-- `assets/props/resource_shard.obj`
-- `assets/props/hazard_ash_spike.obj`
-- `assets/level_kit/route_platform.obj`
-- `assets/level_kit/route_ramp.obj`
-- `assets/level_kit/route_gate.obj`
+## Current Mapping
 
-Acceptance:
+- Enemies use boxes or one octahedron with role-specific proportions.
+- Relics and resource pickups use one octahedron each.
+- The Oath Stone uses one frustum.
+- Platforms, walls, and the transition marker use one box each.
+- The Anchor and hurtbox marker use one octahedron each.
 
-- assets load through validation
-- assets can replace cube props in `foundation_test`
-- collider sizes remain obvious from the silhouette
+These forms are not canon. Their proportions are debugging information, not
+permission to infer anatomy or production art.
 
-## Phase 2: Replace Foundation Test Props
+## Readability
 
-Update `levels/foundation_test.json` so the arena no longer depends on cube
-visuals for gameplay meaning.
+Until real assets exist, communicate gameplay through:
 
-Replace:
+- dimensions and scale
+- role tint and material
+- speed, elevation, pathing, wind-up, and stagger
+- particles, fog, lighting, and encounter framing
+- names and HUD state where appropriate
 
-- resource cube with `props/resource_shard.obj`
-- Anchor cube with `props/anchor_placeholder.obj`
-- hurtbox cube with `props/hazard_ash_spike.obj`
-- transition cube with `level_kit/route_gate.obj`
+Do not add geometry to solve readability.
 
-Keep one decorative cube only if needed for loader sanity testing.
+## Replacement Gate
 
-## Phase 3: Build The First Route Choice
+A primitive may be replaced only when the developer supplies a reference,
+sketch, model, or explicit visual direction for that asset. Replacement work
+must preserve its stable runtime path unless an intentional migration is made.
+An AI coding pass must not generate or commission the replacement on its own.
 
-Use the blockout kit to make two readable paths:
+## Regeneration
 
-- safe route: slower, fewer hazards
-- dangerous route: shorter, includes a hurtbox hazard and resource reward
-
-Acceptance:
-
-- player can identify the route split
-- both routes reconnect near the Anchor
-- resource banking has a reason to exist
-
-## Phase 4: Enemy Production Pass
-
-Once movement, route choice, and resource pressure feel sane, replace enemy
-silhouette placeholders with production direction models.
-
-Order:
-
-1. Burdened
-2. Ashbound
-3. Censer
-4. Chainrunner
-5. Harpy
-
-Acceptance:
-
-- silhouette matches `visual_tell`
-- collider still fits
-- manual smoke confirms readability during combat
-
-## Phase 5: Texture Pass
-
-Only after the geometry reads:
-
-- anchor pale gold/stone
-- resource glow
-- hazard ember/ash
-- route kit dark stone
-- relic blue-green accent
-
-Textures should support silhouettes, not rescue unclear models.
-
-## Always Run
+After changing primitive dimensions, rebuild the kit with:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/project_check.ps1
+powershell -ExecutionPolicy Bypass -File scripts/generate_prototype_models.ps1
 ```
 
-Manual check:
+Then run:
 
 ```powershell
-cargo run -- foundation_test
+cargo run -- validate
 ```

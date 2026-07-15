@@ -9,6 +9,7 @@ It should stay practical.
 Lore and dream logic belong in `LORE.md`.
 
 Content templates belong in `CONTENT_GUIDE.md`.
+HUD presentation and extension rules belong in `UI_STYLE.md`.
 
 Implementation notes belong in `../development/TECHNICAL_NOTES.md`.
 
@@ -66,9 +67,8 @@ Start at Anchor or Sanctuary
 Choose route
 Enter danger
 Fight / explore / recover relics
-Decide whether to continue or return
 Reach next Anchor
-Bank progress
+Choose a rite: bind Ash, mend the vessel, or refuse the claim
 Push upward
 ```
 
@@ -76,15 +76,26 @@ Push upward
 
 ### Anchor
 
-A checkpoint and banking point.
+A ritual checkpoint where the player makes a temporary claim against the
+mountain. Merely approaching an Anchor must never perform a transaction.
 
 Functions:
 
 - Respawn point
 - Partial recovery
-- Resource banking
+- Bind carried Ash into Bound Ash
+- Present an explicit risk/recovery decision
 - Route checkpoint
 - Possible fast travel node
+
+Current baseline rite:
+
+- **Bind the Cinders:** claim the Anchor, bind all carried Ash, and set respawn.
+- **Mend the Vessel:** spend Bound Ash to restore health.
+- **Turn from the Stone:** leave without changing the ascent state.
+
+Future rites may add relic attunement, route changes, or stratum-specific costs,
+but should remain authored ritual decisions rather than extraction menus.
 
 ### Sanctuary
 
@@ -94,10 +105,10 @@ Functions:
 
 - Inventory management
 - Perk allocation
-- Storage
-- Vendors
+- Relic attunement
+- Memory and build rites
 - NPC dialogue
-- Objective board
+- Stratum interpretation
 - Cycle transition point
 
 ### Routes
@@ -603,7 +614,10 @@ See `../development/TECHNICAL_NOTES.md`.
 
 ## Save System
 
-Stores player memory and persistent progression.
+Stores player memory, persistent progression, fired event state, removed
+authored prop IDs, and loose generated loot. Event-linked mechanical changes and
+their authored consequences must be committed together; unfinished mountain
+answers resume in order.
 
 See `../development/TECHNICAL_NOTES.md`.
 

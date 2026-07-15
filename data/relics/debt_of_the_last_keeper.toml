@@ -1,0 +1,10 @@
+id = "debt_of_the_last_keeper"
+display_name = "Debt of the Last Keeper"
+pickup_asset = "pickups/relic_chain_sigil.obj"
+family = "Sovereign"
+rarity = "Rare"
+damage_multiplier = 1.35
+cooldown_multiplier = 1.25
+range_multiplier = 0.9
+hit_stun_bonus = 0.12
+flavor_text = "The Anchor forgave its bearer. The mountain did not."

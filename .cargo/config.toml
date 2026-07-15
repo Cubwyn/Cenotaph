@@ -1,7 +1,6 @@
 [alias]
 dev-check = "check --all-targets"
 doctor = "run -- doctor"
-editor = "run -- editor"
 levels = "run -- levels"
 play-foundation = "run -- play foundation_test"
 resume = "run -- continue"

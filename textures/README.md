@@ -1,14 +1,13 @@
 # Textures Directory
 
-Place PNG or JPG texture files in this directory. They will be automatically
-loaded by the engine at startup and mapped to mesh parts by filename.
+Place PNG or JPG texture files in this directory. Nested folders are supported;
+materials reference paths relative to this directory.
 
-The engine scans this directory on boot and uploads all `.png` and `.jpg` files
-to the GPU as texture resources. Textures are looked up by the mesh/material
-texture name produced by the model loader; when a referenced texture is missing,
-the renderer uses its fallback checkerboard.
+The engine scans this directory on boot and uploads supported images to the GPU.
+Textures can come from OBJ/GLTF material references or explicit level and prop
+surface materials. Missing references use a neutral fallback.
 
 ## Notes
-- Textures are gitignored (they're large binary files)
-- Supported formats: PNG, JPG/JPEG
-- If no textures are found, a checkerboard fallback is shown
+- `cenotaph/` contains the small generated prototype kit.
+- Regenerate it with `scripts/generate_prototype_textures.ps1`.
+- Supported formats: PNG, JPG/JPEG, WebP, BMP, and TGA.

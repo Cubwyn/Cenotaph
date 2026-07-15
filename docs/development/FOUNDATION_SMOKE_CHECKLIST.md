@@ -32,14 +32,61 @@ Pass checks:
 - [ ] `Shift` sprint changes speed and drains stamina on the HUD.
 - [ ] `Q` dash fires once per press, consumes stamina, and respects cooldown.
 - [ ] `I` does not swap relics before at least two relics are owned.
+- [ ] `F1` toggles a stable FPS/frame-time and world-count panel without
+  changing movement or resizing the normal HUD.
 - [ ] `F5` reloads tuning, bindings, models, textures, enemy/relic definitions,
   and the current level together.
 - [ ] A malformed file makes `F5` report a rejected reload while the current
   playable scene remains intact.
-- [ ] HUD text is readable against bright and dark map surfaces, including the
-  guide strip and event feed.
+- [ ] HUD text is readable against bright and dark map surfaces; interaction
+  prompts and dialogue appear contextually instead of occupying the screen at
+  all times.
 - [ ] `Escape` pauses, releases cursor, shows pause overlay, and resumes cleanly.
-- [ ] Ambient audio starts, pauses, and resumes with the game.
+- [ ] Non-tonal wind/pressure ambience starts, pauses, and resumes with the game.
+- [ ] Fire, hits, pickups, blocking, movement, rites, and death emit no
+  synthesized one-shot tones while authored recordings are absent.
+
+## First Ascent Loop
+
+- [ ] The opening alcove is safe, readable, and cannot trap the player between
+  its walls.
+- [ ] Interacting with the Oath Stone fires its dialogue/resource event once;
+  walking past it without interacting does not fire it.
+- [ ] Dialogue advances automatically or one line per `E` press, and the same
+  press does not also fire a second world interaction.
+- [ ] Pale waystones make the compact climb readable without permanent HUD
+  instructions or oversized test walls.
+- [ ] The Ash Spike Crossing is visible before entering its damage radius.
+- [ ] Trail resources remain unsecured until the summit Anchor and are lost on
+  death before banking.
+- [ ] The field relic pickup is readable and later pickups do not silently
+  replace the equipped relic.
+- [ ] The Ash-Warden has no distant enemy marker or named health bar; both
+  appear only when its authored activation range begins combat.
+- [ ] Defeating the named Ash-Warden spawns `Debt of the Last Keeper` in the
+  world, removes its named encounter HUD, and triggers the authored red
+  fog/light/ash mountain reaction.
+- [ ] Oath Stone dialogue, Warden death, generated loot, and Anchor flags never
+  place a literal `DEBUG` event in the live HUD.
+- [ ] Claiming `Debt of the Last Keeper` shows its full name, rarity, and whether
+  it was equipped or stored.
+- [ ] Approaching the summit Anchor shows `COMMUNE WITH ANCHOR` but does not
+  bind Ash automatically.
+- [ ] `E` opens the Anchor Rite; movement keys change the selected rite without
+  moving the player, held primary fire does not fire, and `E` confirms it.
+- [ ] Attempting to bind the First Anchor before defeating the Ash-Warden shows
+  the unmet Last Chain requirement and does not claim or autosave the Anchor.
+- [ ] `BIND THE CINDERS` converts carried Ash to Bound Ash, sets the local
+  respawn point, and triggers the cold first-claim mountain reaction once.
+- [ ] Returning to an Anchor whose one-shot claim event already fired can bind
+  it again without replaying the event or reporting an error.
+- [ ] Binding immediately after the Warden falls lets both mountain reactions
+  complete in order instead of replacing the first reaction.
+- [ ] `MEND THE VESSEL` spends the configured Bound Ash only while wounded;
+  insufficient Ash and an unwounded vessel do not spend anything.
+- [ ] `TURN FROM THE STONE` closes the rite without changing resources or the
+  active Anchor.
+- [ ] The return gate loads `foundation_test` after the Anchor area is reached.
 
 ## Foundation Test Arena
 
@@ -53,7 +100,8 @@ Pass checks:
 
 - [ ] Decorative, resource, Anchor, static, enemy, hurtbox, and trigger props render.
 - [ ] Walking over the small resource prop logs unsecured resource collection.
-- [ ] Walking into the Anchor logs activation and banks unsecured resource.
+- [ ] Walking near the Anchor does not activate it; interacting and choosing
+  `BIND THE CINDERS` claims it and binds carried Ash.
 - [ ] Walking over a relic pickup adds it to owned relics; the first relic
   equips, later relics are stored without replacing the equipped relic.
 - [ ] Pressing `I` after owning at least two relics cycles the equipped relic and
@@ -70,133 +118,34 @@ Pass checks:
 - [ ] Enemy chases when inside activation range.
 - [ ] Enemy attack wind-up/cooldown deals damage without rapid-fire damage spam.
 - [ ] Hurtbox proximity damages the player at a readable interval.
-- [ ] Player death triggers hit feedback, death audio, delayed respawn, and health
-  restoration.
+- [ ] Player death triggers visual feedback, delayed respawn, and health
+  restoration without a synthesized death sting.
 - [ ] Transition trigger loads the target level without panic.
 
-## Standalone Level Editor
+## Controlled Content Validation
 
 Run:
 
 ```powershell
-cargo run -- editor
+cargo run -- validate
+cargo run -- play foundation_test
 ```
 
 Pass checks:
 
-- [ ] The terminal prints a localhost URL and the browser loads the editor.
-- [ ] Opening an `/api/*` URL without the printed token returns `403`; the
-  browser editor loaded from the printed URL can still list levels.
-- [ ] The Levels panel lists existing `levels/*.json` files with names and prop
-  counts.
-- [ ] Selecting `movement_test` loads its props into the object list, Camera
-  viewport, and Top/Front/Side orthographic panels.
-- [ ] `4 View` shows Camera, Top X/Z, Front X/Y, and Side Z/Y panels; `Camera`
-  returns to a single 3D viewport.
-- [ ] `WASD`/`QE`, mouse wheel, right-drag look, and `Reset Camera` navigate the
-  FPS-style viewport without losing selection or dirty state; moving the mouse
-  right turns the Camera view right.
-- [ ] The Keys workspace shows current bindings, can remap a command, persists
-  the new binding after refresh, and Reset restores defaults.
-- [ ] Create, Props, Assets, Events, Loot, Paths, Dialogue, Validate, and Keys
-  workspaces switch without resizing or hiding the active viewport.
-- [ ] Right-click opens the editor command menu without the browser menu; a
-  right-drag still looks/pans instead of opening the menu.
-- [ ] Context commands can select/place/create brush/focus/duplicate/delete and
-  validate without saving unexpected files.
-- [ ] Orthographic panels can pan with right/middle drag, zoom with mouse wheel,
-  select props, place props, and move selected props on visible axes.
-- [ ] Ctrl-click adds/removes props, Shift-click selects object-list ranges,
-  Select All/Invert work, and a Select-tool drag in an orthographic panel
-  marquee-selects every intersecting prop with one white primary outline and
-  teal secondary outlines.
-- [ ] Palette placement creates geometry, pickups, enemies, Anchors, hazards,
-  and gates at ray-picked 3D ground positions.
-- [ ] Place and Draw work independently in Camera, Top, Front, and Side; placing
-  in both bottom viewports creates a prop, and drawing in Front/Side extrudes on
-  the configured Front Z/Side X work plane instead of the Top Y plane.
-- [ ] The Draw tool drag-creates floor, wall, block, slope, cylinder, stair, and
-  terrain brush geometry using the configured extrusion, thickness, work plane,
-  direction, segment, step, terrain grid, relief, and seed values.
-- [ ] Slope direction, cylinder side count, and stair step/direction controls
-  create visible Mesh-collider brushes that pass validation, save, reload, and
-  hot reload without degenerate-face or missing-asset errors.
-- [ ] A terrain brush is a closed mesh, exposes Raise/Lower/Smooth/Flatten and
-  seed regeneration controls, keeps its raw 162+ vertex mesh collapsed by
-  default, and still passes validation after sculpting.
-- [ ] Prefabs lists Basic Room Shell; placing it from Top, Front, and Side adds
-  five selected props with unique IDs, validates successfully, and one Undo
-  removes the whole group.
-- [ ] Create from Selection writes a reusable relative prefab without dirtying
-  the current level; overwriting or deleting it creates an ignored backup, and
-  traversal-like prefab IDs are rejected by the server.
-- [ ] Select and Move tools can ray-pick props and move them on the X/Z plane.
-- [ ] Multi-selected props move together without changing relative spacing;
-  XYZ/X/Y/Z constraints, Snap, grid size, pivot input, nudges, yaw, scale, and
-  reset controls affect the intended axes only.
-- [ ] One drag or focused numeric edit requires one Undo, Redo reapplies it,
-  and undoing back to the loaded snapshot changes the level badge from Unsaved
-  to Saved.
-- [ ] After an edit, the level badge advances from Draft pending to Draft saved
-  locally; reopening the level offers recovery, and one Undo from the recovered
-  draft restores the exact on-disk level and clears the local draft.
-- [ ] Default `F`, `Ctrl+D`, `Ctrl+C`, and `Ctrl+V` focus, duplicate, copy, and
-  paste selected props.
-- [ ] The Asset Browser lists model, texture, material, audio, dialogue/data,
-  level, and config files; runtime model clicks become placeable templates, and
-  source-only file clicks stage `asset_imports` without saving until `Save`.
-- [ ] The Inspector edits level metadata, prop asset, transform, collider,
-  gameplay fields, and advanced graph JSON.
-- [ ] Validate reports `OK` for good data and shows issue rows for broken data.
-- [ ] Save writes the real `levels/<level>.json` only after validation passes.
-- [ ] Saving over an existing level creates a backup in
-  `levels/.editor_backups/`.
-- [ ] Running the game on the same level hot reloads clean saved changes.
-
-## Runtime Quick Adjuster
-
-Run:
-
-```powershell
-cargo run -- movement_test
-```
-
-Pass checks:
-
-- [ ] `Tab` toggles editor mode and shows the editor HUD panel.
-- [ ] While editor mode is active, pickups, hurtboxes, enemy AI, combat, and
-  transition triggers do not mutate the level during editing.
-- [ ] Mouse look and movement can still be used to navigate the level.
-- [ ] The editor cursor snaps to the crosshair surface or placement distance.
-- [ ] `G` cycles geometry, item, enemy, and entity placement modes.
-- [ ] Left/right arrows cycle templates within the active mode.
-- [ ] `Enter` places geometry brushes, resource/relic pickups, enemies, Anchors,
-  hazards, and transition gates into the live level.
-- [ ] Up/down arrows select existing props and `Delete` removes the selected prop.
-- [ ] `V` validates the current level in-editor and updates the editor HUD check
-  row with `OK`, `CHECK NEEDED`, or an issue count.
-- [ ] `P` writes the current level JSON after validation passes; invalid data is
-  blocked with HUD feedback and detailed console errors.
-- [ ] `R` reloads the current level from disk; dirty levels require pressing `R`
-  twice before unsaved edits are discarded.
-- [ ] External edits to `levels/<current>.json` hot reload while the editor is
-  clean and warn instead of overwriting when dirty.
-- [ ] `cargo run -- validate` catches broken editor-authored graph data:
-  duplicate IDs, missing model assets, bad loot table relic IDs, missing
-  paths/events/dialogues, invalid event actions, and malformed path waypoints.
-- [ ] A level with an `OnEnter` or proximity event can grant resource, spawn
-  loot from a loot table, print dialogue, set a level-local flag, or queue a
-  level transition during play mode.
-- [ ] Once-only level events do not refire after saving and continuing, and
+- [ ] Validation catches duplicate IDs, missing model assets, invalid loot-table
+  relic IDs, unresolved paths/events/dialogues, invalid event actions, and
+  malformed path waypoints; props with authored loot tables require stable IDs.
+- [ ] `F5` transactionally reloads valid tuning, bindings, models, textures,
+  registries, and current-level data without restarting the game.
+- [ ] Invalid content is rejected with actionable console output while the
+  currently loaded play state remains intact.
+- [ ] An `OnEnter`, proximity, or interaction event can grant resources, spawn
+  loot, present dialogue, set a level-local flag, or queue a transition.
+- [ ] Once-only events do not refire after saving and continuing, and
   flag-gated events wait until their required level flag has been set.
-- [ ] A prop/enemy with a valid `path_id` follows its authored path in play mode
-  and stops/loops according to the path definition.
-
-Useful advanced-editor test level:
-
-```powershell
-cargo run -- editor_systems_test
-```
+- [ ] A prop or enemy with a valid `path_id` follows its authored path and
+  stops or loops according to the path definition.
 
 ## Save / Continue
 
@@ -212,7 +161,14 @@ Pass checks:
 - [ ] Banked resource, active cycle, owned relic count, and equipped relic are
   restored in the HUD/console output.
 - [ ] Fired once-events and level-local event flags are restored from the save
-  file instead of replaying editor-authored rewards on continue.
+  file instead of replaying authored rewards on continue.
+- [ ] Continuing after defeating the Ash-Warden does not revive it; an
+  uncollected generated relic remains in the world, while a collected relic does
+  not respawn.
+- [ ] Moving an authored Anchor while keeping its `anchor_id` makes continue use
+  the new position; removing that Anchor clears the binding and uses level spawn.
+- [ ] Obsolete saved event, flag, reaction, relic, and removed-prop IDs are
+  discarded once and absent from the compatibility-cleanup autosave.
 - [ ] Runtime autosaves remain local developer state and do not appear as
   trackable project content.
 - [ ] `cargo doctor` reports the primary save and its recovery state accurately.

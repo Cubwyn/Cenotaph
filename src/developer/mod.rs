@@ -2,4 +2,3 @@
 
 pub mod commands;
 pub mod doctor;
-pub mod editor_server;

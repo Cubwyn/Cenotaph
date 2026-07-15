@@ -27,6 +27,10 @@ Every content addition should support at least one of the following:
 5. Replayability
 6. Mystery
 
+Content should also respect the solo production model. Prefer additions that can
+be built from reusable assets, data-driven variants, systemic rules, and strong
+presentation rather than large amounts of one-off art.
+
 ---
 
 # Content Pack Philosophy
@@ -114,6 +118,9 @@ Before adding content, answer:
 - [ ] What is the counterplay?
 - [ ] What can be expanded later?
 - [ ] Does it work inside an ascent?
+- [ ] Can it be built, tested, and maintained with solo-dev asset constraints?
+- [ ] Does it reuse or extend existing systems, silhouettes, materials, or
+      content rules?
 
 ---
 
@@ -241,7 +248,7 @@ It teaches the player how to climb, fight, find relics, and survive.
 
 ### Future Additions
 
-- [ ] First named elite
+- [x] First named elite: The Ash-Warden, Bearer of the Last Chain
 - [ ] First Ash-Walk boss
 - [ ] Buried relic cache event
 - [ ] Ash storm run contract
@@ -701,6 +708,12 @@ The Breach provides the endgame ascent and transition into future Cycles.
 # Relic Template
 
 Use this when designing new relics.
+
+Every implemented relic lives in `data/relics/*.toml` and owns its `id`,
+`display_name`, `pickup_asset`, family, rarity, combat multipliers, hit-stun
+bonus, and flavor text. `pickup_asset` is relative to `assets/` and may reuse an
+existing `.obj`, `.gltf`, or `.glb` silhouette. Adding a relic must not require
+another hard-coded Rust asset match.
 
 ## Relic Name
 

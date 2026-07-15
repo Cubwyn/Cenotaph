@@ -26,6 +26,7 @@ pub struct RenderAsset {
 /// Groups all instances of a single asset for one instanced draw call.
 pub struct DrawGroup {
     pub asset_id: String,
+    pub texture_override: Option<String>,
     pub num_instances: u32,
     pub instance_buffer: wgpu::Buffer,
 }

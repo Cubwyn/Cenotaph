@@ -8,5 +8,6 @@ pub mod hud;
 pub mod instance;
 pub mod lighting;
 pub mod mesh;
+pub mod particles;
 pub mod pipeline;
 pub mod texture;

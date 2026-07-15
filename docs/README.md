@@ -6,6 +6,8 @@ find and historical inventories are not mistaken for live contracts.
 
 ## Design
 
+- [`design/IDENTITY_CONTRACT.md`](design/IDENTITY_CONTRACT.md): top-level identity guardrail for design and coding agents
+- [`design/ASH_WALK_PILGRIMAGE.md`](design/ASH_WALK_PILGRIMAGE.md): current playable identity milestone and acceptance gate
 - [`design/SYSTEMS.md`](design/SYSTEMS.md): gameplay and technical systems map
 - [`design/CONTENT_GUIDE.md`](design/CONTENT_GUIDE.md): content templates and expansion rules
 - [`design/LORE.md`](design/LORE.md): setting, tone, and narrative rules
@@ -18,11 +20,10 @@ find and historical inventories are not mistaken for live contracts.
 - [`development/TECHNICAL_NOTES.md`](development/TECHNICAL_NOTES.md): architecture direction and open technical work
 - [`development/PROJECT_IMPROVEMENT_BACKLOG.md`](development/PROJECT_IMPROVEMENT_BACKLOG.md): ordered runtime, tooling, and reliability work
 
-## Editor
+## Content Authoring
 
-- [`editor/LEVEL_EDITOR_BACKLOG.md`](editor/LEVEL_EDITOR_BACKLOG.md): end-to-end authoring backlog and definition of done
-- [`../tools/level_editor/README.md`](../tools/level_editor/README.md): standalone editor implementation map
 - [`../prefabs/README.md`](../prefabs/README.md): reusable prop-group schema and safety rules
+- [`art/ASSET_GUIDE.md`](art/ASSET_GUIDE.md): source-to-runtime asset workflow
 
 ## Art And Assets
 

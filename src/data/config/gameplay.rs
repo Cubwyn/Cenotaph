@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use winit::keyboard::KeyCode;
 
+use super::ui::UiConfig;
+use super::visuals::VisualConfig;
+
 type KeyBindings = HashMap<String, Option<KeyCode>>;
 const TUNING_PATH: &str = "config/tuning.toml";
 const BINDINGS_PATH: &str = "config/bindings.toml";
@@ -35,17 +38,6 @@ pub(crate) const REQUIRED_BINDING_ACTIONS: &[&str] = &[
     "debug_spawn_chainrunner",
     "debug_spawn_harpy",
     "debug_clear_enemies",
-    "editor_toggle",
-    "editor_place",
-    "editor_delete",
-    "editor_save",
-    "editor_reload",
-    "editor_validate",
-    "editor_next_mode",
-    "editor_next_template",
-    "editor_previous_template",
-    "editor_select_next",
-    "editor_select_previous",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -59,6 +51,8 @@ pub struct GameConfig {
     pub world: WorldConfig,
     pub lighting: LightingConfig,
     pub debug: DebugConfig,
+    pub ui: UiConfig,
+    pub visuals: VisualConfig,
     // KeyCode is loaded manually because winit does not serialize it.
     #[serde(skip_serializing, skip_deserializing)]
     pub keys: KeyBindings,
@@ -104,6 +98,8 @@ impl GameConfig {
             world: tuning.world,
             lighting: tuning.lighting,
             debug: tuning.debug,
+            ui: tuning.ui,
+            visuals: tuning.visuals,
             keys,
         })
     }
@@ -202,17 +198,6 @@ fn default_bindings() -> KeyBindings {
         ("debug_spawn_chainrunner", "F10"),
         ("debug_spawn_harpy", "F11"),
         ("debug_clear_enemies", "F12"),
-        ("editor_toggle", "TAB"),
-        ("editor_place", "ENTER"),
-        ("editor_delete", "DELETE"),
-        ("editor_save", "P"),
-        ("editor_reload", "R"),
-        ("editor_validate", "V"),
-        ("editor_next_mode", "G"),
-        ("editor_next_template", "RIGHT"),
-        ("editor_previous_template", "LEFT"),
-        ("editor_select_next", "DOWN"),
-        ("editor_select_previous", "UP"),
     ]
     .into_iter()
     .map(|(action, key)| (action.to_string(), parse_key(key)))
@@ -368,6 +353,8 @@ impl Default for CombatConfig {
 pub struct WorldConfig {
     pub draw_distance: f32,
     pub fog_density: f32,
+    pub anchor_interaction_radius: f32,
+    pub anchor_mend_cost: u32,
 }
 
 impl Default for WorldConfig {
@@ -375,6 +362,8 @@ impl Default for WorldConfig {
         Self {
             draw_distance: 500.0,
             fog_density: 0.008,
+            anchor_interaction_radius: 2.75,
+            anchor_mend_cost: 25,
         }
     }
 }

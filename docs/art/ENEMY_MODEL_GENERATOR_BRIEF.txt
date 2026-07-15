@@ -1,297 +1,31 @@
-CENOTAPH ENEMY MODEL GENERATOR BRIEF
+CENOTAPH ENEMY MODEL GENERATION POLICY
 
-Purpose
+STATUS
 
-This file describes enemy 3D model directions for Cenotaph: The Great Omission.
-Use it as a generator brief for game-ready enemy meshes, material prompts, and
-silhouette references.
+Automatic enemy model design is disabled.
 
-Gameplay-first enemy roles, counterplay, and encounter usage live in
-ENEMY_GAMEPLAY_ROSTER.txt. This file should follow that roster.
+Coding agents and asset generators must not infer anatomy, clothing, weapons,
+ornament, damage, posture, materials, or iconography from an enemy name, role,
+behavior tag, lore entry, or gameplay description.
 
-Important context:
-- Starter enemy definitions exist for Ashbound, Burdened, Censer, Chainrunner,
-  and Harpy.
-- Starter enemy definitions currently use low-poly authored silhouette meshes
-  under `assets/enemies/`.
-- The baseline runtime behavior is activation-gated chase and wind-up melee
-  attack; production visual identity and animation readability still need real
-  authored models.
-- All enemies must fit the same visual language: mountain ruin, ritual decay,
-  heavy pressure, readable silhouettes, and weathered material surfaces.
+CURRENT RUNTIME RULE
 
-Global Model Rules
+Every enemy placeholder is one neutral primitive. Width, height, depth, tint,
+movement, elevation, timing, and HUD treatment may communicate gameplay role.
+Compound geometry and production-looking generated silhouettes are forbidden.
 
-- Keep models game-ready, not cinematic.
-- Prioritize silhouette clarity from a first-person view.
-- Use asymmetry, worn edges, dents, tears, and patched materials.
-- Favor stone, rusted iron, old cloth, leather, bone, soot, and tarnished brass.
-- Avoid bright fantasy colors, clean surfaces, or heroic proportions.
-- Make the enemy body easy to read at distance and while moving.
-- Leave room for animation and gameplay readability.
-- If the model has attachments, make them feel fused, carried, or badly repaired.
+The primitive is not canonical art and must not be described as a creature
+design. Enemy gameplay roles remain documented in ENEMY_GAMEPLAY_ROSTER.txt,
+but that roster does not authorize visual invention.
 
-1. Ashbound
+REPLACEMENT REQUIREMENT
 
-Gameplay role:
-Grunt and baseline melee pressure.
+Replace an enemy primitive only after the developer provides at least one of:
 
-Model direction:
-- Thin, ash-covered pilgrim or half-collapsed humanoid.
-- Simple readable body shape: head, torso, arms, legs.
-- Hunched posture, forward lean, and low-status silhouette.
-- Should look dangerous in groups but not elite alone.
+- a sketch or paint-over
+- a visual reference set
+- an authored model
+- an explicit written shape and material direction for that specific enemy
 
-Materials and details:
-- Ash-stained cloth, cracked skin or stone, simple straps, broken pilgrim gear.
-- Optional small blade, clawed hands, or splintered tool.
-
-Animation feeling:
-- Direct jog, stumble, swipe, recover.
-
-2. Burdened
-
-Gameplay role:
-Tank and route blocker.
-
-Model direction:
-- Hunched humanoid or near-humanoid body.
-- Broad shoulders, heavy back, thick legs, and a weighted center of gravity.
-- The silhouette should look overloaded, as if carrying stone, debris, or a
-  fused burden that has become part of its frame.
-- Head should be partially hidden, masked, or compressed into the posture.
-- Hands should be large and worn, with a gripping or dragging stance.
-
-Materials and details:
-- Stone plates, rusted braces, rope lashings, torn pilgrim cloth, soot.
-- Cracks, scars, and patched seams.
-- Optional cargo or burden growth fused to the shoulders or spine.
-
-Animation feeling:
-- Slow steps, heavy turns, shoulder sway, grinding weight.
-
-Generator note:
-- This is the current canonical foundation enemy. The first production model
-  should preserve the readable wide, overloaded silhouette from the low-poly
-  gameplay placeholder.
-
-3. Censer
-
-Gameplay role:
-Glass cannon and fragile high-damage attacker.
-
-Model direction:
-- Thin ritual attacker with a dangerous object carried forward.
-- Body should look frail, but the weapon/focus should look volatile.
-- Use a smoking censer, cracked lamp, ritual firearm, ash vessel, or heat core.
-- Silhouette should make the wind-up threat obvious.
-
-Materials and details:
-- Burned cloth, brass, ceramic, ash residue, ember cracks, blackened hands.
-- Add vents, smoke trails, glowing cracks, or suspended ash fragments sparingly.
-
-Animation feeling:
-- Slow aim, visible charge-up, sharp release, vulnerable recovery.
-
-4. Chainrunner
-
-Gameplay role:
-High-speed flanker.
-
-Model direction:
-- Lean, long-legged, and tense.
-- Wrapped limbs, exposed joints, and loose chain trails.
-- Body should imply sudden lateral motion rather than brute strength.
-- Keep profile narrow so it reads as fast, not bulky.
-
-Materials and details:
-- Chain links, torn cloth wraps, leather binding, rust, pale ash markings.
-- Avoid heavy armor.
-
-Animation feeling:
-- Sprint, skid, lunge, recoil, circle.
-
-5. Harpy
-
-Gameplay role:
-Aerial and vertical threat.
-
-Model direction:
-- Lean, avian, and predatory.
-- Long limbs that can read as wings, climbing arms, or both.
-- Hooked feet, narrow ribcage, and a stretched neck or masked head.
-- The silhouette should read clearly from below, above, and at a distance.
-
-Materials and details:
-- Weathered feathers, torn membranes, bone, leather straps, ash-gray tissue.
-- Optional wing claws, perch hooks, or talon-like hands.
-- Keep the form agile rather than bulky.
-
-Animation feeling:
-- Perch, launch, glide, circle, strike, and retreat.
-
-6. Bellworn
-
-Gameplay role:
-Ranged harasser.
-
-Model direction:
-- Medium-sized ranged pilgrim with a clear firing posture.
-- Should read as less explosive than the Censer but more persistent.
-- Bell-mask, shoulder chime, old firearm, or compact relic launcher can carry
-  the ranged identity.
-
-Materials and details:
-- Tarnished brass, worn cloth, small bells, iron sights, cracked wood.
-- Keep the silhouette upright enough to distinguish from melee grunts.
-
-Animation feeling:
-- Aim, fire, step sideways, re-aim, keep pressure.
-
-7. Silencer
-
-Gameplay role:
-Suppressor.
-
-Model direction:
-- Tall, narrow, and quiet-looking.
-- The silhouette should feel compressed and controlled, with a muted posture.
-- Head design should suggest sound reduction: sealed mouth, mask, hood, veil,
-  or a hollow face cavity.
-- Use long forearms, tucked elbows, and a restrained stance.
-
-Materials and details:
-- Matte cloth, dark felt, bone, tarnished metal, wrapped cords.
-- Small resonant elements should be minimal or absent.
-- Optional throat plates, bell fragments, or sealed vents that imply it steals
-  or blocks noise.
-
-Animation feeling:
-- Stillness, short gliding motions, deliberate gestures.
-
-8. Paranoiac
-
-Gameplay role:
-Escalator and alarm enemy.
-
-Model direction:
-- Angular and tense, as if always about to alert something else.
-- Sharp shoulders, uneven limbs, and a posture that leans forward.
-- Add repeated or doubled features to suggest nervous repetition:
-  clustered eyes, split masks, antenna-like protrusions, or alarm fins.
-- The body should look restless even when idle.
-
-Materials and details:
-- Cracked plaster, iron bands, chain fragments, warning marks, dull glass.
-- Small bell shapes, spikes, or signal pieces are acceptable if they help the
-  "this will call trouble" reading.
-
-Animation feeling:
-- Jittery scanning, sudden turns, alarm wind-up.
-
-9. Anchor Parasite
-
-Gameplay role:
-Swarmer and small pressure enemy.
-
-Model direction:
-- Small to medium parasitic mass that clings to anchors, walls, or machinery.
-- Should feel like something that feeds on stability.
-- Include hooks, tendrils, or growths that attach to surfaces.
-
-Materials and details:
-- Wet stone, root-like tissue, rust stains, tar, grime.
-- The body should look invasive and anchored, not free-roaming.
-
-Animation feeling:
-- Scuttle, cling, leap, swarm, detach.
-
-10. Chain Pilgrim
-
-Gameplay role:
-Planned humanoid pressure enemy or Chainrunner variant source.
-
-Model direction:
-- A pilgrim silhouette wrapped in chains, bindings, and hanging metal lengths.
-- The body should feel ritualistic and exhausted, like a broken traveler that
-  became part of the mountain's mechanism.
-- Good model cues are bowed shoulders, a wrapped torso, and dragging chain mass.
-
-Materials and details:
-- Iron chain, frayed cloth, old travel gear, prayer tags, corrosion.
-
-Animation feeling:
-- Drag, stagger, whip-chain, lunge.
-
-11. Root-Machine Hybrid
-
-Gameplay role:
-Controller and arena-denial enemy.
-
-Model direction:
-- Organic root growth fused into industrial machinery.
-- The model should feel half living, half mechanical, with visible tension
-  between those two systems.
-- Use branching roots, pipes, joints, pistons, and asymmetrical block forms.
-- Add a readable core that can become a weak point later.
-
-Materials and details:
-- Bark, root fibers, rivets, gears, rust, oil stains, damp earth.
-
-Animation feeling:
-- Plant, unfold, pulse, lock down, release hazards.
-
-12. Mirror of the Player
-
-Gameplay role:
-Late-game duelist and mimic.
-
-Model direction:
-- Human-shaped mirror threat that copies the player's broad silhouette without
-  becoming a literal duplicate.
-- Use reflective or glass-like elements in a damaged, irregular way.
-- Keep the body readable as an imitation, but uncanny and slightly wrong.
-
-Materials and details:
-- Cracked glass, polished metal, pale bone, reflected fragments, distorted seams.
-
-Animation feeling:
-- Dash, pause, copy rhythm, punish, retreat.
-
-13. Bell-Headed
-
-Gameplay role:
-Elite modifier frame.
-
-Model direction:
-- Stronger, more ceremonial silhouette than a normal enemy.
-- Head should clearly read as bell-like, mask-like, or sacred metal housing.
-- Bulkier armor, stronger posture, and more authoritative geometry than the
-  normal version of the base enemy.
-
-Materials and details:
-- Brass, iron, dark lacquer, ceremonial cloth, dents, etched symbols.
-
-Animation feeling:
-- Slower confidence, stronger tells, ritual charge-up.
-
-Variant Overlays
-
-Use these as modular variant directions instead of separate base models when
-possible:
-
-- Burning Burdened: charred cloth, ember cracks, smoke-darkened stone.
-- Armored Burdened: heavier plates, brackets, bolts, reinforced shoulders.
-- Silent Paranoiac: more muted surfaces, wrapped mouth, fewer alarm details.
-- Mirror Harpy: reflective feather surfaces, broken glass accents, pale sheen.
-- Void-Touched Silencer: black core surfaces, dim highlights, soundless shape.
-- Frenzied Harpy: sharper claws, more aggressive posture, torn membranes.
-
-Final Generator Notes
-
-- Every enemy should have a unique silhouette first, then surface detail.
-- Match the gameplay role before adding ornament.
-- Keep the enemy language consistent with Cenotaph's mountain, ruin, and ritual
-  themes.
-- When in doubt, make the model heavier, older, stranger, and more worn.
-- Do not make enemies heroic, cute, or clean.
+Until then, keep the primitive. Silence and honest scaffolding are preferable to
+confidently invented art.

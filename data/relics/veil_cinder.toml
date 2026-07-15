@@ -1,5 +1,6 @@
 id = "veil_cinder"
 display_name = "Veil Cinder"
+pickup_asset = "pickups/relic_veil_cinder.obj"
 family = "Moonchild"
 rarity = "Common"
 damage_multiplier = 0.9

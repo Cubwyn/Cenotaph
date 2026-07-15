@@ -6,9 +6,9 @@
 
 pub mod combat;
 pub mod cycle;
-pub mod editor;
 pub mod enemy;
 pub mod feedback;
+pub mod mountain;
 pub mod player;
 pub mod progression;
 pub mod relic;

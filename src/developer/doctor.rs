@@ -2,8 +2,14 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::core::engine::validation::{validate_project_content, ContentValidationReport};
+use crate::data::world::level::LevelData;
 use crate::developer::commands::{available_levels, DEFAULT_LEVEL_ID};
 use crate::game::save::{SaveData, SaveFileHealth, DEFAULT_SAVE_PATH};
+use crate::systems::render::mesh::try_load_model;
+
+const LEVEL_PROP_WARNING_THRESHOLD: usize = 256;
+const DYNAMIC_PROP_WARNING_THRESHOLD: usize = 64;
+const BASE_MAP_TRIANGLE_WARNING_THRESHOLD: usize = 100_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckStatus {
@@ -107,13 +113,117 @@ pub fn run_project_doctor() -> ProjectDoctorReport {
     let mut checks = Vec::new();
     inspect_layout(root, &mut checks);
     inspect_levels(root, &mut checks);
+    inspect_content_budgets(root, &mut checks);
     inspect_save(root, &mut checks);
     inspect_runtime_tree(root, &mut checks);
-    inspect_editor_backups(root, &mut checks);
     let content = validate_project_content();
     inspect_transient_files(root, &mut checks);
 
     ProjectDoctorReport { checks, content }
+}
+
+fn inspect_content_budgets(root: &Path, checks: &mut Vec<DoctorCheck>) {
+    let Ok(level_ids) = available_levels(root) else {
+        return;
+    };
+
+    let mut peak_props = (0usize, String::new());
+    let mut peak_dynamic = (0usize, String::new());
+    let mut peak_triangles = (0usize, String::new());
+    let mut readable_levels = 0usize;
+    let mut readable_maps = 0usize;
+
+    for level_id in level_ids {
+        let level_path = root.join("levels").join(format!("{level_id}.json"));
+        let path_label = level_path.to_string_lossy();
+        let Ok(level) = LevelData::try_load(&path_label) else {
+            continue;
+        };
+        readable_levels += 1;
+
+        let prop_count = level.props.len();
+        if peak_props.1.is_empty() || prop_count > peak_props.0 {
+            peak_props = (prop_count, level_id.clone());
+        }
+
+        let dynamic_count = level
+            .props
+            .iter()
+            .filter(|prop| prop.enemy_type.is_some() || prop.path_id.is_some())
+            .count();
+        if peak_dynamic.1.is_empty() || dynamic_count > peak_dynamic.0 {
+            peak_dynamic = (dynamic_count, level_id.clone());
+        }
+
+        let map_path = root.join(&level.base_map);
+        let map_label = map_path.to_string_lossy();
+        let Ok((_, parts, _, _)) = try_load_model(&map_label) else {
+            continue;
+        };
+        readable_maps += 1;
+        let triangle_count = parts
+            .iter()
+            .map(|part| part.indices.len() / 3)
+            .sum::<usize>();
+        if peak_triangles.1.is_empty() || triangle_count > peak_triangles.0 {
+            peak_triangles = (triangle_count, level_id);
+        }
+    }
+
+    if readable_levels == 0 {
+        checks.push(check(
+            CheckStatus::Warning,
+            "Content budgets",
+            "no readable levels were available for budget checks",
+        ));
+        return;
+    }
+
+    let mut exceeded = Vec::new();
+    if peak_props.0 > LEVEL_PROP_WARNING_THRESHOLD {
+        exceeded.push(format!(
+            "{} has {} props (budget {})",
+            peak_props.1, peak_props.0, LEVEL_PROP_WARNING_THRESHOLD
+        ));
+    }
+    if peak_dynamic.0 > DYNAMIC_PROP_WARNING_THRESHOLD {
+        exceeded.push(format!(
+            "{} has {} dynamic props (budget {})",
+            peak_dynamic.1, peak_dynamic.0, DYNAMIC_PROP_WARNING_THRESHOLD
+        ));
+    }
+    if peak_triangles.0 > BASE_MAP_TRIANGLE_WARNING_THRESHOLD {
+        exceeded.push(format!(
+            "{} has {} base-map triangles (budget {})",
+            peak_triangles.1, peak_triangles.0, BASE_MAP_TRIANGLE_WARNING_THRESHOLD
+        ));
+    }
+
+    if !exceeded.is_empty() {
+        checks.push(check(
+            CheckStatus::Warning,
+            "Content budgets",
+            exceeded.join("; "),
+        ));
+        return;
+    }
+
+    let map_detail = if readable_maps == 0 {
+        "base-map geometry unavailable".to_string()
+    } else {
+        format!(
+            "{} base-map triangles in {}",
+            peak_triangles.0, peak_triangles.1
+        )
+    };
+    checks.push(check(
+        CheckStatus::Pass,
+        "Content budgets",
+        format!(
+            "peaks: {} props in {}, {} dynamic props in {}, {map_detail}",
+            peak_props.0, peak_props.1, peak_dynamic.0, peak_dynamic.1
+        ),
+    ));
 }
 
 fn inspect_layout(root: &Path, checks: &mut Vec<DoctorCheck>) {
@@ -126,7 +236,6 @@ fn inspect_layout(root: &Path, checks: &mut Vec<DoctorCheck>) {
         "prefabs",
         "source_assets",
         "textures",
-        "tools/level_editor",
     ];
 
     let missing_files = REQUIRED_FILES
@@ -144,7 +253,7 @@ fn inspect_layout(root: &Path, checks: &mut Vec<DoctorCheck>) {
         checks.push(check(
             CheckStatus::Pass,
             "Project layout",
-            "required runtime, content, source, and tooling paths are present",
+            "required runtime, content, and source paths are present",
         ));
         return;
     }
@@ -213,10 +322,10 @@ fn inspect_save(root: &Path, checks: &mut Vec<DoctorCheck>) {
                 ));
             } else {
                 checks.push(check(
-                    CheckStatus::Error,
+                    CheckStatus::Warning,
                     "Autosave",
                     format!(
-                        "save references missing level '{}' ({})",
+                        "save references removed level '{}' ({}); start a new run to replace this local save",
                         save.level_name,
                         level_path.display()
                     ),
@@ -273,31 +382,6 @@ fn inspect_runtime_tree(root: &Path, checks: &mut Vec<DoctorCheck>) {
             ),
         ));
     }
-}
-
-fn inspect_editor_backups(root: &Path, checks: &mut Vec<DoctorCheck>) {
-    let backup_dirs = [
-        root.join("levels/.editor_backups"),
-        root.join("prefabs/.editor_backups"),
-    ];
-    let backup_count = backup_dirs
-        .iter()
-        .map(|directory| count_files(directory))
-        .sum::<usize>();
-    let status = if backup_count > 100 {
-        CheckStatus::Warning
-    } else {
-        CheckStatus::Pass
-    };
-    let detail = if backup_count > 100 {
-        format!(
-            "{} editor backups found; archive or prune old copies when they are no longer useful",
-            backup_count
-        )
-    } else {
-        format!("{} editor backup file(s) retained", backup_count)
-    };
-    checks.push(check(status, "Editor backups", detail));
 }
 
 fn inspect_transient_files(root: &Path, checks: &mut Vec<DoctorCheck>) {
@@ -369,23 +453,6 @@ fn collect_matching_files(path: &Path, extensions: &[&str], matches: &mut Vec<Pa
     matches.sort();
 }
 
-fn count_files(path: &Path) -> usize {
-    let Ok(entries) = std::fs::read_dir(path) else {
-        return 0;
-    };
-    entries
-        .flatten()
-        .map(|entry| entry.path())
-        .map(|path| {
-            if path.is_dir() {
-                count_files(&path)
-            } else {
-                usize::from(path.is_file())
-            }
-        })
-        .sum()
-}
-
 fn display_paths(paths: &[PathBuf]) -> String {
     paths
         .iter()
@@ -431,5 +498,14 @@ mod tests {
         let display = display_paths(&paths);
         assert!(display.contains("and 2 more"));
         assert!(!display.contains("source_6"));
+    }
+
+    #[test]
+    fn current_project_stays_inside_content_budgets() {
+        let mut checks = Vec::new();
+        inspect_content_budgets(Path::new("."), &mut checks);
+
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].status, CheckStatus::Pass, "{}", checks[0].detail);
     }
 }

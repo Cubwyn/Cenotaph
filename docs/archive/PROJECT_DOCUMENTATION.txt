@@ -27,7 +27,7 @@ Current implementation status:
 - TOML tuning and bindings.
 - TOML enemy and relic definitions.
 - Foundation gameplay/tooling: movement, jump, sprint, dash, pause, readable
-  guided HUD, standalone level editor, in-game quick adjuster, prototype
+  guided HUD, prototype
   shooting with solid-world obstruction, baseline enemy chase/attack, hurtboxes,
   death, respawn, prototype resource pickup/Anchor banking, authored relic
   pickup/reward flow, owned-relic cycling, autosave/resume, basic cycle
@@ -109,9 +109,6 @@ Run Ash-Walk:
 Run the foundation smoke-test level:
   cargo run -- foundation_test
 
-Run the standalone level editor:
-  cargo run -- editor
-
 Validate authored project content:
   cargo run -- validate
 
@@ -131,8 +128,7 @@ CONTENT DIRECTORIES
 config/
   bindings.toml
     User-editable keybindings. Current core controls include WASD, Space, Shift,
-    Q dash, left mouse attack, Escape pause, debug controls, and in-game level
-    editor controls.
+    Q dash, left mouse attack, Escape pause, and debug controls.
 
   tuning.toml
     Designer-tweakable gameplay constants for player, movement, camera, physics,
@@ -189,14 +185,7 @@ SOURCE TREE
 ================================================================================
 
 src/main.rs
-  Entry point. Handles validation/editor CLI arguments and starts the winit app.
-
-src/editor_server.rs
-  Localhost level editor server for `cargo run -- editor`, including static
-  editor serving, project metadata APIs, level read/save APIs, and Rust-backed
-  level validation. Security hardening includes loopback-only bind,
-  per-launch tokenized URLs, token-required API calls, local Host/Origin
-  checks, path-restricted writes, and backup-before-overwrite saves.
+  Entry point. Handles developer CLI arguments and starts the winit app.
 
 src/app.rs
   winit ApplicationHandler. Owns EngineState and routes window/input events.
@@ -218,23 +207,8 @@ src/core/engine/loader.rs
 src/core/engine/sync.rs
   Render instance buffer rebuilds after prop changes.
 
-src/core/engine/asset_catalog.rs
-  Scans editor-visible project assets across assets/, textures/, data/,
-  levels/, and config/. Separates runtime-supported models from source-only
-  model, texture, material, audio, dialogue/data, level, and config files.
-
 src/core/engine/validation.rs
   Non-window content validation for level JSON and core config TOML.
-
-tools/level_editor/
-  Standalone browser editor UI: level browser, Hammer-style Camera/Top/Front/Side
-  view panels, 3D WebGL viewport, flying camera, ray-picked and orthographic
-  select/move/place tools, orthographic marquee and multi-selection, grouped
-  transforms with axis and snap controls, transactional undo/redo, floor/wall/
-  block/slope/cylinder/stair brushes, placement palette, asset browser,
-  configurable keybindings, right-click context menu, group duplicate/copy/
-  paste/delete, focus-selected, tabbed prop and level-system inspectors,
-  validation navigation, and save controls.
 
 src/data/
   Pure data definitions.
@@ -251,7 +225,7 @@ src/data/config/gameplay.rs
   CombatConfig, WorldConfig, LightingConfig, DebugConfig, and keybinding parsing.
 
 src/data/world/level.rs
-  LevelData, PropData, ColliderType, level loading, JSON saving, defaults, and
+  LevelData, PropData, ColliderType, level loading, defaults, and
   validation rules.
 
 src/game/
@@ -281,11 +255,6 @@ src/game/cycle.rs
   Basic cycle number/modifier state, reward scaling, enemy damage scaling, relic
   damage scaling, and deterministic prototype enemy reward relic IDs.
 
-src/game/editor.rs
-  In-game level editor state, placement templates, snapped cursor math, dirty
-  state, validation status, reload confirmation, safe deletion, and template
-  materialization rules.
-
 src/game/save.rs
   SaveData snapshot/load helpers for level, cycle, resource, Anchor, respawn,
   relic inventory, equipped relic state, fired level events, and level-local
@@ -309,8 +278,8 @@ src/systems/physics/
 
 src/systems/render/
   WGPU render pipeline, camera, mesh/model data, instances, textures, lighting,
-  HUD, thicker block text, guide strip, editor panel/cursor marker,
-  shot-result/event feedback, shaders, and render asset grouping.
+  HUD, thicker block text, guide strip, shot-result/event feedback, shaders,
+  and render asset grouping.
 
 src/systems/audio/
   rodio-backed procedural ambient audio, footsteps, one-shot effects, and

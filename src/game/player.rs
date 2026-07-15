@@ -71,6 +71,7 @@ impl PlayerState {
     }
 
     pub fn tick_timers(&mut self, dt: f32) {
+        self.health.smooth_trail(dt, 2.8);
         self.hit_flash_timer = (self.hit_flash_timer - dt).max(0.0);
         self.hurtbox_cooldown = (self.hurtbox_cooldown - dt).max(0.0);
         self.dash_cooldown_timer = (self.dash_cooldown_timer - dt).max(0.0);
@@ -128,12 +129,17 @@ impl PlayerState {
 pub struct HealthState {
     pub current: f32,
     pub max: f32,
+    pub trail: f32,
 }
 
 impl HealthState {
     pub fn new(max: f32) -> Self {
         let max = max.max(1.0);
-        Self { current: max, max }
+        Self {
+            current: max,
+            max,
+            trail: max,
+        }
     }
 
     pub fn ratio(&self) -> f32 {
@@ -144,19 +150,41 @@ impl HealthState {
         }
     }
 
+    pub fn trail_ratio(&self) -> f32 {
+        if self.max <= 0.0 {
+            0.0
+        } else {
+            (self.trail / self.max).clamp(0.0, 1.0)
+        }
+    }
+
     pub fn damage(&mut self, amount: f32) {
         self.current = (self.current - amount.max(0.0)).clamp(0.0, self.max);
+        self.trail = self.trail.max(self.current);
+    }
+
+    pub fn smooth_trail(&mut self, dt: f32, smoothing_rate: f32) {
+        if self.current >= self.trail {
+            self.trail = self.current;
+            return;
+        }
+        let lerp = (smoothing_rate.max(0.0) * dt.max(0.0)).min(1.0);
+        self.trail += (self.current - self.trail) * lerp;
+        self.trail = self.trail.clamp(self.current, self.max);
     }
 
     pub fn restore_full(&mut self, max: f32) {
         self.max = max.max(1.0);
         self.current = self.max;
+        self.trail = self.max;
     }
 
     fn set_max_preserving_ratio(&mut self, max: f32) {
         let ratio = self.ratio();
+        let trail_ratio = self.trail_ratio();
         self.max = max.max(1.0);
         self.current = self.max * ratio;
+        self.trail = (self.max * trail_ratio).max(self.current);
     }
 
     pub fn is_depleted(&self) -> bool {
@@ -245,6 +273,21 @@ mod tests {
         assert_eq!(health.current, 0.0);
         assert!(health.is_depleted());
         assert_eq!(health.ratio(), 0.0);
+    }
+
+    #[test]
+    fn health_trail_follows_damage_without_hiding_the_hit() {
+        let mut health = HealthState::new(100.0);
+        health.damage(40.0);
+
+        assert_eq!(health.current, 60.0);
+        assert_eq!(health.trail, 100.0);
+        health.smooth_trail(0.1, 2.0);
+        assert!(health.trail > health.current);
+        assert!(health.trail < 100.0);
+
+        health.smooth_trail(1.0, 2.0);
+        assert_eq!(health.trail, health.current);
     }
 
     #[test]

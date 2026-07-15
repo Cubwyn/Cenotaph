@@ -474,7 +474,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "env_logger",
- "getrandom",
  "glam 0.32.1",
  "gltf",
  "image",

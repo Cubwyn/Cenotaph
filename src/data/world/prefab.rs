@@ -4,7 +4,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::persistence::{recover_interrupted_write, write_file_staged};
+use crate::core::persistence::recover_interrupted_write;
 
 use super::level::PropData;
 
@@ -43,17 +43,6 @@ impl LevelPrefabData {
                 error
             )
         })
-    }
-
-    pub fn save_to_path(&self, file_path: impl AsRef<Path>) -> Result<(), String> {
-        self.validate()
-            .map_err(|errors| format!("prefab validation failed: {}", errors.join("; ")))?;
-
-        let file_path = file_path.as_ref();
-        let data = serde_json::to_string_pretty(self)
-            .map_err(|error| format!("failed to serialize prefab JSON: {}", error))?;
-        write_file_staged(file_path, format!("{}\n", data).as_bytes())
-            .map_err(|error| format!("failed to write prefab JSON: {}", error))
     }
 
     pub fn validation_errors(&self) -> Vec<String> {
@@ -116,15 +105,6 @@ impl LevelPrefabData {
 
         errors
     }
-
-    pub fn validate(&self) -> Result<(), Vec<String>> {
-        let errors = self.validation_errors();
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
-    }
 }
 
 #[cfg(test)]
@@ -150,7 +130,7 @@ mod tests {
     #[test]
     fn prefab_contract_round_trips_and_validates() {
         let prefab: LevelPrefabData = serde_json::from_str(&prefab_json("")).unwrap();
-        assert!(prefab.validate().is_ok());
+        assert!(prefab.validation_errors().is_empty());
 
         let serialized = serde_json::to_string(&prefab).unwrap();
         let loaded: LevelPrefabData = serde_json::from_str(&serialized).unwrap();

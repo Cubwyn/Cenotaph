@@ -1,5 +1,6 @@
 id = "chain_sigil"
 display_name = "Chain Sigil"
+pickup_asset = "pickups/relic_chain_sigil.obj"
 family = "Architect"
 rarity = "Common"
 damage_multiplier = 1.05

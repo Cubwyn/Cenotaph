@@ -8,11 +8,21 @@
 // The system supports both static level geometry and dynamic props with various gameplay properties.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::persistence::{recover_interrupted_write, write_file_staged};
+use crate::core::persistence::recover_interrupted_write;
+
+pub const CURRENT_LEVEL_VERSION: u32 = 1;
+/// World-space Y translation applied to authored base-map model geometry.
+pub const BASE_MAP_Y_OFFSET: f32 = 124.5;
+/// Reserved namespace for deterministic pickups created by runtime loot rolls.
+pub const RUNTIME_LOOT_ID_PREFIX: &str = "runtime_loot_";
+
+fn legacy_level_version() -> u32 {
+    0
+}
 
 pub fn validate_level_id(level_id: &str) -> Result<(), String> {
     if level_id.is_empty() {
@@ -72,6 +82,227 @@ fn default_trigger_radius() -> f32 {
     2.5
 }
 
+fn default_mountain_reaction_duration() -> f32 {
+    4.0
+}
+
+fn default_material_tint() -> [f32; 3] {
+    [1.0, 1.0, 1.0]
+}
+
+fn default_material_uv_scale() -> f32 {
+    8.0
+}
+
+fn default_clear_color() -> [f32; 3] {
+    [0.025, 0.025, 0.035]
+}
+
+fn default_fog_color() -> [f32; 3] {
+    [0.10, 0.10, 0.15]
+}
+
+fn default_fog_density() -> f32 {
+    0.01
+}
+
+fn default_key_light_color() -> [f32; 3] {
+    [1.0, 0.8, 0.5]
+}
+
+fn default_key_light_intensity() -> f32 {
+    2.0
+}
+
+fn default_particle_count() -> u32 {
+    96
+}
+
+fn default_particle_color() -> [f32; 3] {
+    [0.62, 0.65, 0.68]
+}
+
+fn default_particle_opacity() -> f32 {
+    0.28
+}
+
+fn default_particle_size() -> f32 {
+    0.045
+}
+
+fn default_particle_radius() -> f32 {
+    24.0
+}
+
+fn default_particle_height() -> f32 {
+    12.0
+}
+
+fn default_particle_speed() -> f32 {
+    0.35
+}
+
+fn default_wind() -> [f32; 3] {
+    [0.08, 0.0, 0.03]
+}
+
+fn default_ambience_volume() -> f32 {
+    0.16
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ParticlePreset {
+    None,
+    Ashfall,
+    Embers,
+    #[default]
+    Dust,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AmbiencePreset {
+    Silent,
+    #[default]
+    Omission,
+    AshWind,
+    EmberVault,
+}
+
+/// Lightweight surface authoring shared by base maps and props.
+/// Texture paths are relative to `textures/` so projects remain portable.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(default)]
+pub struct SurfaceMaterialData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texture: Option<String>,
+    #[serde(default = "default_material_tint")]
+    pub tint: [f32; 3],
+    #[serde(default = "default_material_uv_scale")]
+    pub uv_scale: f32,
+    #[serde(default)]
+    pub emissive: f32,
+}
+
+impl Default for SurfaceMaterialData {
+    fn default() -> Self {
+        Self {
+            texture: None,
+            tint: default_material_tint(),
+            uv_scale: default_material_uv_scale(),
+            emissive: 0.0,
+        }
+    }
+}
+
+/// Per-level mood settings. The particle budget is intentionally capped so a
+/// dramatic atmosphere remains cheap enough to leave enabled during authoring.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(default)]
+pub struct AtmosphereData {
+    #[serde(default = "default_clear_color")]
+    pub clear_color: [f32; 3],
+    #[serde(default = "default_fog_color")]
+    pub fog_color: [f32; 3],
+    #[serde(default = "default_fog_density")]
+    pub fog_density: f32,
+    #[serde(default = "default_key_light_color")]
+    pub key_light_color: [f32; 3],
+    #[serde(default = "default_key_light_intensity")]
+    pub key_light_intensity: f32,
+    #[serde(default)]
+    pub particle_preset: ParticlePreset,
+    #[serde(default = "default_particle_count")]
+    pub particle_count: u32,
+    #[serde(default = "default_particle_color")]
+    pub particle_color: [f32; 3],
+    #[serde(default = "default_particle_opacity")]
+    pub particle_opacity: f32,
+    #[serde(default = "default_particle_size")]
+    pub particle_size: f32,
+    #[serde(default = "default_particle_radius")]
+    pub particle_radius: f32,
+    #[serde(default = "default_particle_height")]
+    pub particle_height: f32,
+    #[serde(default = "default_particle_speed")]
+    pub particle_speed: f32,
+    #[serde(default = "default_wind")]
+    pub wind: [f32; 3],
+    #[serde(default)]
+    pub ambience_preset: AmbiencePreset,
+    #[serde(default = "default_ambience_volume")]
+    pub ambience_volume: f32,
+}
+
+impl Default for AtmosphereData {
+    fn default() -> Self {
+        Self {
+            clear_color: default_clear_color(),
+            fog_color: default_fog_color(),
+            fog_density: default_fog_density(),
+            key_light_color: default_key_light_color(),
+            key_light_intensity: default_key_light_intensity(),
+            particle_preset: ParticlePreset::default(),
+            particle_count: default_particle_count(),
+            particle_color: default_particle_color(),
+            particle_opacity: default_particle_opacity(),
+            particle_size: default_particle_size(),
+            particle_radius: default_particle_radius(),
+            particle_height: default_particle_height(),
+            particle_speed: default_particle_speed(),
+            wind: default_wind(),
+            ambience_preset: AmbiencePreset::default(),
+            ambience_volume: default_ambience_volume(),
+        }
+    }
+}
+
+/// Reusable authored atmosphere changes triggered by level events.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct MountainReactionData {
+    pub id: String,
+    #[serde(default = "default_mountain_reaction_duration")]
+    pub duration: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clear_color: Option<[f32; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fog_color: Option<[f32; 3]>,
+    #[serde(default = "default_one_f32")]
+    pub fog_density_multiplier: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_light_color: Option<[f32; 3]>,
+    #[serde(default = "default_one_f32")]
+    pub key_light_intensity_multiplier: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particle_color: Option<[f32; 3]>,
+    #[serde(default = "default_one_f32")]
+    pub particle_speed_multiplier: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wind: Option<[f32; 3]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ambience_preset: Option<AmbiencePreset>,
+    #[serde(default = "default_one_f32")]
+    pub ambience_volume_multiplier: f32,
+}
+
+impl Default for MountainReactionData {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            duration: default_mountain_reaction_duration(),
+            clear_color: None,
+            fog_color: None,
+            fog_density_multiplier: default_one_f32(),
+            key_light_color: None,
+            key_light_intensity_multiplier: default_one_f32(),
+            particle_color: None,
+            particle_speed_multiplier: default_one_f32(),
+            wind: None,
+            ambience_preset: None,
+            ambience_volume_multiplier: default_one_f32(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LevelPathKind {
     #[default]
@@ -98,6 +329,7 @@ pub enum LevelEventActionKind {
     GrantResource,
     SpawnLoot,
     StartDialogue,
+    ReactMountain,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -187,6 +419,8 @@ pub struct LevelEventActionData {
     #[serde(default)]
     pub dialogue_id: Option<String>,
     #[serde(default)]
+    pub reaction_id: Option<String>,
+    #[serde(default)]
     pub flag_id: Option<String>,
     #[serde(default)]
     pub resource_value: u32,
@@ -270,9 +504,12 @@ pub struct BrushGeometryData {
 /// associated geometry, collision properties, and gameplay metadata.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PropData {
-    /// Optional stable authoring ID used by editor tools and level events.
+    /// Optional stable authoring ID used by tooling and level events.
     #[serde(default)]
     pub id: Option<String>,
+    /// Optional authored name used by ritual and named-encounter HUD surfaces.
+    #[serde(default)]
+    pub display_name: Option<String>,
     /// Filename of the mesh asset (relative to `assets/`).
     /// Example: "Cube.obj" or "models/enemy.glb"
     pub asset_id: String,
@@ -288,7 +525,10 @@ pub struct PropData {
     /// Collision shape type for physics interactions
     #[serde(default)]
     pub collider_type: ColliderType,
-    /// Optional editor-authored local mesh used for brush/slope geometry.
+    /// Optional texture/tint overrides for this prop.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface_material: Option<SurfaceMaterialData>,
+    /// Optional authored local mesh used for brush or slope geometry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub brush_geometry: Option<BrushGeometryData>,
     /// Whether the player can climb on this object
@@ -333,7 +573,7 @@ pub struct PropData {
     /// Optional dialogue that can be started when interacting with this prop.
     #[serde(default)]
     pub dialogue_id: Option<String>,
-    /// Optional level event invoked by this prop in future editor workflows.
+    /// Optional manual event fired when this enemy dies or this Anchor is first bound.
     #[serde(default)]
     pub event_id: Option<String>,
 }
@@ -347,6 +587,10 @@ pub struct PropData {
 /// Levels are serialized to JSON and can be loaded dynamically.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LevelData {
+    /// Version of the authored level contract. Version 0 represents legacy
+    /// files created before explicit schema versioning was introduced.
+    #[serde(default = "legacy_level_version")]
+    pub version: u32,
     /// Human-readable name of the level for display purposes
     pub name: String,
     /// Path to the base map mesh (e.g. `"assets/map_001.glb"`).
@@ -354,10 +598,19 @@ pub struct LevelData {
     pub base_map: String,
     /// Default spawn position for the player [x, y, z]
     pub player_spawn: [f32; 3],
+    /// Fog, particles, key light, wind, and procedural ambience for this level.
+    #[serde(default)]
+    pub atmosphere: AtmosphereData,
+    /// Texture and shading parameters applied to the base-map geometry.
+    #[serde(default)]
+    pub base_material: SurfaceMaterialData,
+    /// Reusable atmosphere changes that events can ask the mountain to perform.
+    #[serde(default)]
+    pub mountain_reactions: Vec<MountainReactionData>,
     /// List of all props placed in this level
     #[serde(default)]
     pub props: Vec<PropData>,
-    /// Imported/curated model assets exposed to the editor for this level.
+    /// Imported or curated model assets associated with this level.
     #[serde(default)]
     pub asset_imports: Vec<AssetImportData>,
     /// Level-local loot tables used by enemies, events, and containers.
@@ -380,9 +633,13 @@ impl LevelData {
     #[cfg(test)]
     pub fn default_level() -> Self {
         Self {
+            version: CURRENT_LEVEL_VERSION,
             name: "map_001".to_string(),
             base_map: "assets/map_001.glb".to_string(),
             player_spawn: [0.0, 10.0, 0.0],
+            atmosphere: AtmosphereData::default(),
+            base_material: SurfaceMaterialData::default(),
+            mountain_reactions: Vec::new(),
             props: Vec::new(),
             asset_imports: Vec::new(),
             loot_tables: Vec::new(),
@@ -404,20 +661,40 @@ impl LevelData {
 
         let data = fs::read_to_string(file_path)
             .map_err(|e| format!("failed to read level file at {}: {}", file_path, e))?;
-        serde_json::from_str(&data)
-            .map_err(|e| format!("failed to parse level JSON at {}: {}", file_path, e))
+        Self::from_json_str(&data)
+            .map_err(|error| format!("failed to load level JSON at {}: {}", file_path, error))
     }
 
-    /// Saves the level as pretty JSON after validating the authoring contract.
-    pub fn save_to_path(&self, file_path: impl AsRef<Path>) -> Result<(), String> {
-        self.validate()
-            .map_err(|errors| format!("level validation failed: {}", errors.join("; ")))?;
+    /// Parses and migrates a level document into the current authored schema.
+    /// All level JSON passes through this function so every loading path uses
+    /// the same compatibility rules.
+    pub fn from_json_str(data: &str) -> Result<Self, String> {
+        let level: Self = serde_json::from_str(data)
+            .map_err(|error| format!("failed to parse level JSON: {}", error))?;
+        Self::migrate_to_current(level)
+    }
 
-        let file_path = file_path.as_ref();
-        let data = serde_json::to_string_pretty(self)
-            .map_err(|e| format!("failed to serialize level JSON: {}", e))?;
-        write_file_staged(file_path, format!("{}\n", data).as_bytes())
-            .map_err(|e| format!("failed to write level JSON: {}", e))
+    fn migrate_to_current(mut level: Self) -> Result<Self, String> {
+        if level.version > CURRENT_LEVEL_VERSION {
+            return Err(format!(
+                "level version {} is newer than supported version {}",
+                level.version, CURRENT_LEVEL_VERSION
+            ));
+        }
+
+        while level.version < CURRENT_LEVEL_VERSION {
+            match level.version {
+                0 => level.version = 1,
+                version => {
+                    return Err(format!(
+                        "no migration exists from level version {} to {}",
+                        version, CURRENT_LEVEL_VERSION
+                    ));
+                }
+            }
+        }
+
+        Ok(level)
     }
 
     /// Returns content-authoring errors that can break runtime assumptions.
@@ -427,6 +704,13 @@ impl LevelData {
     /// values, and references that can be resolved from disk.
     pub fn validation_errors(&self) -> Vec<String> {
         let mut errors = Vec::new();
+
+        if self.version != CURRENT_LEVEL_VERSION {
+            errors.push(format!(
+                "level version must be {}, found {}",
+                CURRENT_LEVEL_VERSION, self.version
+            ));
+        }
 
         if self.name.trim().is_empty() {
             errors.push("level name must not be empty".to_string());
@@ -439,12 +723,30 @@ impl LevelData {
         if !self.player_spawn.iter().all(|v| v.is_finite()) {
             errors.push("player_spawn must contain finite numbers".to_string());
         }
+        errors.extend(self.atmosphere.validation_errors());
+        errors.extend(self.base_material.validation_errors("base_material"));
+
+        let mountain_reaction_ids = collect_ids(
+            "mountain reaction",
+            self.mountain_reactions
+                .iter()
+                .enumerate()
+                .map(|(index, reaction)| (index, reaction.id.as_str())),
+            &mut errors,
+        );
+        for (index, reaction) in self.mountain_reactions.iter().enumerate() {
+            errors.extend(reaction.validation_errors(index));
+        }
 
         let mut prop_ids = std::collections::HashSet::new();
+        let mut anchor_ids = std::collections::HashSet::new();
         for (index, prop) in self.props.iter().enumerate() {
             errors.extend(prop.validation_errors(index));
             if let Some(id) = prop.id.as_deref() {
                 collect_unique_id("prop", index, id, &mut prop_ids, &mut errors);
+            }
+            if let Some(anchor_id) = prop.anchor_id.as_deref() {
+                collect_unique_id("anchor", index, anchor_id, &mut anchor_ids, &mut errors);
             }
         }
 
@@ -505,9 +807,8 @@ impl LevelData {
                 index,
                 &prop_ids,
                 &loot_table_ids,
-                &path_ids,
-                &event_ids,
                 &dialogue_ids,
+                &mountain_reaction_ids,
             ));
         }
 
@@ -545,6 +846,22 @@ impl LevelData {
                 &event_ids,
                 &mut errors,
             );
+            if let Some(event_id) = prop.event_id.as_deref() {
+                if prop.enemy_type.is_none() && prop.anchor_id.is_none() {
+                    errors.push(format!(
+                        "{} event_id is only supported for enemy defeat or Anchor binding",
+                        label
+                    ));
+                }
+                if let Some(event) = self.events.iter().find(|event| event.id == event_id) {
+                    if event.trigger.kind != LevelEventTriggerKind::Manual {
+                        errors.push(format!(
+                            "{} event_id '{}' must reference a Manual event",
+                            label, event_id
+                        ));
+                    }
+                }
+            }
         }
 
         errors
@@ -712,6 +1029,13 @@ impl PropData {
                 ));
             }
         }
+        if self
+            .display_name
+            .as_ref()
+            .is_some_and(|display_name| display_name.trim().is_empty())
+        {
+            errors.push(format!("{} display_name must not be empty", label));
+        }
 
         if !self.position.iter().all(|v| v.is_finite()) {
             errors.push(format!("{} position must contain finite numbers", label));
@@ -724,6 +1048,9 @@ impl PropData {
         }
         if self.scale.iter().any(|v| v.abs() <= f32::EPSILON) {
             errors.push(format!("{} scale must not contain zero values", label));
+        }
+        if let Some(material) = self.surface_material.as_ref() {
+            errors.extend(material.validation_errors(&format!("{} surface_material", label)));
         }
         if self
             .enemy_type
@@ -740,6 +1067,7 @@ impl PropData {
             errors.push(format!("{} anchor_id must not be empty", label));
         }
         validate_optional_authoring_id(&label, "id", self.id.as_deref(), &mut errors);
+        validate_optional_authoring_id(&label, "anchor_id", self.anchor_id.as_deref(), &mut errors);
         validate_optional_authoring_id(&label, "path_id", self.path_id.as_deref(), &mut errors);
         validate_optional_authoring_id(
             &label,
@@ -754,6 +1082,28 @@ impl PropData {
             &mut errors,
         );
         validate_optional_authoring_id(&label, "event_id", self.event_id.as_deref(), &mut errors);
+        if self
+            .id
+            .as_deref()
+            .is_some_and(|id| id.starts_with(RUNTIME_LOOT_ID_PREFIX))
+        {
+            errors.push(format!(
+                "{} id must not use the reserved '{}' runtime namespace",
+                label, RUNTIME_LOOT_ID_PREFIX
+            ));
+        }
+        if self.loot_table_id.is_some() && self.id.is_none() {
+            errors.push(format!(
+                "{} requires a stable id when loot_table_id is set",
+                label
+            ));
+        }
+        if self.event_id.is_some() && self.id.is_none() {
+            errors.push(format!(
+                "{} requires a stable id when event_id is set",
+                label
+            ));
+        }
         if self
             .item_id
             .as_ref()
@@ -779,8 +1129,20 @@ impl PropData {
                 label
             ));
         }
-        if self.enemy_type.is_some() && self.enemy_health < 0.0 {
-            errors.push(format!("{} enemy_health must not be negative", label));
+        if self.anchor_id.is_some()
+            && (self.enemy_type.is_some() || self.item_id.is_some() || self.resource_value > 0)
+        {
+            errors.push(format!(
+                "{} cannot combine an Anchor with an enemy or pickup role",
+                label
+            ));
+        }
+        if self.enemy_type.is_some() && (!self.enemy_health.is_finite() || self.enemy_health < 0.0)
+        {
+            errors.push(format!(
+                "{} enemy_health must be finite and non-negative",
+                label
+            ));
         }
         if let Some(target) = self.trigger_level_id.as_ref() {
             if let Err(error) = validate_level_id(target) {
@@ -812,6 +1174,248 @@ impl PropData {
         }
 
         errors
+    }
+}
+
+impl SurfaceMaterialData {
+    pub fn validation_errors(&self, label: &str) -> Vec<String> {
+        let mut errors = Vec::new();
+        if !finite_color_in_range(self.tint, 0.0, 4.0) {
+            errors.push(format!(
+                "{} tint must contain finite values between 0 and 4",
+                label
+            ));
+        }
+        if !self.uv_scale.is_finite() || !(0.05..=64.0).contains(&self.uv_scale) {
+            errors.push(format!("{} uv_scale must be between 0.05 and 64", label));
+        }
+        if !self.emissive.is_finite() || !(0.0..=4.0).contains(&self.emissive) {
+            errors.push(format!("{} emissive must be between 0 and 4", label));
+        }
+        if let Some(texture) = self.texture.as_deref() {
+            let raw_texture = texture;
+            let texture = raw_texture.trim();
+            let path = Path::new(texture);
+            let safe = raw_texture == texture
+                && !texture.is_empty()
+                && !path.is_absolute()
+                && path
+                    .components()
+                    .all(|component| matches!(component, Component::Normal(_)));
+            if !safe {
+                errors.push(format!(
+                    "{} texture must be a safe path relative to textures/",
+                    label
+                ));
+            } else {
+                let extension_supported = path
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| {
+                        matches!(
+                            extension.to_ascii_lowercase().as_str(),
+                            "png" | "jpg" | "jpeg" | "webp" | "bmp" | "tga"
+                        )
+                    });
+                if !extension_supported {
+                    errors.push(format!("{} texture uses an unsupported format", label));
+                } else if !Path::new("textures").join(path).is_file() {
+                    errors.push(format!(
+                        "{} references missing texture 'textures/{}'",
+                        label, texture
+                    ));
+                }
+            }
+        }
+        errors
+    }
+}
+
+impl AtmosphereData {
+    pub fn validation_errors(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if !finite_color_in_range(self.clear_color, 0.0, 1.0) {
+            errors.push("atmosphere clear_color must contain values between 0 and 1".to_string());
+        }
+        if !finite_color_in_range(self.fog_color, 0.0, 1.0) {
+            errors.push("atmosphere fog_color must contain values between 0 and 1".to_string());
+        }
+        if !finite_color_in_range(self.key_light_color, 0.0, 2.0) {
+            errors
+                .push("atmosphere key_light_color must contain values between 0 and 2".to_string());
+        }
+        if !self.fog_density.is_finite() || !(0.0..=0.2).contains(&self.fog_density) {
+            errors.push("atmosphere fog_density must be between 0 and 0.2".to_string());
+        }
+        if !self.key_light_intensity.is_finite()
+            || !(0.0..=12.0).contains(&self.key_light_intensity)
+        {
+            errors.push("atmosphere key_light_intensity must be between 0 and 12".to_string());
+        }
+        if self.particle_count > 512 {
+            errors.push("atmosphere particle_count must not exceed 512".to_string());
+        }
+        if !finite_color_in_range(self.particle_color, 0.0, 2.0) {
+            errors
+                .push("atmosphere particle_color must contain values between 0 and 2".to_string());
+        }
+        validate_atmosphere_range(
+            &mut errors,
+            "particle_opacity",
+            self.particle_opacity,
+            0.0,
+            1.0,
+        );
+        validate_atmosphere_range(&mut errors, "particle_size", self.particle_size, 0.01, 2.0);
+        validate_atmosphere_range(
+            &mut errors,
+            "particle_radius",
+            self.particle_radius,
+            2.0,
+            100.0,
+        );
+        validate_atmosphere_range(
+            &mut errors,
+            "particle_height",
+            self.particle_height,
+            2.0,
+            100.0,
+        );
+        validate_atmosphere_range(
+            &mut errors,
+            "particle_speed",
+            self.particle_speed,
+            0.0,
+            20.0,
+        );
+        if !self
+            .wind
+            .iter()
+            .all(|value| value.is_finite() && value.abs() <= 20.0)
+        {
+            errors.push("atmosphere wind values must be finite and between -20 and 20".to_string());
+        }
+        validate_atmosphere_range(
+            &mut errors,
+            "ambience_volume",
+            self.ambience_volume,
+            0.0,
+            1.0,
+        );
+        errors
+    }
+}
+
+impl MountainReactionData {
+    pub fn validation_errors(&self, index: usize) -> Vec<String> {
+        let mut errors = Vec::new();
+        let label = format!("mountain reaction {} ('{}')", index, self.id);
+        validate_authoring_id(&label, &self.id, &mut errors);
+
+        if !self.duration.is_finite() || self.duration <= 0.0 {
+            errors.push(format!(
+                "{} duration must be finite and greater than zero",
+                label
+            ));
+        }
+        validate_optional_reaction_color(&mut errors, &label, "clear_color", self.clear_color, 1.0);
+        validate_optional_reaction_color(&mut errors, &label, "fog_color", self.fog_color, 1.0);
+        validate_nonnegative_finite_multiplier(
+            &mut errors,
+            &label,
+            "fog_density_multiplier",
+            self.fog_density_multiplier,
+        );
+        validate_optional_reaction_color(
+            &mut errors,
+            &label,
+            "key_light_color",
+            self.key_light_color,
+            2.0,
+        );
+        validate_nonnegative_finite_multiplier(
+            &mut errors,
+            &label,
+            "key_light_intensity_multiplier",
+            self.key_light_intensity_multiplier,
+        );
+        validate_optional_reaction_color(
+            &mut errors,
+            &label,
+            "particle_color",
+            self.particle_color,
+            2.0,
+        );
+        if !self.particle_speed_multiplier.is_finite() {
+            errors.push(format!(
+                "{} particle_speed_multiplier must be finite",
+                label
+            ));
+        }
+        if self
+            .wind
+            .is_some_and(|wind| !wind.iter().all(|value| value.is_finite()))
+        {
+            errors.push(format!("{} wind must contain finite numbers", label));
+        }
+        validate_nonnegative_finite_multiplier(
+            &mut errors,
+            &label,
+            "ambience_volume_multiplier",
+            self.ambience_volume_multiplier,
+        );
+
+        errors
+    }
+}
+
+fn validate_optional_reaction_color(
+    errors: &mut Vec<String>,
+    label: &str,
+    field: &str,
+    color: Option<[f32; 3]>,
+    max: f32,
+) {
+    if color.is_some_and(|color| !finite_color_in_range(color, 0.0, max)) {
+        errors.push(format!(
+            "{} {} must contain finite values between 0 and {}",
+            label, field, max
+        ));
+    }
+}
+
+fn validate_nonnegative_finite_multiplier(
+    errors: &mut Vec<String>,
+    label: &str,
+    field: &str,
+    value: f32,
+) {
+    if !value.is_finite() || value < 0.0 {
+        errors.push(format!(
+            "{} {} must be finite and non-negative",
+            label, field
+        ));
+    }
+}
+
+fn finite_color_in_range(color: [f32; 3], min: f32, max: f32) -> bool {
+    color
+        .iter()
+        .all(|value| value.is_finite() && (min..=max).contains(value))
+}
+
+fn validate_atmosphere_range(
+    errors: &mut Vec<String>,
+    field: &str,
+    value: f32,
+    min: f32,
+    max: f32,
+) {
+    if !value.is_finite() || !(min..=max).contains(&value) {
+        errors.push(format!(
+            "atmosphere {} must be between {} and {}",
+            field, min, max
+        ));
     }
 }
 
@@ -959,14 +1563,24 @@ impl LevelEventData {
         index: usize,
         prop_ids: &std::collections::HashSet<String>,
         loot_table_ids: &std::collections::HashSet<String>,
-        path_ids: &std::collections::HashSet<String>,
-        _event_ids: &std::collections::HashSet<String>,
         dialogue_ids: &std::collections::HashSet<String>,
+        mountain_reaction_ids: &std::collections::HashSet<String>,
     ) -> Vec<String> {
         let mut errors = Vec::new();
         let label = format!("event {} ('{}')", index, self.id);
         validate_authoring_id(&label, &self.id, &mut errors);
         errors.extend(self.trigger.validation_errors(&label, prop_ids));
+        if !self.once
+            && matches!(
+                self.trigger.kind,
+                LevelEventTriggerKind::OnEnter | LevelEventTriggerKind::Proximity
+            )
+        {
+            errors.push(format!(
+                "{} repeatable automatic triggers are unsupported; use Interact or Manual",
+                label
+            ));
+        }
         if self.actions.is_empty() {
             errors.push(format!("{} must contain at least one action", label));
         }
@@ -975,8 +1589,8 @@ impl LevelEventData {
                 &label,
                 action_index,
                 loot_table_ids,
-                path_ids,
                 dialogue_ids,
+                mountain_reaction_ids,
             ));
         }
 
@@ -1021,8 +1635,8 @@ impl LevelEventActionData {
         event_label: &str,
         index: usize,
         loot_table_ids: &std::collections::HashSet<String>,
-        _path_ids: &std::collections::HashSet<String>,
         dialogue_ids: &std::collections::HashSet<String>,
+        mountain_reaction_ids: &std::collections::HashSet<String>,
     ) -> Vec<String> {
         let mut errors = Vec::new();
         let label = format!("{} action {}", event_label, index);
@@ -1036,6 +1650,12 @@ impl LevelEventActionData {
             &label,
             "dialogue_id",
             self.dialogue_id.as_deref(),
+            &mut errors,
+        );
+        validate_optional_authoring_id(
+            &label,
+            "reaction_id",
+            self.reaction_id.as_deref(),
             &mut errors,
         );
         validate_optional_authoring_id(&label, "flag_id", self.flag_id.as_deref(), &mut errors);
@@ -1095,6 +1715,18 @@ impl LevelEventActionData {
                     "dialogue_id",
                     self.dialogue_id.as_deref(),
                     dialogue_ids,
+                    &mut errors,
+                );
+            }
+            LevelEventActionKind::ReactMountain => {
+                if self.reaction_id.is_none() {
+                    errors.push(format!("{} ReactMountain requires reaction_id", label));
+                }
+                validate_reference(
+                    &label,
+                    "reaction_id",
+                    self.reaction_id.as_deref(),
+                    mountain_reaction_ids,
                     &mut errors,
                 );
             }
@@ -1232,6 +1864,39 @@ mod tests {
     fn default_level_has_correct_name() {
         let level = LevelData::default_level();
         assert_eq!(level.name, "map_001");
+        assert_eq!(level.version, CURRENT_LEVEL_VERSION);
+    }
+
+    #[test]
+    fn legacy_level_json_migrates_to_current_version() {
+        let level = LevelData::from_json_str(
+            r#"{
+                "name": "Legacy",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": []
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(level.version, CURRENT_LEVEL_VERSION);
+        assert_eq!(level.validate(), Ok(()));
+    }
+
+    #[test]
+    fn future_level_version_is_rejected_before_runtime() {
+        let error = LevelData::from_json_str(
+            r#"{
+                "version": 2,
+                "name": "Future",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": []
+            }"#,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("newer than supported version"));
     }
 
     #[test]
@@ -1331,6 +1996,66 @@ mod tests {
     }
 
     #[test]
+    fn validation_requires_unique_authoring_safe_anchor_ids() {
+        let level: LevelData = serde_json::from_str(
+            r#"
+            {
+                "name": "Anchor Identity Test",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": [
+                    { "asset_id": "Cube.obj", "anchor_id": "same_anchor" },
+                    { "asset_id": "Cube.obj", "anchor_id": "same_anchor" },
+                    { "asset_id": "Cube.obj", "anchor_id": "unsafe anchor" }
+                ]
+            }
+            "#,
+        )
+        .unwrap();
+
+        let errors = level.validation_errors();
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("duplicate anchor id 'same_anchor'")));
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("anchor_id 'unsafe anchor' must use only")));
+    }
+
+    #[test]
+    fn prop_events_are_reserved_for_manual_enemy_or_anchor_consequences() {
+        let level: LevelData = serde_json::from_str(
+            r#"
+            {
+                "name": "Prop Event Contract Test",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": [
+                    { "id": "stone", "asset_id": "Cube.obj", "event_id": "stone_event" }
+                ],
+                "events": [
+                    {
+                        "id": "stone_event",
+                        "once": true,
+                        "trigger": { "kind": "Proximity" },
+                        "actions": [{ "kind": "GrantResource", "resource_value": 1 }]
+                    }
+                ]
+            }
+            "#,
+        )
+        .unwrap();
+
+        let errors = level.validation_errors();
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("only supported for enemy defeat or Anchor binding")));
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("must reference a Manual event")));
+    }
+
+    #[test]
     fn validation_rejects_empty_item_id() {
         let prop: PropData =
             serde_json::from_str(r#"{ "asset_id": "Cube.obj", "item_id": "" }"#).unwrap();
@@ -1362,6 +2087,75 @@ mod tests {
     }
 
     #[test]
+    fn authored_loot_sources_require_stable_prop_ids() {
+        let prop: PropData = serde_json::from_str(
+            r#"{ "asset_id": "Cube.obj", "enemy_type": "Burdened", "loot_table_id": "drop" }"#,
+        )
+        .unwrap();
+
+        let errors = prop.validation_errors(0);
+
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("stable id when loot_table_id is set")));
+    }
+
+    #[test]
+    fn authored_props_cannot_claim_the_runtime_loot_namespace() {
+        let prop: PropData =
+            serde_json::from_str(r#"{ "id": "runtime_loot_authored", "asset_id": "Cube.obj" }"#)
+                .unwrap();
+
+        assert!(prop
+            .validation_errors(0)
+            .iter()
+            .any(|error| error.contains("reserved 'runtime_loot_'")));
+    }
+
+    #[test]
+    fn event_linked_props_require_stable_ids() {
+        let prop: PropData =
+            serde_json::from_str(r#"{ "asset_id": "Cube.obj", "event_id": "keeper_fall" }"#)
+                .unwrap();
+
+        assert!(prop
+            .validation_errors(0)
+            .iter()
+            .any(|error| error.contains("stable id when event_id is set")));
+    }
+
+    #[test]
+    fn repeatable_automatic_events_are_rejected_before_they_can_fire_every_frame() {
+        let mut level = LevelData::default_level();
+        level.events = vec![LevelEventData {
+            id: "repeat_proximity".to_string(),
+            once: false,
+            trigger: LevelEventTriggerData {
+                kind: LevelEventTriggerKind::Proximity,
+                position: [0.0, 0.0, 0.0],
+                radius: 2.5,
+                prop_id: None,
+                flag_id: None,
+            },
+            actions: vec![LevelEventActionData {
+                kind: LevelEventActionKind::GrantResource,
+                target_level_id: None,
+                loot_table_id: None,
+                dialogue_id: None,
+                reaction_id: None,
+                flag_id: None,
+                resource_value: 1,
+                spawn_position: None,
+            }],
+        }];
+
+        assert!(level
+            .validation_errors()
+            .iter()
+            .any(|error| error.contains("repeatable automatic triggers are unsupported")));
+    }
+
+    #[test]
     fn foundation_test_level_validates() {
         let level = LevelData::try_load("levels/foundation_test.json").unwrap();
         assert_eq!(level.props.len(), 16);
@@ -1376,6 +2170,72 @@ mod tests {
     }
 
     #[test]
+    fn ashwalk_first_ascent_keeps_its_playable_loop_contract() {
+        let level = LevelData::try_load("levels/ashwalk_01.json").unwrap();
+
+        assert_eq!(level.version, CURRENT_LEVEL_VERSION);
+        assert!(level.props.len() <= 14);
+        assert_eq!(level.validate(), Ok(()));
+        assert_eq!(level.atmosphere.particle_preset, ParticlePreset::Ashfall);
+        assert_eq!(level.atmosphere.ambience_preset, AmbiencePreset::AshWind);
+        assert_eq!(
+            level.base_material.texture.as_deref(),
+            Some("cenotaph/ash_stone.png")
+        );
+        assert_eq!(
+            level
+                .props
+                .iter()
+                .filter(|prop| prop.anchor_id.is_some())
+                .count(),
+            1
+        );
+        assert_eq!(level.props.iter().filter(|prop| prop.is_hurtbox).count(), 1);
+        assert!(
+            level
+                .props
+                .iter()
+                .map(|prop| prop.resource_value)
+                .sum::<u32>()
+                >= 100
+        );
+        assert!(level
+            .props
+            .iter()
+            .filter_map(|prop| prop.item_id.as_deref())
+            .any(|item_id| item_id == "ash_splinter"));
+        assert_eq!(level.paths.len(), 1);
+        assert!(level
+            .props
+            .iter()
+            .all(|prop| prop.asset_id != "props/test_wall.obj"));
+        assert!(
+            level
+                .props
+                .iter()
+                .filter(|prop| prop.enemy_type.is_some())
+                .count()
+                <= 3
+        );
+        assert!(level.events.iter().any(|event| {
+            event.trigger.kind == LevelEventTriggerKind::Interact
+                && event.trigger.prop_id.as_deref() == Some("oath_stone")
+        }));
+
+        let elite = level
+            .props
+            .iter()
+            .find(|prop| prop.id.as_deref() == Some("ashwarden_elite"))
+            .unwrap();
+        assert!(elite.enemy_health >= 200.0);
+        assert_eq!(elite.loot_table_id.as_deref(), Some("ashwarden_drop"));
+        assert!(level
+            .props
+            .iter()
+            .any(|prop| { prop.trigger_level_id.as_deref() == Some("foundation_test") }));
+    }
+
+    #[test]
     fn level_save_round_trips_pretty_json() {
         let temp_path = std::env::temp_dir().join(format!(
             "cenotaph_level_save_test_{}_{}.json",
@@ -1383,16 +2243,22 @@ mod tests {
             17
         ));
         let level = LevelData {
+            version: CURRENT_LEVEL_VERSION,
             name: "Save Test".to_string(),
             base_map: "assets/test_movement_arena.obj".to_string(),
             player_spawn: [0.0, 128.0, 0.0],
+            atmosphere: AtmosphereData::default(),
+            base_material: SurfaceMaterialData::default(),
+            mountain_reactions: Vec::new(),
             props: vec![PropData {
                 id: None,
+                display_name: None,
                 asset_id: "props/test_wall.obj".to_string(),
                 position: [1.0, 2.0, 3.0],
                 rotation: [0.0, 0.0, 0.0],
                 scale: [1.0, 1.0, 1.0],
                 collider_type: ColliderType::Box,
+                surface_material: None,
                 brush_geometry: None,
                 is_climbable: false,
                 is_hurtbox: false,
@@ -1443,6 +2309,7 @@ mod tests {
                     target_level_id: None,
                     loot_table_id: None,
                     dialogue_id: Some("opening".to_string()),
+                    reaction_id: None,
                     flag_id: None,
                     resource_value: 0,
                     spawn_position: None,
@@ -1451,15 +2318,17 @@ mod tests {
             dialogues: vec![DialogueData {
                 id: "opening".to_string(),
                 speaker: "Cenotaph".to_string(),
-                lines: vec!["The editor remembers this room.".to_string()],
+                lines: vec!["The cenotaph remembers this room.".to_string()],
             }],
         };
 
-        level.save_to_path(&temp_path).unwrap();
+        let json = serde_json::to_string_pretty(&level).unwrap();
+        std::fs::write(&temp_path, format!("{}\n", json)).unwrap();
         let loaded = LevelData::try_load(temp_path.to_str().unwrap()).unwrap();
         let _ = std::fs::remove_file(&temp_path);
 
         assert_eq!(loaded.name, "Save Test");
+        assert_eq!(loaded.version, CURRENT_LEVEL_VERSION);
         assert_eq!(loaded.props.len(), 1);
         assert_eq!(loaded.props[0].collider_type, ColliderType::Box);
         assert_eq!(loaded.loot_tables.len(), 1);
@@ -1487,6 +2356,204 @@ mod tests {
         assert!(level.paths.is_empty());
         assert!(level.events.is_empty());
         assert!(level.dialogues.is_empty());
+        assert!(level.mountain_reactions.is_empty());
+        assert_eq!(level.atmosphere, AtmosphereData::default());
+        assert_eq!(level.base_material, SurfaceMaterialData::default());
+    }
+
+    #[test]
+    fn mountain_reaction_json_parses_defaults_and_particle_reversal() {
+        let level = LevelData::from_json_str(
+            r#"
+            {
+                "name": "Mountain Reaction Test",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": [],
+                "mountain_reactions": [
+                    {
+                        "id": "choir_reversal",
+                        "particle_speed_multiplier": -1.5
+                    },
+                    {
+                        "id": "ashen_squall",
+                        "duration": 2.5,
+                        "clear_color": [0.1, 0.2, 0.3],
+                        "fog_color": [0.3, 0.2, 0.1],
+                        "fog_density_multiplier": 1.5,
+                        "key_light_color": [1.5, 1.0, 0.5],
+                        "key_light_intensity_multiplier": 2.0,
+                        "particle_color": [0.5, 0.75, 1.25],
+                        "particle_speed_multiplier": 0.75,
+                        "wind": [4.0, -2.0, 1.0],
+                        "ambience_preset": "AshWind",
+                        "ambience_volume_multiplier": 0.4
+                    }
+                ],
+                "events": [
+                    {
+                        "id": "mountain_answers",
+                        "trigger": { "kind": "Manual" },
+                        "actions": [
+                            {
+                                "kind": "ReactMountain",
+                                "reaction_id": "choir_reversal"
+                            }
+                        ]
+                    }
+                ]
+            }
+            "#,
+        )
+        .unwrap();
+
+        let reaction = &level.mountain_reactions[0];
+        assert_eq!(reaction.duration, 4.0);
+        assert_eq!(reaction.clear_color, None);
+        assert_eq!(reaction.fog_color, None);
+        assert_eq!(reaction.fog_density_multiplier, 1.0);
+        assert_eq!(reaction.key_light_color, None);
+        assert_eq!(reaction.key_light_intensity_multiplier, 1.0);
+        assert_eq!(reaction.particle_color, None);
+        assert_eq!(reaction.particle_speed_multiplier, -1.5);
+        assert_eq!(reaction.wind, None);
+        assert_eq!(reaction.ambience_preset, None);
+        assert_eq!(reaction.ambience_volume_multiplier, 1.0);
+        assert_eq!(
+            level.mountain_reactions[1],
+            MountainReactionData {
+                id: "ashen_squall".to_string(),
+                duration: 2.5,
+                clear_color: Some([0.1, 0.2, 0.3]),
+                fog_color: Some([0.3, 0.2, 0.1]),
+                fog_density_multiplier: 1.5,
+                key_light_color: Some([1.5, 1.0, 0.5]),
+                key_light_intensity_multiplier: 2.0,
+                particle_color: Some([0.5, 0.75, 1.25]),
+                particle_speed_multiplier: 0.75,
+                wind: Some([4.0, -2.0, 1.0]),
+                ambience_preset: Some(AmbiencePreset::AshWind),
+                ambience_volume_multiplier: 0.4,
+            }
+        );
+        assert_eq!(
+            level.events[0].actions[0].reaction_id.as_deref(),
+            Some("choir_reversal")
+        );
+        assert_eq!(level.validate(), Ok(()));
+    }
+
+    #[test]
+    fn mountain_reaction_validation_rejects_invalid_profiles() {
+        let mut level = LevelData::default_level();
+        level.mountain_reactions = vec![
+            MountainReactionData {
+                id: "bad reaction".to_string(),
+                duration: 0.0,
+                clear_color: Some([-0.1, 0.0, 0.0]),
+                fog_color: Some([f32::NAN, 0.0, 0.0]),
+                fog_density_multiplier: -1.0,
+                key_light_color: Some([3.0, 0.0, 0.0]),
+                key_light_intensity_multiplier: f32::INFINITY,
+                particle_color: Some([0.0, 0.0, 3.0]),
+                particle_speed_multiplier: f32::NAN,
+                wind: Some([0.0, f32::INFINITY, 0.0]),
+                ambience_preset: None,
+                ambience_volume_multiplier: -0.5,
+            },
+            MountainReactionData {
+                id: "bad reaction".to_string(),
+                ..MountainReactionData::default()
+            },
+        ];
+
+        let errors = level.validation_errors();
+        for field in [
+            "duration",
+            "clear_color",
+            "fog_color",
+            "fog_density_multiplier",
+            "key_light_color",
+            "key_light_intensity_multiplier",
+            "particle_color",
+            "particle_speed_multiplier",
+            "wind",
+            "ambience_volume_multiplier",
+        ] {
+            assert!(
+                errors.iter().any(|error| error.contains(field)),
+                "missing validation error for {field}: {errors:?}"
+            );
+        }
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("duplicate mountain reaction id")));
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("must use only letters")));
+    }
+
+    #[test]
+    fn react_mountain_actions_require_declared_reaction_ids() {
+        let level = LevelData::from_json_str(
+            r#"
+            {
+                "name": "Broken Mountain Reactions",
+                "base_map": "assets/Cube.obj",
+                "player_spawn": [0.0, 0.0, 0.0],
+                "props": [],
+                "events": [
+                    {
+                        "id": "missing_reaction_id",
+                        "trigger": { "kind": "Manual" },
+                        "actions": [{ "kind": "ReactMountain" }]
+                    },
+                    {
+                        "id": "unknown_reaction_id",
+                        "trigger": { "kind": "Manual" },
+                        "actions": [
+                            {
+                                "kind": "ReactMountain",
+                                "reaction_id": "undeclared_reaction"
+                            }
+                        ]
+                    }
+                ]
+            }
+            "#,
+        )
+        .unwrap();
+
+        let errors = level.validation_errors();
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("ReactMountain requires reaction_id")));
+        assert!(errors.iter().any(|error| {
+            error.contains("reaction_id references unknown id 'undeclared_reaction'")
+        }));
+    }
+
+    #[test]
+    fn atmosphere_and_surface_material_validation_guard_runtime_budgets() {
+        let atmosphere = AtmosphereData {
+            particle_count: 513,
+            wind: [f32::INFINITY, 0.0, 0.0],
+            ..AtmosphereData::default()
+        };
+        let errors = atmosphere.validation_errors();
+        assert!(errors.iter().any(|error| error.contains("particle_count")));
+        assert!(errors.iter().any(|error| error.contains("wind")));
+
+        let material = SurfaceMaterialData {
+            texture: Some("../Cargo.toml".to_string()),
+            uv_scale: 0.0,
+            emissive: 5.0,
+            ..SurfaceMaterialData::default()
+        };
+        let errors = material.validation_errors("test material");
+        assert!(errors.iter().any(|error| error.contains("safe path")));
+        assert!(errors.iter().any(|error| error.contains("uv_scale")));
+        assert!(errors.iter().any(|error| error.contains("emissive")));
     }
 
     #[test]
@@ -1498,7 +2565,7 @@ mod tests {
             default_scale: [1.0, 1.0, 1.0],
             default_collider_type: ColliderType::None,
             tags: vec!["texture".to_string()],
-            notes: Some("source-only editor import".to_string()),
+            notes: Some("source-only authoring import".to_string()),
         };
 
         assert!(import.validation_errors(0).is_empty());
@@ -1506,7 +2573,7 @@ mod tests {
 
     #[test]
     fn validation_accepts_custom_brush_geometry_without_asset_file() {
-        let level: LevelData = serde_json::from_str(
+        let level = LevelData::from_json_str(
             r#"
             {
                 "name": "Brush Geometry Test",
@@ -1514,7 +2581,7 @@ mod tests {
                 "player_spawn": [0.0, 0.0, 0.0],
                 "props": [
                     {
-                        "asset_id": "editor/brush_geometry",
+                        "asset_id": "generated/brush_geometry",
                         "collider_type": "Mesh",
                         "brush_geometry": {
                             "vertices": [
@@ -1545,7 +2612,7 @@ mod tests {
                 "player_spawn": [0.0, 0.0, 0.0],
                 "props": [
                     {
-                        "asset_id": "editor/brush_geometry",
+                        "asset_id": "generated/brush_geometry",
                         "collider_type": "Mesh",
                         "brush_geometry": {
                             "vertices": [
@@ -1574,16 +2641,22 @@ mod tests {
     #[test]
     fn validation_accepts_connected_authoring_graph() {
         let level = LevelData {
+            version: CURRENT_LEVEL_VERSION,
             name: "Authoring Graph".to_string(),
             base_map: "assets/Cube.obj".to_string(),
             player_spawn: [0.0, 0.0, 0.0],
+            atmosphere: AtmosphereData::default(),
+            base_material: SurfaceMaterialData::default(),
+            mountain_reactions: Vec::new(),
             props: vec![PropData {
                 id: Some("guard_01".to_string()),
+                display_name: None,
                 asset_id: "Cube.obj".to_string(),
                 position: [0.0, 0.0, 0.0],
                 rotation: [0.0, 0.0, 0.0],
                 scale: [1.0, 1.0, 1.0],
                 collider_type: ColliderType::Sphere,
+                surface_material: None,
                 brush_geometry: None,
                 is_climbable: false,
                 is_hurtbox: false,
@@ -1631,10 +2704,10 @@ mod tests {
                 id: "guard_intro".to_string(),
                 once: true,
                 trigger: LevelEventTriggerData {
-                    kind: LevelEventTriggerKind::Interact,
+                    kind: LevelEventTriggerKind::Manual,
                     position: [0.0, 0.0, 0.0],
                     radius: 2.5,
-                    prop_id: Some("guard_01".to_string()),
+                    prop_id: None,
                     flag_id: None,
                 },
                 actions: vec![LevelEventActionData {
@@ -1642,6 +2715,7 @@ mod tests {
                     target_level_id: None,
                     loot_table_id: None,
                     dialogue_id: Some("guard_dialogue".to_string()),
+                    reaction_id: None,
                     flag_id: None,
                     resource_value: 0,
                     spawn_position: None,
@@ -1660,16 +2734,22 @@ mod tests {
     #[test]
     fn validation_rejects_broken_authoring_references() {
         let level = LevelData {
+            version: CURRENT_LEVEL_VERSION,
             name: "Broken Graph".to_string(),
             base_map: "assets/Cube.obj".to_string(),
             player_spawn: [0.0, 0.0, 0.0],
+            atmosphere: AtmosphereData::default(),
+            base_material: SurfaceMaterialData::default(),
+            mountain_reactions: Vec::new(),
             props: vec![PropData {
                 id: Some("bad prop".to_string()),
+                display_name: None,
                 asset_id: "Cube.obj".to_string(),
                 position: [0.0, 0.0, 0.0],
                 rotation: [0.0, 0.0, 0.0],
                 scale: [1.0, 1.0, 1.0],
                 collider_type: ColliderType::None,
+                surface_material: None,
                 brush_geometry: None,
                 is_climbable: false,
                 is_hurtbox: false,
@@ -1720,6 +2800,7 @@ mod tests {
                     target_level_id: None,
                     loot_table_id: Some("missing_loot".to_string()),
                     dialogue_id: None,
+                    reaction_id: None,
                     flag_id: None,
                     resource_value: 0,
                     spawn_position: Some([f32::NAN, 0.0, 0.0]),

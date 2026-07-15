@@ -188,6 +188,7 @@ mod tests {
         RelicDefinition {
             id: "ash_splinter".to_string(),
             display_name: "Ash Splinter".to_string(),
+            pickup_asset: "pickups/relic_ash_splinter.obj".to_string(),
             family: "Sovereign".to_string(),
             rarity: "Common".to_string(),
             damage_multiplier: 1.2,
@@ -202,6 +203,7 @@ mod tests {
         RelicDefinition {
             id: "veil_cinder".to_string(),
             display_name: "Veil Cinder".to_string(),
+            pickup_asset: "pickups/relic_veil_cinder.obj".to_string(),
             family: "Moonchild".to_string(),
             rarity: "Rare".to_string(),
             damage_multiplier: 0.9,

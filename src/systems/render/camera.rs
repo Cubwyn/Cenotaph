@@ -6,12 +6,16 @@ use crate::data::config::gameplay::GameConfig;
 use crate::systems::input::manager::InputManager;
 use glam::{Mat4, Vec3};
 
+pub const BASE_FOVY: f32 = 0.78;
+
 // ── Camera ────────────────────────────────────────────────────────────────────
 
 pub struct Camera {
     pub position: Vec3,
     pub yaw: f32,
     pub pitch: f32,
+    pub visual_yaw_offset: f32,
+    pub visual_pitch_offset: f32,
     pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
@@ -30,7 +34,16 @@ impl Camera {
     }
 
     pub fn build_view_projection_matrix(&self) -> Mat4 {
-        let view = Mat4::look_to_rh(self.position, self.get_forward(), Vec3::Y);
+        let yaw = self.yaw + self.visual_yaw_offset;
+        let pitch = (self.pitch + self.visual_pitch_offset)
+            .clamp(-89.0_f32.to_radians(), 89.0_f32.to_radians());
+        let visual_forward = Vec3::new(
+            yaw.cos() * pitch.cos(),
+            pitch.sin(),
+            yaw.sin() * pitch.cos(),
+        )
+        .normalize();
+        let view = Mat4::look_to_rh(self.position, visual_forward, Vec3::Y);
         let proj = Mat4::perspective_rh(self.fovy, self.aspect, self.znear, self.zfar);
         proj * view
     }
@@ -42,17 +55,25 @@ impl Camera {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     view_proj: [[f32; 4]; 4],
+    position_time: [f32; 4],
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
             view_proj: Mat4::IDENTITY.to_cols_array_2d(),
+            position_time: [0.0; 4],
         }
     }
 
-    pub fn update_view_proj(&mut self, camera: &Camera) {
+    pub fn update_view_proj(&mut self, camera: &Camera, time: f32) {
         self.view_proj = camera.build_view_projection_matrix().to_cols_array_2d();
+        self.position_time = [
+            camera.position.x,
+            camera.position.y,
+            camera.position.z,
+            time.max(0.0),
+        ];
     }
 }
 

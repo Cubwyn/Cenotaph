@@ -1,0 +1,14 @@
+id = "ashwarden"
+display_name = "The Ash-Warden, Bearer of the Last Chain"
+role = "named_elite_keeper"
+behavior_tag = "slow_chase_melee"
+model_asset = "enemies/burdened.obj"
+collider_type = "Sphere"
+visual_tell = "large wide box placeholder; scale, black-iron tint, slow motion, and encounter HUD carry identity"
+health = 220.0
+damage = 28.0
+move_speed = 1.0
+activation_range = 18.0
+attack_range = 2.2
+attack_windup = 1.1
+attack_cooldown = 2.4

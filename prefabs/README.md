@@ -1,6 +1,6 @@
 # Level Prefabs
 
-Prefab JSON files are reusable, editor-authored groups of relative props.
+Prefab JSON files are reusable, hand-authored groups of relative props.
 
 - Keep each prefab at schema version `1`.
 - Every prop needs a unique local `id`.
@@ -9,5 +9,4 @@ Prefab JSON files are reusable, editor-authored groups of relative props.
   rejected because they cannot be resolved safely in every destination level.
 - `cargo validate-content` validates every prefab and referenced runtime asset.
 
-The standalone editor creates backups in `prefabs/.editor_backups/` before an
-existing prefab is overwritten or deleted.
+Keep prefab changes small and validate the project after editing them.

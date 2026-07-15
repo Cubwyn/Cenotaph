@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct RelicDefinition {
     pub id: String,
     pub display_name: String,
+    /// Model path relative to `assets/` used for the in-world pickup.
+    pub pickup_asset: String,
     pub family: String,
     pub rarity: String,
     pub damage_multiplier: f32,
@@ -104,6 +106,7 @@ impl RelicDefinition {
 
         require_non_empty("id", &self.id, &mut errors);
         require_non_empty("display_name", &self.display_name, &mut errors);
+        require_non_empty("pickup_asset", &self.pickup_asset, &mut errors);
         require_non_empty("family", &self.family, &mut errors);
         require_non_empty("rarity", &self.rarity, &mut errors);
         require_non_empty("flavor_text", &self.flavor_text, &mut errors);
@@ -112,6 +115,35 @@ impl RelicDefinition {
         require_positive("cooldown_multiplier", self.cooldown_multiplier, &mut errors);
         require_positive("range_multiplier", self.range_multiplier, &mut errors);
         require_non_negative("hit_stun_bonus", self.hit_stun_bonus, &mut errors);
+
+        let pickup_asset = Path::new(&self.pickup_asset);
+        let safe_pickup_asset = !self.pickup_asset.trim().is_empty()
+            && self.pickup_asset.trim() == self.pickup_asset
+            && !pickup_asset.is_absolute()
+            && pickup_asset
+                .components()
+                .all(|component| matches!(component, Component::Normal(_)));
+        if !safe_pickup_asset {
+            errors.push("pickup_asset must be a safe path relative to assets/".to_string());
+        } else {
+            let supported_model = pickup_asset
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| {
+                    matches!(
+                        extension.to_ascii_lowercase().as_str(),
+                        "glb" | "gltf" | "obj"
+                    )
+                });
+            if !supported_model {
+                errors.push("pickup_asset must use a supported model format".to_string());
+            } else if !Path::new("assets").join(pickup_asset).is_file() {
+                errors.push(format!(
+                    "pickup_asset references missing asset 'assets/{}'",
+                    self.pickup_asset
+                ));
+            }
+        }
 
         errors
     }
@@ -166,6 +198,7 @@ mod tests {
         RelicDefinition {
             id: "ash_splinter".to_string(),
             display_name: "Ash Splinter".to_string(),
+            pickup_asset: "pickups/relic_ash_splinter.obj".to_string(),
             family: "Sovereign".to_string(),
             rarity: "Common".to_string(),
             damage_multiplier: 1.2,
@@ -189,6 +222,7 @@ mod tests {
         relic.damage_multiplier = 0.0;
         relic.cooldown_multiplier = -1.0;
         relic.hit_stun_bonus = f32::NAN;
+        relic.pickup_asset = "../outside.obj".to_string();
 
         let errors = relic.validation_errors();
         assert!(errors.iter().any(|error| error.contains("id")));
@@ -199,6 +233,18 @@ mod tests {
             .iter()
             .any(|error| error.contains("cooldown_multiplier")));
         assert!(errors.iter().any(|error| error.contains("hit_stun_bonus")));
+        assert!(errors.iter().any(|error| error.contains("pickup_asset")));
+    }
+
+    #[test]
+    fn rejects_non_model_pickup_assets_before_runtime() {
+        let mut relic = relic_fixture();
+        relic.pickup_asset = "pickups/relic_ash_splinter.txt".to_string();
+
+        assert!(relic
+            .validation_errors()
+            .iter()
+            .any(|error| error.contains("supported model format")));
     }
 
     #[test]

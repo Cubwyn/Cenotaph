@@ -16,24 +16,20 @@ Do not move to the next stage until the current stage answers its success questi
 
 A stage is complete when the game proves the design question for that stage, not when every possible feature is finished.
 
-Level-editor work is tracked in `../editor/LEVEL_EDITOR_BACKLOG.md`. Editor features count
-as complete only when they pass that file's full-project definition of done.
-
----
-
 # Stage 0: Foundation Prototype
 
 Status: In progress as the current foundation build.
 
 Current notes:
 
-- Movement, camera, jump, sprint, dash, pause, readable guided HUD, in-game
-  level editor, hurtbox damage, death, respawn, prototype prop shooting with
+- Movement, camera, jump, sprint, dash, pause, readable guided HUD, hurtbox
+  damage, death, respawn, prototype prop shooting with
   solid-world obstruction, baseline enemy chase/attack, authored relic
   pickups/rewards, owned-relic cycling, autosave/resume, basic cycle modifiers,
   and full project content validation exist.
-- Starter enemy definitions now have authored low-poly silhouette assets.
-- Minimal resource pickup, Anchor banking/respawn, relic pickup, and hazard
+- Starter enemy definitions use validation-enforced single-primitive
+  placeholders; no generated enemy design is treated as canonical art.
+- Minimal resource pickup, explicit Anchor rites/respawn, relic pickup, and hazard
   examples exist in `foundation_test` and `movement_test`.
 - Advanced enemy AI, role-specific enemy behavior, and production enemy models
   do not exist yet.
@@ -127,10 +123,20 @@ Is it fun to climb, survive, find a relic, adapt, and try again?
 
 ## Future Notes
 
-The foundation now has resource pickup, Anchor banking, authored relic
-pickup/reward flow, basic cycle modifiers, and a hazard prop. Next add one
-route choice, one elite modifier, one upgrade/perk choice, and make the Anchor
-part of a small repeatable climb.
+`ashwalk_01` is now a compact single-route pilgrimage slice with a safe start,
+one authored hazard, paced Ash, one field relic, the named Ash-Warden encounter,
+the guaranteed `Debt of the Last Keeper` drop, and an explicit summit Anchor
+rite. The Warden's death and the first Anchor claim trigger authored mountain
+reactions through reusable level-event data; overlapping answers queue in order.
+Named encounter/reward HUD and world-state resume reconstruction preserve the
+identity of the Warden and its relic across the full loop. The slice is
+protected by content, runtime-preparation, save reconstruction,
+reaction-envelope, and HUD-layout tests but still needs a full manual playtest.
+
+A meaningful two-route decision remains an explicit Stage 1 exit criterion.
+Next tune this route's combat pacing and rite cost in play, then add the route
+split and one behavior-changing relic or perk decision. Do not add another
+stratum before this climb is worth replaying.
 
 ---
 

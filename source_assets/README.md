@@ -9,5 +9,5 @@ by the game runtime.
 - Runtime-ready `.obj`, `.gltf`, and `.glb` files remain under `assets/`.
 - Runtime textures remain under `textures/`.
 
-The standalone level editor catalogs this folder so source files can be staged
-through asset-import records without mixing them into runtime directories.
+Promote finished source files into runtime directories deliberately, and keep
+their original inputs here for future revision.

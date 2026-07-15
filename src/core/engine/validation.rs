@@ -3,6 +3,8 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use crate::data::config::gameplay::{is_valid_binding_token, GameConfig, REQUIRED_BINDING_ACTIONS};
+use crate::data::config::ui::HudThemeConfig;
+use crate::data::config::visuals::VisualProfile;
 use crate::data::enemy::{normalize_enemy_id, EnemyDefinition};
 use crate::data::relic::{normalize_relic_id, RelicDefinition};
 use crate::data::world::level::{LevelData, PropData};
@@ -682,6 +684,40 @@ fn validate_model_asset_file(path: &Path, report: &mut ContentValidationReport) 
     for issue in validate_model_geometry(&model) {
         report.add_issue(path_label.clone(), issue);
     }
+    if uses_primitive_placeholder_contract(path) {
+        let (_, parts, physics_points, physics_triangles) = &model;
+        let render_triangles = parts
+            .iter()
+            .map(|part| part.indices.len() / 3)
+            .sum::<usize>();
+        if parts.len() != 1
+            || physics_points.len() > 8
+            || physics_triangles.len() > 12
+            || render_triangles > 12
+        {
+            report.add_issue(
+                path_label,
+                format!(
+                    "primitive placeholder must remain one basic shape (found {} render part(s), {} physics vertices, {} physics triangles, {} render triangles; limits 1/8/12/12)",
+                    parts.len(),
+                    physics_points.len(),
+                    physics_triangles.len(),
+                    render_triangles
+                ),
+            );
+        }
+    }
+}
+
+fn uses_primitive_placeholder_contract(path: &Path) -> bool {
+    let components = path
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect::<Vec<_>>();
+    components.windows(2).any(|pair| {
+        pair[0].eq_ignore_ascii_case("assets")
+            && matches!(pair[1], "enemies" | "pickups" | "props" | "world")
+    })
 }
 
 pub(crate) fn validate_model_geometry(model: &ModelData) -> Vec<String> {
@@ -898,6 +934,14 @@ pub(crate) fn tuning_validation_errors(config: &GameConfig) -> Vec<String> {
         &mut issues,
     );
     require_non_negative("world.fog_density", config.world.fog_density, &mut issues);
+    require_positive(
+        "world.anchor_interaction_radius",
+        config.world.anchor_interaction_radius,
+        &mut issues,
+    );
+    if config.world.anchor_mend_cost == 0 {
+        issues.push("world.anchor_mend_cost must be > 0".to_string());
+    }
     require_color(
         "lighting.ambient_color",
         config.lighting.ambient_color,
@@ -920,7 +964,73 @@ pub(crate) fn tuning_validation_errors(config: &GameConfig) -> Vec<String> {
         &mut issues,
     );
 
+    validate_hud_theme(&config.ui.hud, &mut issues);
+    validate_visual_profile(
+        "visuals.default_profile",
+        &config.visuals.default_profile,
+        &mut issues,
+    );
+    let mut profile_names = config.visuals.profiles.keys().collect::<Vec<_>>();
+    profile_names.sort();
+    for name in profile_names {
+        if let Some(profile) = config.visuals.profiles.get(name) {
+            validate_visual_profile(&format!("visuals.profiles.{}", name), profile, &mut issues);
+        }
+    }
+
     issues
+}
+
+fn validate_hud_theme(config: &HudThemeConfig, issues: &mut Vec<String>) {
+    for (name, color) in [
+        ("ui.hud.void", config.void),
+        ("ui.hud.surface", config.surface),
+        ("ui.hud.surface_raised", config.surface_raised),
+        ("ui.hud.line", config.line),
+        ("ui.hud.bone", config.bone),
+        ("ui.hud.bone_dim", config.bone_dim),
+        ("ui.hud.ash", config.ash),
+        ("ui.hud.gold", config.gold),
+        ("ui.hud.gold_bright", config.gold_bright),
+        ("ui.hud.cold", config.cold),
+        ("ui.hud.blood", config.blood),
+        ("ui.hud.ember", config.ember),
+        ("ui.hud.stamina", config.stamina),
+        ("ui.hud.success", config.success),
+    ] {
+        require_rgba(name, color, issues);
+    }
+}
+
+fn validate_visual_profile(name: &str, profile: &VisualProfile, issues: &mut Vec<String>) {
+    require_color(&format!("{}.tint", name), profile.tint, issues);
+    require_positive(&format!("{}.uv_scale", name), profile.uv_scale, issues);
+    require_non_negative(&format!("{}.emissive", name), profile.emissive, issues);
+    if profile.emissive > 4.0 {
+        issues.push(format!("{}.emissive must be <= 4", name));
+    }
+    require_finite(
+        &format!("{}.animation_role", name),
+        profile.animation_role,
+        issues,
+    );
+    if !(0.0..=4.0).contains(&profile.animation_role) {
+        issues.push(format!("{}.animation_role must be between 0 and 4", name));
+    }
+    if let Some(texture) = profile.texture.as_deref() {
+        let path = Path::new(texture);
+        if texture.trim().is_empty()
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir))
+        {
+            issues.push(format!(
+                "{}.texture must be a relative path beneath textures/",
+                name
+            ));
+        }
+    }
 }
 
 fn validate_bindings_file(path: impl AsRef<Path>, report: &mut ContentValidationReport) {
@@ -1017,6 +1127,15 @@ fn require_non_negative(name: &str, value: f32, issues: &mut Vec<String>) {
 fn require_color(name: &str, color: [f32; 3], issues: &mut Vec<String>) {
     for (index, component) in color.iter().enumerate() {
         require_non_negative(&format!("{}[{}]", name, index), *component, issues);
+    }
+}
+
+fn require_rgba(name: &str, color: [f32; 4], issues: &mut Vec<String>) {
+    for (index, component) in color.iter().enumerate() {
+        require_finite(&format!("{}[{}]", name, index), *component, issues);
+        if !(0.0..=1.0).contains(component) {
+            issues.push(format!("{}[{}] must be between 0 and 1", name, index));
+        }
     }
 }
 
@@ -1124,6 +1243,27 @@ mod tests {
         assert!(issues
             .iter()
             .any(|issue| issue.contains("debug.position_log_interval")));
+    }
+
+    #[test]
+    fn reports_invalid_presentation_values() {
+        let mut config = GameConfig::default();
+        config.ui.hud.gold[3] = 2.0;
+        config.visuals.default_profile.uv_scale = 0.0;
+        config.visuals.default_profile.animation_role = 9.0;
+        config.visuals.default_profile.texture = Some("../outside.png".to_string());
+
+        let issues = tuning_validation_errors(&config);
+        assert!(issues.iter().any(|issue| issue.contains("ui.hud.gold[3]")));
+        assert!(issues
+            .iter()
+            .any(|issue| issue.contains("visuals.default_profile.uv_scale")));
+        assert!(issues
+            .iter()
+            .any(|issue| issue.contains("visuals.default_profile.animation_role")));
+        assert!(issues
+            .iter()
+            .any(|issue| issue.contains("visuals.default_profile.texture")));
     }
 
     #[test]
@@ -1257,5 +1397,30 @@ mod tests {
 
         let _ = std::fs::remove_file(asset_path);
         let _ = std::fs::remove_dir(dir);
+    }
+
+    #[test]
+    fn primitive_placeholder_contract_rejects_compound_geometry() {
+        let root = std::env::temp_dir().join(format!(
+            "cenotaph_primitive_contract_{}",
+            std::process::id()
+        ));
+        let dir = root.join("assets/enemies");
+        std::fs::create_dir_all(&dir).unwrap();
+        let asset_path = dir.join("compound.obj");
+        let mut obj = "o compound\nv 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\n".to_string();
+        for _ in 0..13 {
+            obj.push_str("f 1 2 3\n");
+        }
+        std::fs::write(&asset_path, obj).unwrap();
+
+        let mut report = ContentValidationReport::default();
+        validate_model_asset_file(&asset_path, &mut report);
+
+        assert!(report
+            .issues
+            .iter()
+            .any(|issue| issue.message.contains("must remain one basic shape")));
+        let _ = std::fs::remove_dir_all(root);
     }
 }

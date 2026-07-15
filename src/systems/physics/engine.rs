@@ -6,7 +6,7 @@ use rapier3d::math::Vec3 as RVec3;
 use rapier3d::prelude::*;
 
 use crate::data::config::gameplay::PhysicsConfig;
-use crate::data::world::level::{ColliderType, PropData};
+use crate::data::world::level::{ColliderType, PropData, BASE_MAP_Y_OFFSET};
 
 /// How far below the player's centre to cast a ground-detection ray.
 /// The player collider is a sphere of radius 0.6, so the ray length is
@@ -47,14 +47,11 @@ impl PhysicsEngine {
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
-        // Apply Y offset used in rendering (124.5) to align physics with visuals
-        let map_y_offset = 124.5;
-
         if !phys_points.is_empty() && !phys_indices.is_empty() {
             // Offset the mesh vertices by the rendering Y offset so physics aligns with visuals
             let rp: Vec<RVec3> = phys_points
                 .iter()
-                .map(|p| RVec3::new(p.x, p.y + map_y_offset, p.z))
+                .map(|p| RVec3::new(p.x, p.y + BASE_MAP_Y_OFFSET, p.z))
                 .collect();
 
             // Calculate bounds for safety floor
@@ -183,7 +180,15 @@ impl PhysicsEngine {
 
         let t =
             rapier3d::na::Translation3::new(prop.position[0], prop.position[1], prop.position[2]);
-        let q = rapier3d::na::UnitQuaternion::identity();
+        let rotation = prop.rotation_radians();
+        let rendered_rotation =
+            glam::Quat::from_euler(glam::EulerRot::XYZ, rotation[0], rotation[1], rotation[2]);
+        let q = rapier3d::na::UnitQuaternion::new_normalize(rapier3d::na::Quaternion::new(
+            rendered_rotation.w,
+            rendered_rotation.x,
+            rendered_rotation.y,
+            rendered_rotation.z,
+        ));
         let pose = rapier3d::na::Isometry3::from_parts(t, q);
         let rb = rb_builder.pose(pose.into()).build();
         let body_handle = self.rigid_body_set.insert(rb);
@@ -205,7 +210,13 @@ impl PhysicsEngine {
                 } else {
                     let rp: Vec<RVec3> = phys_points
                         .iter()
-                        .map(|p| RVec3::new(p.x, p.y, p.z))
+                        .map(|p| {
+                            RVec3::new(
+                                p.x * prop.scale[0],
+                                p.y * prop.scale[1],
+                                p.z * prop.scale[2],
+                            )
+                        })
                         .collect();
                     match ColliderBuilder::trimesh(rp, phys_indices.to_vec()) {
                         Ok(builder) => Some(builder),
@@ -255,6 +266,16 @@ impl PhysicsEngine {
         let body = self.rigid_body_set.get(self.player_body_handle).unwrap();
         let t = body.translation();
         [t.x, t.y, t.z]
+    }
+
+    pub fn get_player_velocity(&self) -> [f32; 3] {
+        let body = self.rigid_body_set.get(self.player_body_handle).unwrap();
+        let velocity = body.linvel();
+        [velocity.x, velocity.y, velocity.z]
+    }
+
+    pub fn is_player_grounded(&self) -> bool {
+        self.check_grounded()
     }
 
     pub fn get_prop_pos(&self, index: usize) -> Option<[f32; 3]> {
@@ -342,7 +363,7 @@ impl PhysicsEngine {
         config: &PhysicsConfig,
         dt: f32,
         speed_multiplier: f32,
-    ) {
+    ) -> bool {
         // Read state BEFORE taking the mutable borrow on the rigid body.
         let on_ground = self.check_grounded();
 
@@ -388,6 +409,7 @@ impl PhysicsEngine {
         }
 
         body.set_linvel(vel, true);
+        jump_just_pressed && can_jump
     }
 
     pub fn step(&mut self, config: &PhysicsConfig, dt: f32) {
@@ -423,11 +445,13 @@ mod tests {
     fn enemy_prop() -> PropData {
         PropData {
             id: None,
+            display_name: None,
             asset_id: "Cube.obj".to_string(),
             position: [1.0, 126.0, -2.0],
             rotation: [0.0, 0.0, 0.0],
             scale: [1.0, 1.0, 1.0],
             collider_type: ColliderType::Sphere,
+            surface_material: None,
             brush_geometry: None,
             is_climbable: false,
             is_hurtbox: false,
@@ -450,11 +474,13 @@ mod tests {
     fn wall_prop() -> PropData {
         PropData {
             id: None,
+            display_name: None,
             asset_id: "Wall.obj".to_string(),
             position: [0.0, 126.0, -5.0],
             rotation: [0.0, 0.0, 0.0],
             scale: [4.0, 4.0, 1.0],
             collider_type: ColliderType::Box,
+            surface_material: None,
             brush_geometry: None,
             is_climbable: false,
             is_hurtbox: false,
@@ -477,11 +503,13 @@ mod tests {
     fn hurtbox_sensor_prop() -> PropData {
         PropData {
             id: None,
+            display_name: None,
             asset_id: "Warning.obj".to_string(),
             position: [0.0, 126.0, -5.0],
             rotation: [0.0, 0.0, 0.0],
             scale: [2.0, 2.0, 2.0],
             collider_type: ColliderType::Sphere,
+            surface_material: None,
             brush_geometry: None,
             is_climbable: false,
             is_hurtbox: true,
@@ -544,6 +572,57 @@ mod tests {
             (4.45..=4.55).contains(&distance),
             "expected wall face around 4.5m, got {distance}"
         );
+    }
+
+    #[test]
+    fn rotated_box_collider_matches_rendered_orientation() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        let mut wall = wall_prop();
+        wall.rotation = [0.0, 90.0, 0.0];
+        engine.add_prop(&wall, &[], &[]);
+        engine.step(&PhysicsConfig::default(), 0.016);
+
+        let distance = engine
+            .weapon_obstruction_distance(
+                Vec3::new(0.0, 126.0, 0.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                20.0,
+            )
+            .expect("rotated wall should block weapon ray");
+
+        assert!(
+            (2.95..=3.05).contains(&distance),
+            "expected rotated wall face around 3.0m, got {distance}"
+        );
+    }
+
+    #[test]
+    fn physics_rotation_order_matches_render_transform() {
+        let mut engine = PhysicsEngine::new(
+            [0.0, 126.0, 0.0],
+            Vec::new(),
+            Vec::new(),
+            &PhysicsConfig::default(),
+        );
+        let mut wall = wall_prop();
+        wall.rotation = [20.0, 35.0, 10.0];
+        engine.add_prop(&wall, &[], &[]);
+
+        let body = engine.rigid_body_set.get(engine.prop_bodies[0]).unwrap();
+        let actual = body.position().rotation * RVec3::new(1.0, 0.0, 0.0);
+        let radians = wall.rotation_radians();
+        let expected =
+            glam::Quat::from_euler(glam::EulerRot::XYZ, radians[0], radians[1], radians[2])
+                * Vec3::X;
+
+        assert!((actual.x - expected.x).abs() < 0.0001);
+        assert!((actual.y - expected.y).abs() < 0.0001);
+        assert!((actual.z - expected.z).abs() < 0.0001);
     }
 
     #[test]

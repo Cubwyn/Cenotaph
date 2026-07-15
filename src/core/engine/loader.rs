@@ -52,28 +52,23 @@ pub fn load_textures_from_disk(
         ));
         return report;
     }
-    let entries = match fs::read_dir(TEXTURES_DIR) {
-        Ok(entries) => entries,
-        Err(error) => {
-            report.issues.push(format!(
-                "failed to read texture directory '{}': {}",
-                TEXTURES_DIR, error
-            ));
-            return report;
-        }
-    };
-
-    let mut texture_paths = entries
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| is_supported_texture(path))
-        .collect::<Vec<_>>();
+    let mut texture_paths = Vec::new();
+    collect_texture_paths(
+        Path::new(TEXTURES_DIR),
+        &mut texture_paths,
+        &mut report.issues,
+    );
     texture_paths.sort();
 
     for path in texture_paths {
-        let file_name = match path.file_name().and_then(|name| name.to_str()) {
-            Some(name) => name.to_string(),
+        let texture_name = match path
+            .strip_prefix(TEXTURES_DIR)
+            .ok()
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+        {
+            Some(name) if !name.is_empty() => name,
             None => continue,
+            Some(_) => continue,
         };
 
         let img_data = match fs::read(&path) {
@@ -115,7 +110,7 @@ pub fn load_textures_from_disk(
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            label: Some(&file_name),
+            label: Some(&texture_name),
             view_formats: &[],
         });
 
@@ -159,13 +154,36 @@ pub fn load_textures_from_disk(
                     resource: wgpu::BindingResource::Sampler(&sampler),
                 },
             ],
-            label: Some(&file_name),
+            label: Some(&texture_name),
         });
 
-        manager.insert(&file_name, bind_group);
+        manager.insert(&texture_name, bind_group);
         report.loaded += 1;
     }
     report
+}
+
+fn collect_texture_paths(directory: &Path, paths: &mut Vec<PathBuf>, issues: &mut Vec<String>) {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) => {
+            issues.push(format!(
+                "failed to read texture directory '{}': {}",
+                directory.display(),
+                error
+            ));
+            return;
+        }
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_texture_paths(&path, paths, issues);
+        } else if is_supported_texture(&path) {
+            paths.push(path);
+        }
+    }
 }
 
 /// Upload every prop model under `assets/` except the base map.

@@ -9,7 +9,6 @@ pub const DEFAULT_LEVEL_ID: &str = "movement_test";
 pub enum ProjectCommand {
     Play { level_id: String },
     Continue,
-    Editor,
     Validate,
     Doctor,
     ListLevels,
@@ -39,7 +38,6 @@ where
     let command = match first.as_str() {
         "help" | "-h" | "--help" => ProjectCommand::Help,
         "validate" | "validate-content" | "--validate" => ProjectCommand::Validate,
-        "editor" | "level-editor" | "--editor" => ProjectCommand::Editor,
         "doctor" | "diagnose" => ProjectCommand::Doctor,
         "levels" | "list-levels" => ProjectCommand::ListLevels,
         "continue" | "resume" => ProjectCommand::Continue,
@@ -142,7 +140,6 @@ USAGE
     cargo run -- play [level-id]      Play a level
     cargo run -- <level-id>           Backward-compatible play shorthand
     cargo run -- continue             Resume the latest valid autosave
-    cargo run -- editor               Start the standalone level editor
     cargo run -- validate             Validate authored project content
     cargo run -- doctor               Check project layout, content, and save health
     cargo run -- levels               List playable level ids
