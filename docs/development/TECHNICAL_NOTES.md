@@ -8,6 +8,13 @@ This is not final engine documentation.
 
 It is the technical north star.
 
+`docs/design/GAMEPLAY_IDENTITY_RESET.md` is now authoritative for gameplay
+architecture. The authored campaign is primary, followed by explicitly defined
+New Game+ and optional endgame replay. Cycle concepts are secondary and may not
+be promoted into a primary reset loop. Equipment generation, character
+progression, death consequences, campaign completion, and NG+ persistence are
+UNDEFINED until the owner makes those decisions.
+
 ---
 
 # Technical Goals
@@ -36,7 +43,7 @@ cenotaph_core
   relics
   builds
   threats
-  cycles
+  campaign_replayability
   save
   registry
 
@@ -303,9 +310,12 @@ The player remembers what the mountain forgets.
 
 ---
 
-# Run Contract Structure
+# Optional Replay Contract Structure
 
-Every ascent should have an internal run contract.
+An optional replay contract may eventually give a post-campaign ascent an
+identity. This is not a specification for the primary campaign and must not be
+implemented until campaign completion, death, equipment, and NG+ rules are
+defined.
 
 Example conceptual structure:
 

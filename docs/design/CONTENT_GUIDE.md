@@ -849,6 +849,11 @@ How can it change over time?
 
 # Cycle Mutation Template
 
+Cycle mutations are optional lore, world-state, or post-campaign endgame
+content. They are not permission to make Cycle reset the primary progression
+structure. Any implemented mutation requires an explicit campaign/NG+ design
+decision first.
+
 ## Mutation Name
 
 ### Theme

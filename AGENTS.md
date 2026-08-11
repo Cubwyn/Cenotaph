@@ -10,6 +10,18 @@ or art-direction changes, read:
 Before changing `ashwalk_01`, its Anchor, named encounter, reward, or mountain
 reaction flow, also read `docs/design/ASH_WALK_PILGRIMAGE.md`.
 
+The owner-supplied gameplay reset is recorded in
+`docs/design/GAMEPLAY_IDENTITY_RESET.md`. It supersedes conflicting gameplay
+interpretations in older planning text while preserving the established lore,
+Strata, terminology, UI identity, and art direction.
+
+The target structure is an authored campaign followed by optional New Game+
+and optional endgame replay. Cycles are not the primary progression structure.
+Do not implement Cycle resets, death consequences, NG+ persistence, equipment
+slots, weapon-generation fields, or other major progression rules when the
+reset marks them UNDEFINED. Record the exact design question and stop instead
+of filling the gap with genre convention.
+
 For event-linked enemy defeats and Anchor claims, commit the mechanical change
 and its authored event consequence in the same save. Authored loot sources need
 stable prop IDs. Named encounters, Anchors, and relics must retain authored

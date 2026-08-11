@@ -6,6 +6,21 @@ controlled content pipeline, testing, and everyday development.
 Status key: `[x]` complete, `[ ]` pending. Finish and verify one item before
 marking it complete.
 
+## Gameplay Identity Reset Gates
+
+These are design gates from `docs/design/GAMEPLAY_IDENTITY_RESET.md`. They are
+intentionally not implementation tasks until the owner defines the decisions.
+
+- [ ] Define the equipment model: weapon families, generated properties,
+  modifiers, rarity, comparison, and whether weapons and Relics share a schema.
+- [ ] Define character progression separately from equipment progression:
+  levels, attributes, perks, permanent unlocks, and respec.
+- [ ] Define death consequences, respawn state, resource loss, world state, and
+  loot recovery.
+- [ ] Define campaign completion and New Game+ persistence rules.
+- [ ] Define optional endgame scope and replace the prototype Cycle Director
+  assumptions with a campaign replayability model.
+
 ## Reliability Baseline
 
 - [x] Strict command parsing, safe level IDs, explicit play syntax, and useful
@@ -31,6 +46,8 @@ marking it complete.
 
 ## Fast Iteration
 
+- [x] Add a read-only project content map with change-location guidance and a
+  repeatable safe development loop.
 - [ ] Add an in-game developer console with command completion, history,
   discoverable help, and permission-gated mutating commands.
 - [ ] Build an asset dependency graph so reload can update only changed models,
@@ -106,8 +123,8 @@ marking it complete.
   previews instead of relying on hard-coded HUD locations.
 - [x] Add a small generated material palette, recursive runtime texture loading,
   OBJ/GLTF diffuse references, and validated base-map/prop material overrides.
-- [ ] Add run-contract and Cycle Director authoring data with deterministic
-  preview/simulation tools.
+- [ ] Add campaign replay and optional endgame authoring data only after the
+  equipment, death, completion, and NG+ gates are defined.
 - [ ] Add relic affix generation, compatibility rules, balance summaries, and
   build comparison tooling.
 - [ ] Add enemy behavior trees/state machines with visual debug state, perception
@@ -123,8 +140,8 @@ marking it complete.
 - [ ] Add save-slot UI with corruption/recovery messaging and profile metadata.
 - [ ] Add loading/error screens that explain rejected content or device failures
   without requiring a terminal.
-- [ ] Add complete inventory, item comparison, Anchor/Sanctuary, run summary, and
-  Cycle Director interfaces.
+- [ ] Add complete inventory, item comparison, Anchor/Sanctuary, campaign
+  summary, and optional replay interfaces after their design gates are defined.
 - [ ] Add accessibility passes for text scale, contrast, reduced motion, camera
   shake, hold/toggle inputs, captions, and color-independent feedback.
 

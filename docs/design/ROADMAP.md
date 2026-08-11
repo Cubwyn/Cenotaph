@@ -275,7 +275,7 @@ Create the first true vertical slice.
 - Four Ash-Walk enemy roles: Ashbound, Burdened, Censer, Harpy
 - One boss or named elite
 - World event table
-- Cycle reset
+- Authored campaign completion boundary; death and NG+ rules remain UNDEFINED
 - 10–20 lore fragments
 - 1–3 named relics
 - Save persistence
@@ -294,7 +294,7 @@ Does this feel like a small but real version of Cenotaph?
 - [ ] Relics create build experimentation.
 - [ ] Enemies create varied pressure.
 - [ ] One boss or named elite anchors the slice.
-- [ ] Cycle reset works.
+- [ ] The authored Ash-Walk slice has a defined completion boundary.
 - [ ] Save/load works.
 - [ ] Lore is present but not over-explained.
 - [ ] The slice feels replayable.
@@ -305,37 +305,40 @@ Add notes here during implementation.
 
 ---
 
-# Stage 6: Replayability Spine
+# Stage 6: Campaign Replayability and New Game+
 
 ## Goal
 
-Make repeated ascents meaningfully different.
+Make campaign replay, New Game+, and optional endgame meaningfully different
+without replacing the authored world with procedural maps.
 
 ## Required
 
-- Run Contract system
-- Cycle Director
-- Cycle mutations
+- Campaign completion state
+- Explicit New Game+ design
+- Optional endgame contract
 - Variable enemy tables
 - Variable relic pools
 - Variable hazards
 - Rare events
-- Persistent memory changes
+- Persistent discoveries and world changes where explicitly designed
 
 ## Success Question
 
 ```text
-Can players describe one ascent differently from another?
+Can players replay the authored campaign with meaningful build, loot, threat,
+and optional endgame variation?
 ```
 
 ## Exit Criteria
 
-- [ ] Run contracts generate distinct ascent identities.
+- [ ] Campaign replay and NG+ rules are explicitly defined.
+- [ ] Run contracts, if retained, serve replay rather than replacing campaign progression.
 - [ ] Enemy tables can shift.
 - [ ] Relic pools can shift.
 - [ ] Hazards can shift.
 - [ ] Events can shift.
-- [ ] Some changes persist between cycles.
+- [ ] Explicitly approved progression persists according to documented NG+ rules.
 - [ ] Replays feel meaningfully different without relying on huge new maps.
 
 ## Future Notes
@@ -360,7 +363,7 @@ Grow the mountain safely over time.
 - New events
 - New hazards
 - New lore fragments
-- New cycle mutations
+- Campaign replay mutations, if approved
 - New named relics
 
 ## Success Question
@@ -449,7 +452,7 @@ Status: Future
 Depends on:
 
 - Boss System
-- Cycle Director
+- Campaign replayability and optional endgame contract
 - Save System
 
 ## Potential Expansion: Lore Archive

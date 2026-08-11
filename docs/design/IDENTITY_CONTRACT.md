@@ -10,12 +10,21 @@ combat, art direction, level structure, or progression.
 If another document or implementation idea conflicts with this contract, this
 contract wins unless the project owner explicitly says otherwise.
 
+The owner-supplied gameplay reset is recorded in
+[`GAMEPLAY_IDENTITY_RESET.md`](GAMEPLAY_IDENTITY_RESET.md). It is authoritative
+for gameplay interpretation and priority. The target structure is an authored
+campaign followed by optional New Game+ and optional endgame replay. Cycles are
+not the primary progression structure. Death consequences, NG+ persistence,
+equipment generation, and other explicitly undefined decisions must not be
+invented from genre convention.
+
 ---
 
 ## North Star
 
-Cenotaph is a surreal, decayed-mountain RPG looter shooter about repeated
-ascents through a hostile metaphysical ruin.
+Cenotaph is a surreal, decayed-mountain RPG looter shooter about an authored
+campaign of ascent through a hostile metaphysical ruin, with optional
+post-campaign replay and long-term loot/buildcraft depth.
 
 It should feel like:
 
@@ -79,8 +88,8 @@ The player climbs because staying below is impossible.
 Use this language when designing systems:
 
 ```text
-Ascend -> survive ritual combat -> claim cursed build pieces -> reach an Anchor
--> change self or world -> ascend deeper
+Explore -> encounter -> combat -> reward -> evaluate loot
+-> change equipment or build -> become more capable -> continue through campaign
 ```
 
 Avoid this language:
@@ -92,8 +101,9 @@ Deploy -> loot -> extract -> sell -> restock -> repeat
 Anchors are not extraction points. They are ritual checkpoints, memory stakes,
 banking rites, or temporary claims against the mountain.
 
-Runs are not raids. They are ascents, cycles, pilgrimages, attempts, echoes, or
-coronation failures.
+The campaign is not a sequence of reset runs. It is an authored journey through
+the Strata. An ascent, pilgrimage, attempt, or echo may describe a moment or
+optional replay mode, but none replaces the campaign structure.
 
 Loot is not vendor trash. Loot is memory, weaponry, temptation, survival, and
 identity.

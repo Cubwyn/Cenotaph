@@ -23,7 +23,7 @@ Cenotaph is built around five master systems:
 2. Relic System
 3. Build System
 4. Threat System
-5. Cycle Director
+5. Campaign Replayability System
 
 Supporting systems:
 
@@ -32,6 +32,19 @@ Supporting systems:
 8. Save System
 9. Presentation System
 10. Developer Tools
+
+## Gameplay reset reconciliation
+
+`GAMEPLAY_IDENTITY_RESET.md` is authoritative for the interpretation of these
+systems. The current document contains legacy Cycle Director planning that no
+longer defines the primary loop. The authored campaign is primary; New Game+
+and optional endgame replay are required design targets; Cycle concepts are
+secondary and may only survive as lore, world-state concepts, or explicitly
+designed optional endgame mechanics.
+
+The exact equipment model, character progression, death rules, campaign
+completion state, and NG+ persistence rules are UNDEFINED. Do not implement
+them from the examples below until their design questions are answered.
 
 ---
 
@@ -109,7 +122,7 @@ Functions:
 - Memory and build rites
 - NPC dialogue
 - Stratum interpretation
-- Cycle transition point
+- Campaign transition point; any NG+ transition remains UNDEFINED
 
 ### Routes
 
@@ -258,7 +271,7 @@ Transcendent
 - [ ] Full affix system
 - [ ] Named relics
 - [ ] Relic curses
-- [ ] Cycle-exclusive relics
+- [ ] NG+- or endgame-exclusive relics, if approved
 - [ ] Movement-altering relics
 - [ ] Relics with lore memories
 - [ ] Relic collection archive
@@ -382,7 +395,7 @@ Power spike when abilities are disabled
 - [ ] Perk respec
 - [ ] Build loadouts
 - [ ] Hidden synergies
-- [ ] Cycle-specific build pressure
+- [ ] Optional replay-specific build pressure, if approved
 
 ---
 
@@ -500,22 +513,26 @@ Suppression may affect:
 
 ---
 
-# 5. Cycle Director
+# 5. Campaign Replayability and Optional Cycle Concepts
 
 ## Purpose
 
-Controls replayability, run generation, mutations, and long-term variation.
+Controls authored-campaign replayability, New Game+, and optional endgame
+variation. Cycle concepts may support lore or an explicitly approved optional
+endgame system, but they do not define the primary progression loop.
 
-The Cycle Director answers:
+The replayability system answers:
 
 ```text
-Why is this ascent different from the last one?
+How can the player replay the authored campaign with meaningful loot, build,
+threat, event, and endgame variation?
 ```
 
 ## Includes
 
-- Cycle reset
-- Run contracts
+- Campaign completion state
+- New Game+ state
+- Optional endgame contracts
 - Enemy table changes
 - Relic pool changes
 - Event selection
@@ -532,7 +549,7 @@ Every ascent should have an internal identity.
 Example:
 
 ```text
-Cycle: 4
+Replay profile: optional endgame
 Primary Stratum: Ash-Walk
 Route Bias: High Route
 Threat Bias: Harpies + Silencers
@@ -562,7 +579,7 @@ Memory Difference
 
 Each ascent should change at least three of these.
 
-## Good Cycle Changes
+## Good replay changes
 
 - Silencers appear earlier.
 - Ash storms can hide elites.
@@ -571,7 +588,7 @@ Each ascent should change at least three of these.
 - Sanctuary dialogue changes.
 - A defeated boss leaves a permanent scar.
 
-## Weak Cycle Changes
+## Weak replay changes
 
 - Enemies have only more health.
 - Drop rates increase with no new decision-making.
@@ -579,7 +596,7 @@ Each ascent should change at least three of these.
 
 ## MVP Requirement
 
-- One reset loop
+- One explicitly defined replay boundary
 - One run modifier
 - One enemy modifier
 - One loot table variation
@@ -587,9 +604,9 @@ Each ascent should change at least three of these.
 
 ## Expansion Slots
 
-- [ ] Cycle milestones
+- [ ] Campaign completion milestones
 - [ ] Rare event chains
-- [ ] Cycle-exclusive relics
+- [ ] NG+- or endgame-exclusive relics, if approved
 - [ ] Stratum mutations
 - [ ] Boss memory variants
 - [ ] Persistent world scars
@@ -640,7 +657,10 @@ Use this section for unresolved design questions.
 - [ ] Should relics use ammo, heat, cooldowns, or mixed mechanics?
 - [ ] Should the player have shields, armor, wards, or only health?
 - [ ] Should Anchors allow fast travel in the MVP?
-- [ ] Should Cycle resets be voluntary, mandatory, or both?
+- [ ] Should any Cycle mechanics exist beyond lore and optional endgame?
+- [ ] What is the campaign completion boundary and what begins New Game+?
+- [ ] Which equipment, progression, discoveries, and world state persist into NG+?
+- [ ] What are the death and respawn consequences?
 - [ ] How much should the player see of the Run Contract?
 - [ ] Should perk respec be cheap, expensive, or limited?
 

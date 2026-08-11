@@ -7,6 +7,8 @@ find and historical inventories are not mistaken for live contracts.
 ## Design
 
 - [`design/IDENTITY_CONTRACT.md`](design/IDENTITY_CONTRACT.md): top-level identity guardrail for design and coding agents
+- [`design/GAMEPLAY_IDENTITY_RESET.md`](design/GAMEPLAY_IDENTITY_RESET.md): authoritative authored-campaign, loot/buildcraft, NG+, and undefined-decision contract
+- [`design/CENOTAPH_STRATA.md`](design/CENOTAPH_STRATA.md): authoritative identity index for all seven Strata
 - [`design/ASH_WALK_PILGRIMAGE.md`](design/ASH_WALK_PILGRIMAGE.md): current playable identity milestone and acceptance gate
 - [`design/SYSTEMS.md`](design/SYSTEMS.md): gameplay and technical systems map
 - [`design/CONTENT_GUIDE.md`](design/CONTENT_GUIDE.md): content templates and expansion rules
@@ -19,6 +21,7 @@ find and historical inventories are not mistaken for live contracts.
 - [`development/FOUNDATION_SMOKE_CHECKLIST.md`](development/FOUNDATION_SMOKE_CHECKLIST.md): manual play/GPU checks
 - [`development/TECHNICAL_NOTES.md`](development/TECHNICAL_NOTES.md): architecture direction and open technical work
 - [`development/PROJECT_IMPROVEMENT_BACKLOG.md`](development/PROJECT_IMPROVEMENT_BACKLOG.md): ordered runtime, tooling, and reliability work
+- [`development/MAINTAINER_GUIDE.md`](development/MAINTAINER_GUIDE.md): practical map and safe change recipes for extending the project
 
 ## Content Authoring
 

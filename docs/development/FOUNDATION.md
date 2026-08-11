@@ -407,7 +407,8 @@ Do not treat these as foundation requirements yet:
   Sanctuary behavior
 - sanctuary UI
 - save slots, migration, and conflict handling
-- full run-contract Cycle Director
+- full campaign replayability/NG+ design (prototype Cycle modifiers are not a
+  final progression contract)
 - procedural route generation
 - full content registry
 - integrated visual level-authoring application
