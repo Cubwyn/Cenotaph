@@ -1,3 +1,8 @@
+//! Crash-resistant writes for saves and authoring data.
+//!
+//! A write owns a sidecar lock, syncs a uniquely named staging file, preserves
+//! the previous target as a recovery sidecar, and only then replaces the target.
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -6,6 +11,8 @@ use std::time::{Duration, SystemTime};
 const STALE_LOCK_AGE: Duration = Duration::from_secs(30);
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// Replaces `path` while retaining enough sidecar state to recover an
+/// interrupted replacement on the next read or write.
 pub fn write_file_staged(path: impl AsRef<Path>, bytes: &[u8]) -> Result<(), String> {
     let path = path.as_ref();
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
@@ -98,6 +105,7 @@ pub fn write_file_staged(path: impl AsRef<Path>, bytes: &[u8]) -> Result<(), Str
     }
 }
 
+/// Restores a recovery sidecar when no target survives an interrupted write.
 pub fn recover_interrupted_write(path: impl AsRef<Path>) -> Result<(), String> {
     let path = path.as_ref();
     let lock_path = sidecar_path(path, "lock");

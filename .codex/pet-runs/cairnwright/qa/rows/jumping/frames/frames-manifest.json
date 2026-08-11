@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "chroma_key": {
+    "hex": "#FF00FF",
+    "rgb": [
+      255,
+      0,
+      255
+    ],
+    "threshold": 96.0
+  },
+  "rows": [
+    {
+      "state": "jumping",
+      "frames": [
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\jumping\\frames\\jumping\\00.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\jumping\\frames\\jumping\\01.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\jumping\\frames\\jumping\\02.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\jumping\\frames\\jumping\\03.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\jumping\\frames\\jumping\\04.png"
+      ],
+      "method": "components"
+    }
+  ]
+}

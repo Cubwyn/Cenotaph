@@ -1,5 +1,4 @@
-// src/systems/physics/engine.rs
-// Physics engine using Rapier3D for collision detection and response.
+//! Rapier-backed world collision, player movement, and dynamic prop bodies.
 
 use glam::Vec3;
 use rapier3d::math::Vec3 as RVec3;
@@ -40,34 +39,33 @@ pub struct PhysicsEngine {
 impl PhysicsEngine {
     pub fn new(
         spawn: [f32; 3],
-        phys_points: Vec<Vec3>,
-        phys_indices: Vec<[u32; 3]>,
+        physics_vertices: Vec<Vec3>,
+        physics_triangles: Vec<[u32; 3]>,
         _config: &PhysicsConfig,
     ) -> Self {
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
 
-        if !phys_points.is_empty() && !phys_indices.is_empty() {
-            // Offset the mesh vertices by the rendering Y offset so physics aligns with visuals
-            let rp: Vec<RVec3> = phys_points
+        if !physics_vertices.is_empty() && !physics_triangles.is_empty() {
+            // Base-map rendering and collision must share the same authored offset.
+            let rapier_vertices: Vec<RVec3> = physics_vertices
                 .iter()
                 .map(|p| RVec3::new(p.x, p.y + BASE_MAP_Y_OFFSET, p.z))
                 .collect();
 
-            // Calculate bounds for safety floor
             let mut min_y = f32::MAX;
             let mut max_y = f32::MIN;
             let mut min_x = f32::MAX;
             let mut max_x = f32::MIN;
             let mut min_z = f32::MAX;
             let mut max_z = f32::MIN;
-            for p in &rp {
-                min_y = min_y.min(p.y);
-                max_y = max_y.max(p.y);
-                min_x = min_x.min(p.x);
-                max_x = max_x.max(p.x);
-                min_z = min_z.min(p.z);
-                max_z = max_z.max(p.z);
+            for point in &rapier_vertices {
+                min_y = min_y.min(point.y);
+                max_y = max_y.max(point.y);
+                min_x = min_x.min(point.x);
+                max_x = max_x.max(point.x);
+                min_z = min_z.min(point.z);
+                max_z = max_z.max(point.z);
             }
 
             println!(
@@ -75,26 +73,23 @@ impl PhysicsEngine {
                 min_y, max_y, min_x, max_x, min_z, max_z
             );
 
-            // Create a static rigid body for the level mesh
             let ground_rb = RigidBodyBuilder::fixed().build();
             let ground_rb_handle = rigid_body_set.insert(ground_rb);
 
-            // Create a triangle mesh collider from the actual level geometry
-            let ground_collider = ColliderBuilder::trimesh(rp.clone(), phys_indices.to_vec())
-                .unwrap()
-                .friction(0.6)
-                .build();
+            let ground_collider =
+                ColliderBuilder::trimesh(rapier_vertices, physics_triangles.clone())
+                    .unwrap()
+                    .friction(0.6)
+                    .build();
             collider_set.insert_with_parent(ground_collider, ground_rb_handle, &mut rigid_body_set);
 
             println!(
                 "[DEBUG] Physics: level mesh collider created from {} vertices, {} triangles",
-                phys_points.len(),
-                phys_indices.len()
+                physics_vertices.len(),
+                physics_triangles.len()
             );
 
-            // SAFETY FLOOR: Add a flat floor 2 units below the lowest mesh point.
-            // This catches the player if they fall through the mesh due to
-            // numerical issues with large triangles and a small player collider.
+            // Catch rare tunneling beneath large map triangles without affecting play space.
             let safety_floor_y = min_y - 2.0;
             let half_width = ((max_x - min_x) * 0.5 + 10.0).max(100.0);
             let half_depth = ((max_z - min_z) * 0.5 + 10.0).max(100.0);
@@ -117,7 +112,7 @@ impl PhysicsEngine {
                 half_depth * 2.0
             );
         } else {
-            // Fallback: create ground at Y=125 if no level geometry
+            // Keep diagnostic levels playable when no map geometry is available.
             let ground_rb = RigidBodyBuilder::fixed()
                 .translation(RVec3::new(0.0, 125.0, 0.0))
                 .build();
@@ -131,16 +126,14 @@ impl PhysicsEngine {
             println!("[DEBUG] Physics: fallback floor at Y=125");
         }
 
-        // Player rigid body
         let player_rb = RigidBodyBuilder::dynamic()
             .translation(RVec3::new(spawn[0], spawn[1], spawn[2]))
             .lock_rotations()
             .build();
         let player_body_handle = rigid_body_set.insert(player_rb);
 
-        // Player collider - use a slightly larger sphere (0.6 radius) for better
-        // numerical stability against large mesh triangles. Friction > 0 gives the
-        // player grip on the terrain to walk on slopes and prevents sliding.
+        // Radius and friction are deliberately generous for stable traversal over
+        // large map triangles and authored slopes.
         let player_collider = ColliderBuilder::ball(0.6)
             .restitution(0.0)
             .friction(0.6)
@@ -170,7 +163,12 @@ impl PhysicsEngine {
         }
     }
 
-    pub fn add_prop(&mut self, prop: &PropData, phys_points: &[Vec3], phys_indices: &[[u32; 3]]) {
+    pub fn add_prop(
+        &mut self,
+        prop: &PropData,
+        physics_vertices: &[Vec3],
+        physics_triangles: &[[u32; 3]],
+    ) {
         let is_dynamic = prop.enemy_type.is_some() || prop.path_id.is_some();
         let rb_builder = if is_dynamic {
             RigidBodyBuilder::dynamic().lock_rotations()
@@ -178,20 +176,21 @@ impl PhysicsEngine {
             RigidBodyBuilder::fixed()
         };
 
-        let t =
+        let translation =
             rapier3d::na::Translation3::new(prop.position[0], prop.position[1], prop.position[2]);
         let rotation = prop.rotation_radians();
         let rendered_rotation =
             glam::Quat::from_euler(glam::EulerRot::XYZ, rotation[0], rotation[1], rotation[2]);
-        let q = rapier3d::na::UnitQuaternion::new_normalize(rapier3d::na::Quaternion::new(
-            rendered_rotation.w,
-            rendered_rotation.x,
-            rendered_rotation.y,
-            rendered_rotation.z,
-        ));
-        let pose = rapier3d::na::Isometry3::from_parts(t, q);
-        let rb = rb_builder.pose(pose.into()).build();
-        let body_handle = self.rigid_body_set.insert(rb);
+        let rapier_rotation =
+            rapier3d::na::UnitQuaternion::new_normalize(rapier3d::na::Quaternion::new(
+                rendered_rotation.w,
+                rendered_rotation.x,
+                rendered_rotation.y,
+                rendered_rotation.z,
+            ));
+        let pose = rapier3d::na::Isometry3::from_parts(translation, rapier_rotation);
+        let rigid_body = rb_builder.pose(pose.into()).build();
+        let body_handle = self.rigid_body_set.insert(rigid_body);
 
         let collider_builder = match prop.collider_type {
             ColliderType::Box => Some(ColliderBuilder::cuboid(
@@ -201,14 +200,14 @@ impl PhysicsEngine {
             )),
             ColliderType::Sphere => Some(ColliderBuilder::ball(prop.scale[0] * 0.5)),
             ColliderType::Mesh => {
-                if phys_points.is_empty() || phys_indices.is_empty() {
+                if physics_vertices.is_empty() || physics_triangles.is_empty() {
                     eprintln!(
                         "[PHYSICS] Mesh collider for '{}' skipped because mesh data is empty.",
                         prop.asset_id
                     );
                     None
                 } else {
-                    let rp: Vec<RVec3> = phys_points
+                    let scaled_vertices: Vec<RVec3> = physics_vertices
                         .iter()
                         .map(|p| {
                             RVec3::new(
@@ -218,12 +217,12 @@ impl PhysicsEngine {
                             )
                         })
                         .collect();
-                    match ColliderBuilder::trimesh(rp, phys_indices.to_vec()) {
+                    match ColliderBuilder::trimesh(scaled_vertices, physics_triangles.to_vec()) {
                         Ok(builder) => Some(builder),
-                        Err(e) => {
+                        Err(error) => {
                             eprintln!(
                                 "[PHYSICS] Mesh collider for '{}' failed: {}",
-                                prop.asset_id, e
+                                prop.asset_id, error
                             );
                             None
                         }
@@ -234,9 +233,9 @@ impl PhysicsEngine {
         };
 
         let collider_handle = collider_builder.map(|builder| {
-            let col = builder.sensor(prop.is_hurtbox).build();
+            let collider = builder.sensor(prop.is_hurtbox).build();
             self.collider_set
-                .insert_with_parent(col, body_handle, &mut self.rigid_body_set)
+                .insert_with_parent(collider, body_handle, &mut self.rigid_body_set)
         });
         self.prop_bodies.push(body_handle);
         self.prop_colliders.push(collider_handle);
@@ -305,7 +304,6 @@ impl PhysicsEngine {
 
         let ray = Ray::new(pos, RVec3::new(0.0, -1.0, 0.0));
 
-        // Build a query pipeline that excludes the player's own collider.
         let filter = QueryFilter::default().exclude_collider(self.player_collider_handle);
         let query_pipeline = self.broad_phase.as_query_pipeline(
             self.narrow_phase.query_dispatcher(),
@@ -364,19 +362,15 @@ impl PhysicsEngine {
         dt: f32,
         speed_multiplier: f32,
     ) -> bool {
-        // Read state BEFORE taking the mutable borrow on the rigid body.
+        // Query grounding before borrowing the body mutably.
         let on_ground = self.check_grounded();
 
-        // Update coyote timer:
-        //   - If on ground, reset the timer.
-        //   - If airborne, count down.
         if on_ground {
             self.coyote_timer = COYOTE_TIME;
         } else {
             self.coyote_timer = (self.coyote_timer - dt).max(0.0);
         }
 
-        // Edge-triggered jump: only jump on the key-down transition.
         let jump_just_pressed = is_jumping && !self.jump_was_pressed;
         self.jump_was_pressed = is_jumping;
 
@@ -387,24 +381,20 @@ impl PhysicsEngine {
 
         body.set_gravity_scale(1.0, true);
 
-        let cur = body.linvel();
+        let current_velocity = body.linvel();
 
-        // Allow jumping if:
-        //   a) Actually on the ground, OR
-        //   b) Within coyote-time window (just stepped off a ledge).
         let can_jump = on_ground || self.coyote_timer > 0.0;
 
         let effective_speed = config.player_speed * speed_multiplier;
 
         let mut vel = RVec3::new(
             intent[0] * effective_speed,
-            cur.y,
+            current_velocity.y,
             intent[2] * effective_speed,
         );
 
         if jump_just_pressed && can_jump {
             vel.y = config.jump_velocity;
-            // Clear coyote timer so it's consumed by this jump.
             self.coyote_timer = 0.0;
         }
 
@@ -415,9 +405,9 @@ impl PhysicsEngine {
     pub fn step(&mut self, config: &PhysicsConfig, dt: f32) {
         let gravity = RVec3::new(0.0, config.gravity, 0.0);
 
-        // Use the passed dt for physics simulation to make it frame-rate independent
+        // Bound unusually long frames so one simulation step cannot tunnel far.
         let integration_params = IntegrationParameters {
-            dt: dt.clamp(0.001, 0.033), // Clamp to prevent extreme jumps in dt
+            dt: dt.clamp(0.001, 0.033),
             ..Default::default()
         };
 

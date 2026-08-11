@@ -1,6 +1,4 @@
-// src/data/config/gameplay.rs
-// Game configuration system - everything a designer needs to tweak
-// without touching code. All values have clear descriptions and sane defaults.
+//! Gameplay tuning and input bindings loaded from the `config/` directory.
 
 use std::collections::HashMap;
 
@@ -207,8 +205,7 @@ fn default_bindings() -> KeyBindings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CameraConfig {
-    /// Camera sensitivity for mouse look (higher = more sensitive)
-    /// Higher values = faster camera turning
+    /// Mouse-look radians applied per input unit.
     pub sensitivity: f32,
 }
 
@@ -409,28 +406,22 @@ impl Default for DebugConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PlayerConfig {
-    /// Maximum health points the player can have
-    /// Higher values = more survivability, longer fights
+    /// Maximum player health.
     pub max_health: f32,
 
-    /// Maximum stamina points for sprinting and dashing
-    /// Higher values = more mobility options
+    /// Maximum stamina shared by sprinting and dashing.
     pub max_stamina: f32,
 
-    /// How fast stamina regenerates when not in use (per second)
-    /// Higher values = faster recovery between actions
+    /// Stamina restored per second after the regeneration delay.
     pub stamina_regen_rate: f32,
 
-    /// Delay before stamina starts regenerating after depletion (seconds)
-    /// Higher values = more tactical stamina management
+    /// Seconds before stamina regeneration begins.
     pub stamina_regen_delay: f32,
 
-    /// Base movement speed when walking (units per second)
-    /// Higher values = faster overall movement
+    /// Walking speed in world units per second.
     pub walk_speed: f32,
 
-    /// Base movement speed when sprinting (units per second)
-    /// Higher values = faster sprinting
+    /// Sprinting speed in world units per second.
     pub sprint_speed: f32,
 }
 
@@ -450,24 +441,19 @@ impl Default for PlayerConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MovementConfig {
-    /// How much faster dash is compared to sprint
-    /// Higher values = more dramatic dash speed
+    /// Dash speed as a multiplier of sprint speed.
     pub dash_speed_multiplier: f32,
 
-    /// How much stamina is consumed per second of sprinting
-    /// Higher values = sprint drains faster
+    /// Stamina consumed per second while sprinting.
     pub sprint_stamina_drain_rate: f32,
 
-    /// How much stamina is consumed per dash
-    /// Higher values = more commitment to dash
+    /// Stamina consumed when a dash begins.
     pub dash_stamina_cost: f32,
 
-    /// Time between dashes (seconds)
-    /// Higher values = less spammy dashing
+    /// Minimum seconds between dashes.
     pub dash_cooldown: f32,
 
-    /// Duration of dash effect (seconds)
-    /// Higher values = longer dash duration
+    /// Dash duration in seconds.
     pub dash_duration: f32,
 }
 

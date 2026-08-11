@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "chroma_key": {
+    "hex": "#FF00FF",
+    "rgb": [
+      255,
+      0,
+      255
+    ],
+    "threshold": 96.0
+  },
+  "rows": [
+    {
+      "state": "running-left",
+      "frames": [
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\00.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\01.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\02.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\03.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\04.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\05.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\06.png",
+        "A:\\Rust\\Cenotaph\\.codex\\pet-runs\\cairnwright\\qa\\rows\\running-left\\frames\\running-left\\07.png"
+      ],
+      "method": "components"
+    }
+  ]
+}

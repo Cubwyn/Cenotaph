@@ -1,7 +1,4 @@
-// src/core/engine/loader.rs
-// Disk I/O helpers for the engine.
-// These functions upload disk assets to GPU managers without touching
-// EngineState directly.
+//! Disk asset discovery and GPU upload without direct `EngineState` access.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -9,7 +6,7 @@ use wgpu::util::DeviceExt;
 
 use crate::core::engine::validation::validate_model_geometry;
 use crate::systems::render::assets::{AssetManager, RenderAsset, RenderAssetMeshPart};
-use crate::systems::render::mesh::try_load_model;
+use crate::systems::render::mesh::{try_load_model, ModelData};
 use crate::systems::render::texture::TextureManager;
 
 const ASSETS_DIR: &str = "assets";
@@ -258,7 +255,9 @@ pub fn load_prop_assets(device: &wgpu::Device, assets: &mut AssetManager) -> Dis
                 ));
                 continue;
             }
-            let (vertices, parts, _pp, _pi) = model;
+            let ModelData {
+                vertices, parts, ..
+            } = model;
 
             let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Asset Vertex Buffer"),

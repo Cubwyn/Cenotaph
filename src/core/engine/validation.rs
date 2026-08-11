@@ -1,3 +1,5 @@
+//! Project-wide validation for content graphs, tuning, and runtime assets.
+
 use std::collections::HashSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -685,23 +687,23 @@ fn validate_model_asset_file(path: &Path, report: &mut ContentValidationReport) 
         report.add_issue(path_label.clone(), issue);
     }
     if uses_primitive_placeholder_contract(path) {
-        let (_, parts, physics_points, physics_triangles) = &model;
-        let render_triangles = parts
+        let render_triangles = model
+            .parts
             .iter()
             .map(|part| part.indices.len() / 3)
             .sum::<usize>();
-        if parts.len() != 1
-            || physics_points.len() > 8
-            || physics_triangles.len() > 12
+        if model.parts.len() != 1
+            || model.physics_vertices.len() > 8
+            || model.physics_triangles.len() > 12
             || render_triangles > 12
         {
             report.add_issue(
                 path_label,
                 format!(
                     "primitive placeholder must remain one basic shape (found {} render part(s), {} physics vertices, {} physics triangles, {} render triangles; limits 1/8/12/12)",
-                    parts.len(),
-                    physics_points.len(),
-                    physics_triangles.len(),
+                    model.parts.len(),
+                    model.physics_vertices.len(),
+                    model.physics_triangles.len(),
                     render_triangles
                 ),
             );
@@ -721,17 +723,16 @@ fn uses_primitive_placeholder_contract(path: &Path) -> bool {
 }
 
 pub(crate) fn validate_model_geometry(model: &ModelData) -> Vec<String> {
-    let (vertices, parts, phys_points, phys_indices) = model;
     let mut issues = Vec::new();
 
-    if vertices.is_empty() {
+    if model.vertices.is_empty() {
         issues.push("model contains no vertices".to_string());
     }
-    if parts.is_empty() {
+    if model.parts.is_empty() {
         issues.push("model contains no render mesh parts".to_string());
     }
 
-    let total_indices: usize = parts.iter().map(|part| part.indices.len()).sum();
+    let total_indices: usize = model.parts.iter().map(|part| part.indices.len()).sum();
     if total_indices == 0 {
         issues.push("model contains no render indices".to_string());
     }
@@ -739,7 +740,7 @@ pub(crate) fn validate_model_geometry(model: &ModelData) -> Vec<String> {
         issues.push("model render index count should be divisible by 3".to_string());
     }
 
-    for (vertex_index, vertex) in vertices.iter().enumerate() {
+    for (vertex_index, vertex) in model.vertices.iter().enumerate() {
         if !vertex.position.iter().all(|value| value.is_finite()) {
             issues.push(format!(
                 "vertex {} position must contain finite numbers",
@@ -763,9 +764,9 @@ pub(crate) fn validate_model_geometry(model: &ModelData) -> Vec<String> {
         }
     }
 
-    let vertex_count = vertices.len() as u32;
+    let vertex_count = model.vertices.len() as u32;
     if vertex_count > 0 {
-        for (part_index, part) in parts.iter().enumerate() {
+        for (part_index, part) in model.parts.iter().enumerate() {
             if part.indices.iter().any(|index| *index >= vertex_count) {
                 issues.push(format!(
                     "render part {} contains an index outside the vertex buffer",
@@ -776,10 +777,10 @@ pub(crate) fn validate_model_geometry(model: &ModelData) -> Vec<String> {
         }
     }
 
-    if phys_points.is_empty() {
+    if model.physics_vertices.is_empty() {
         issues.push("model contains no physics points".to_string());
     }
-    if phys_indices.is_empty() {
+    if model.physics_triangles.is_empty() {
         issues.push("model contains no physics triangles".to_string());
     }
 

@@ -1,11 +1,4 @@
-// src/main.rs
-// Entry point for Cenotaph: The Great Omission.
-//
-// Runtime path:
-//   main.rs -> app.rs -> core::engine::EngineState
-//
-// Validation path:
-//   cargo run -- validate -> core::engine::validation
+//! Command dispatch and runtime entry point for Cenotaph: The Great Omission.
 
 mod app;
 mod core;
@@ -37,6 +30,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             for level in levels {
                 println!("- {}", level);
             }
+            Ok(())
+        }
+        ProjectCommand::Overview => {
+            print!("{}", developer::overview::render_project_overview(".")?);
             Ok(())
         }
         ProjectCommand::Validate => run_validation(),
@@ -72,7 +69,6 @@ fn run_doctor() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn run_game(level_name: String) -> Result<(), Box<dyn std::error::Error>> {
-    // Start the window/event loop and hand runtime work to App/EngineState.
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
 
@@ -80,7 +76,7 @@ fn run_game(level_name: String) -> Result<(), Box<dyn std::error::Error>> {
 
     event_loop
         .run_app(&mut application)
-        .map_err(|e| format!("Event loop crashed: {}", e))?;
+        .map_err(|error| format!("Event loop crashed: {}", error))?;
 
     if let Some(error) = application.take_fatal_error() {
         return Err(std::io::Error::other(error).into());

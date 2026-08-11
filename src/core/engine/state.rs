@@ -1,16 +1,7 @@
-// src/core/engine/state.rs
-// EngineState owns every runtime subsystem and the GPU surface.
-//
-// Responsibilities:
-//   - Struct definition (all fields)
-//   - Construction (new)
-//   - Resize
-//   - Render (GPU draw calls)
-//
-// Per-frame logic lives in:
-//   update.rs - update_physics / update_visuals / gameplay
-//   sync.rs   - sync_instances
-//   loader.rs - load_textures_from_disk / load_prop_assets
+//! Runtime ownership, construction, rendering, and transactional level commits.
+//!
+//! Per-frame behavior lives in `update`, instance assembly in `sync`, and disk
+//! asset discovery in `loader`.
 
 use std::collections::{HashSet, VecDeque};
 use std::path::Path;
@@ -413,7 +404,12 @@ impl EngineState {
             level_data.props.len()
         );
 
-        let (map_vertices, map_mesh_parts, phys_points, phys_indices) = model;
+        let ModelData {
+            vertices: map_vertices,
+            parts: map_mesh_parts,
+            physics_vertices,
+            physics_triangles,
+        } = model;
         Self::log_map_model(&map_vertices, map_mesh_parts.len());
         let map_resources = Self::build_map_resources(
             &device,
@@ -476,8 +472,8 @@ impl EngineState {
         let physics = Self::build_physics_for_level(
             &level_data,
             &config_data.physics,
-            phys_points,
-            phys_indices,
+            physics_vertices,
+            physics_triangles,
         );
 
         let hud = HudSystem::new(&device, config.format, &config_data.ui);
@@ -1033,10 +1029,7 @@ impl EngineState {
             .collect()
     }
 
-    fn marker_kind_for_prop(
-        &self,
-        prop: &crate::data::world::level::PropData,
-    ) -> Option<HudMarkerKind> {
+    fn marker_kind_for_prop(&self, prop: &PropData) -> Option<HudMarkerKind> {
         if prop.enemy_type.is_some() && prop.enemy_health > 0.0 {
             Some(HudMarkerKind::Enemy)
         } else if prop.is_hurtbox {
@@ -1062,7 +1055,7 @@ impl EngineState {
     fn marker_state_for_prop(
         &self,
         index: usize,
-        prop: &crate::data::world::level::PropData,
+        prop: &PropData,
         kind: HudMarkerKind,
         player: Vec3,
     ) -> (HudMarkerState, f32) {
@@ -1107,12 +1100,7 @@ impl EngineState {
         }
     }
 
-    fn marker_ratio_for_prop(
-        &self,
-        index: usize,
-        prop: &crate::data::world::level::PropData,
-        kind: HudMarkerKind,
-    ) -> f32 {
+    fn marker_ratio_for_prop(&self, index: usize, prop: &PropData, kind: HudMarkerKind) -> f32 {
         match kind {
             HudMarkerKind::Enemy => {
                 let fallback_max_health = prop
@@ -1230,7 +1218,12 @@ impl EngineState {
             data: level_data,
             model,
         } = prepared;
-        let (map_vertices, map_mesh_parts, phys_points, phys_indices) = model;
+        let ModelData {
+            vertices: map_vertices,
+            parts: map_mesh_parts,
+            physics_vertices,
+            physics_triangles,
+        } = model;
         let map_resources = Self::build_map_resources(
             &self.device,
             &map_vertices,
@@ -1240,8 +1233,8 @@ impl EngineState {
         let physics = Self::build_physics_for_level(
             &level_data,
             &self.config_data.physics,
-            phys_points,
-            phys_indices,
+            physics_vertices,
+            physics_triangles,
         );
         let enemy_runtime = Self::enemy_runtime_for_level(&level_data);
         let level_event_fired = Self::level_event_runtime_for_level(&level_data);
@@ -1368,11 +1361,15 @@ impl EngineState {
     fn build_physics_for_level(
         level_data: &LevelData,
         config: &PhysicsConfig,
-        phys_points: Vec<Vec3>,
-        phys_indices: Vec<[u32; 3]>,
+        physics_vertices: Vec<Vec3>,
+        physics_triangles: Vec<[u32; 3]>,
     ) -> PhysicsEngine {
-        let mut physics =
-            PhysicsEngine::new(level_data.player_spawn, phys_points, phys_indices, config);
+        let mut physics = PhysicsEngine::new(
+            level_data.player_spawn,
+            physics_vertices,
+            physics_triangles,
+            config,
+        );
 
         for prop in &level_data.props {
             if let Some((prop_points, prop_indices)) = Self::brush_physics_mesh(prop) {
@@ -1382,8 +1379,8 @@ impl EngineState {
 
             let asset_path = format!("assets/{}", prop.asset_id);
             match try_load_model(&asset_path) {
-                Ok((_vertices, _parts, prop_points, prop_indices)) => {
-                    physics.add_prop(prop, &prop_points, &prop_indices);
+                Ok(model) => {
+                    physics.add_prop(prop, &model.physics_vertices, &model.physics_triangles);
                 }
                 Err(error) => {
                     eprintln!(
@@ -1800,7 +1797,7 @@ mod tests {
 
         assert_eq!(prepared.name, "movement_test");
         assert!(!prepared.data.props.is_empty());
-        assert!(!prepared.model.0.is_empty());
+        assert!(!prepared.model.vertices.is_empty());
     }
 
     #[test]
@@ -1842,7 +1839,7 @@ mod tests {
         let prepared = EngineState::prepare_level("ashwalk_01", &enemies, &relics).unwrap();
 
         assert!(prepared.data.props.len() <= 14);
-        assert!(!prepared.model.0.is_empty());
+        assert!(!prepared.model.vertices.is_empty());
         assert!(prepared
             .data
             .props

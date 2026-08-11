@@ -157,11 +157,12 @@ fn inspect_content_budgets(root: &Path, checks: &mut Vec<DoctorCheck>) {
 
         let map_path = root.join(&level.base_map);
         let map_label = map_path.to_string_lossy();
-        let Ok((_, parts, _, _)) = try_load_model(&map_label) else {
+        let Ok(model) = try_load_model(&map_label) else {
             continue;
         };
         readable_maps += 1;
-        let triangle_count = parts
+        let triangle_count = model
+            .parts
             .iter()
             .map(|part| part.indices.len() / 3)
             .sum::<usize>();

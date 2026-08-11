@@ -12,6 +12,7 @@ pub enum ProjectCommand {
     Validate,
     Doctor,
     ListLevels,
+    Overview,
     Help,
 }
 
@@ -40,6 +41,7 @@ where
         "validate" | "validate-content" | "--validate" => ProjectCommand::Validate,
         "doctor" | "diagnose" => ProjectCommand::Doctor,
         "levels" | "list-levels" => ProjectCommand::ListLevels,
+        "content" | "overview" | "map" => ProjectCommand::Overview,
         "continue" | "resume" => ProjectCommand::Continue,
         "play" => {
             let level_id = args.next().unwrap_or_else(|| DEFAULT_LEVEL_ID.to_string());
@@ -143,6 +145,7 @@ USAGE
     cargo run -- validate             Validate authored project content
     cargo run -- doctor               Check project layout, content, and save health
     cargo run -- levels               List playable level ids
+    cargo run -- content              Show the project content map and safe change loop
     cargo run -- help                 Show this help
 
 Level ids may contain letters, numbers, '-' and '_' only."#
@@ -171,6 +174,16 @@ mod tests {
         let explicit = parse_args(args(&["play", "foundation_test"])).unwrap();
         let shorthand = parse_args(args(&["foundation_test"])).unwrap();
         assert_eq!(explicit, shorthand);
+    }
+
+    #[test]
+    fn content_aliases_select_project_overview() {
+        for alias in ["content", "overview", "map"] {
+            assert_eq!(
+                parse_args(args(&[alias])).unwrap(),
+                ProjectCommand::Overview
+            );
+        }
     }
 
     #[test]

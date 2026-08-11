@@ -1,12 +1,10 @@
-// src/systems/render/mesh.rs
-// Vertex definition and model loading for .glb / .gltf / .obj files.
-// Returns both render-ready data (vertices + indexed parts) and
-// physics-ready data (point cloud + triangle indices).
+//! Model loading shared by rendering, collision setup, and validation.
+//!
+//! Every supported format is normalized into [`ModelData`] so callers do not
+//! need to know whether geometry came from GLTF/GLB or OBJ.
 
 use glam::Vec3;
 use std::path::Path;
-
-// ── Vertex ────────────────────────────────────────────────────────────────────
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -43,17 +41,19 @@ impl Vertex {
     }
 }
 
-// ── Mesh part ─────────────────────────────────────────────────────────────────
-
 /// A single draw call's worth of index data, tagged with a texture name.
 pub struct RenderMeshPart {
     pub indices: Vec<u32>,
     pub texture_name: String,
 }
 
-pub type ModelData = (Vec<Vertex>, Vec<RenderMeshPart>, Vec<Vec3>, Vec<[u32; 3]>);
-
-// ── Model loading ─────────────────────────────────────────────────────────────
+/// Format-independent geometry used by both the renderer and physics engine.
+pub struct ModelData {
+    pub vertices: Vec<Vertex>,
+    pub parts: Vec<RenderMeshPart>,
+    pub physics_vertices: Vec<Vec3>,
+    pub physics_triangles: Vec<[u32; 3]>,
+}
 
 pub fn try_load_model(path: &str) -> Result<ModelData, String> {
     let extension = Path::new(path)
@@ -71,16 +71,16 @@ pub fn try_load_model(path: &str) -> Result<ModelData, String> {
 
 #[cfg(test)]
 pub fn empty_model() -> ModelData {
-    (
-        vec![Vertex {
+    ModelData {
+        vertices: vec![Vertex {
             position: [0.0, 0.0, 0.0],
             tex_coords: [0.0, 0.0],
             normal: [0.0, 1.0, 0.0],
         }],
-        Vec::new(),
-        Vec::new(),
-        Vec::new(),
-    )
+        parts: Vec::new(),
+        physics_vertices: Vec::new(),
+        physics_triangles: Vec::new(),
+    }
 }
 
 /// Load a GLTF / GLB model.
@@ -90,8 +90,8 @@ pub fn load_gltf(path: &str) -> Result<ModelData, String> {
 
     let mut vertices = Vec::new();
     let mut parts = Vec::new();
-    let mut phys_points = Vec::new();
-    let mut phys_indices = Vec::new();
+    let mut physics_vertices = Vec::new();
+    let mut physics_triangles = Vec::new();
 
     for node in document.nodes() {
         if let Some(mesh) = node.mesh() {
@@ -101,7 +101,7 @@ pub fn load_gltf(path: &str) -> Result<ModelData, String> {
 
                 if let Some(pos_iter) = reader.read_positions() {
                     for pos in pos_iter {
-                        phys_points.push(Vec3::from_slice(&pos));
+                        physics_vertices.push(Vec3::from_slice(&pos));
                         vertices.push(Vertex {
                             position: pos,
                             tex_coords: [0.0, 0.0],
@@ -128,7 +128,7 @@ pub fn load_gltf(path: &str) -> Result<ModelData, String> {
                     .map(|indices| indices.into_u32().collect())
                     .unwrap_or_else(|| (0..primitive_vertex_count).collect());
                 for chunk in local.chunks_exact(3) {
-                    phys_indices.push([
+                    physics_triangles.push([
                         chunk[0] + start_vert,
                         chunk[1] + start_vert,
                         chunk[2] + start_vert,
@@ -151,7 +151,12 @@ pub fn load_gltf(path: &str) -> Result<ModelData, String> {
         }
     }
 
-    Ok((vertices, parts, phys_points, phys_indices))
+    Ok(ModelData {
+        vertices,
+        parts,
+        physics_vertices,
+        physics_triangles,
+    })
 }
 
 /// Load an OBJ model.
@@ -162,8 +167,8 @@ pub fn load_obj(path: &str) -> Result<ModelData, String> {
 
     let mut vertices = Vec::new();
     let mut parts = Vec::new();
-    let mut phys_points = Vec::new();
-    let mut phys_indices = Vec::new();
+    let mut physics_vertices = Vec::new();
+    let mut physics_triangles = Vec::new();
 
     for model in models {
         let mesh = &model.mesh;
@@ -179,7 +184,7 @@ pub fn load_obj(path: &str) -> Result<ModelData, String> {
                 mesh.positions[i * 3 + 1],
                 mesh.positions[i * 3 + 2],
             ];
-            phys_points.push(Vec3::from_slice(&pos));
+            physics_vertices.push(Vec3::from_slice(&pos));
 
             let tex_coords = if !mesh.texcoords.is_empty() {
                 [mesh.texcoords[i * 2], mesh.texcoords[i * 2 + 1]]
@@ -211,7 +216,7 @@ pub fn load_obj(path: &str) -> Result<ModelData, String> {
         let local: Vec<u32> = mesh.indices.iter().map(|&i| i + start_vert).collect();
         for chunk in local.chunks(3) {
             if chunk.len() == 3 {
-                phys_indices.push([chunk[0], chunk[1], chunk[2]]);
+                physics_triangles.push([chunk[0], chunk[1], chunk[2]]);
             }
         }
         parts.push(RenderMeshPart {
@@ -225,7 +230,12 @@ pub fn load_obj(path: &str) -> Result<ModelData, String> {
         });
     }
 
-    Ok((vertices, parts, phys_points, phys_indices))
+    Ok(ModelData {
+        vertices,
+        parts,
+        physics_vertices,
+        physics_triangles,
+    })
 }
 
 fn texture_name_from_reference(reference: &str) -> Option<String> {

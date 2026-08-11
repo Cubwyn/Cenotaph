@@ -1,11 +1,7 @@
-// src/data/world/level.rs
-// LevelData is the serializable description of a single playable area.
-// PropData describes every object placed inside that area.
-// ColliderType drives the physics engine's collider selection.
-//
-// This module defines the data structures used to represent levels and their contents.
-// Levels are serialized to JSON and can be loaded dynamically at runtime.
-// The system supports both static level geometry and dynamic props with various gameplay properties.
+//! Versioned JSON schema, migration, and validation for playable levels.
+//!
+//! Authored references are validated here before runtime systems materialize
+//! enemies, collision, events, loot, dialogue, and atmosphere.
 
 use std::fs;
 use std::path::{Component, Path};
@@ -43,22 +39,17 @@ pub fn validate_level_id(level_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ── Collider shape tag ────────────────────────────────────────────────────────
-
-/// Defines the collision shape type for props and objects in the level.
-///
-/// This enum determines how the physics engine creates collision shapes for objects.
-/// Different shapes have different performance characteristics and use cases.
+/// Collider geometry requested for an authored prop.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Default)]
 pub enum ColliderType {
-    /// No collision shape - object is purely decorative
+    /// No collider; the prop is visual or event-only.
     #[default]
     None,
-    /// Box collider - fast collision detection, good for rectangular objects
+    /// Axis-aligned box derived from the prop transform.
     Box,
-    /// Sphere collider - fast collision detection, good for round objects
+    /// Sphere derived from the prop transform.
     Sphere,
-    /// Mesh collider - precise collision matching the object's geometry, slower performance
+    /// Triangle mesh loaded from the prop geometry.
     Mesh,
 }
 

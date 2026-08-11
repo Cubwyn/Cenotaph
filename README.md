@@ -6,7 +6,7 @@
 
 ## One-Sentence Vision
 
-**Cenotaph is a surreal vertical looter RPG about surviving repeated ascents through a hostile mountain that changes, forgets, and rewards adaptation.**
+**Cenotaph is a surreal authored looter-shooter RPG campaign through a hostile metaphysical mountain, with long-term loot, buildcraft, optional New Game+, and optional endgame replay.**
 
 ---
 
@@ -50,14 +50,126 @@ It resists, forgets, mutates, suppresses, and reveals.
 
 The player should feel:
 
+- Alone
 - Small
-- Isolated
+- Forgotten
 - Curious
 - Pressured
 - Determined
-- Increasingly capable, but never fully safe
+- Increasingly capable, but never fully safe, celebrated, or larger than the mountain
 
 The game should feel like climbing through a dream that has rules, but refuses to explain them.
+
+---
+
+## Narrative Spine
+
+This section records developer-facing story truth. The game should reveal it
+slowly through play, relic memories, environments, NPC fragments, bosses, and
+Cycle changes rather than presenting it as an opening explanation.
+
+### The Cenotaph
+
+The Cenotaph is the mountain.
+
+It is also the remains of a forgotten kingdom and civilization: its roads,
+settlements, cathedrals, machinery, courts, and wounds compressed into an
+impossible ascent.
+
+The mountain is a cenotaph for a kingdom that was never allowed to finish
+dying. Its civilization persists in surreal agony because its final reckoning
+was abandoned. The mountain rearranges and repeats because the kingdom's ending
+is still unresolved.
+
+The Great Omission is the absence at the center of that failed ending. Its full
+nature should remain mysterious for much of the game, but it is connected to
+the missing king, his sin, and the judgment he refused to face.
+
+### The Pilgrim-King
+
+The player begins as a nameless pilgrim without memories.
+
+The hidden truth is that the pilgrim is the former king of the mountain. He
+committed a sin so shameful that he fled rather than remain and answer for it.
+By abandoning his final obligation, he doomed the kingdom to an existence that
+could neither continue nor end.
+
+The exact sin is an author-level mystery still to be defined. It must explain:
+
+- why the king fled;
+- why his absence prevented the kingdom's death;
+- what the Great Omission removed or left unfinished;
+- why the mountain returns him as a pilgrim;
+- what payment can finally conclude the kingdom's suffering.
+
+The story is not about reclaiming the throne. It is about becoming answerable
+to it.
+
+### The Emotional Contract
+
+The player should always feel alone, small, and forgotten, even when powerful,
+surrounded, or temporarily safe.
+
+- **Alone:** no companion shares the full ascent. NPC encounters are rare,
+  limited, unreliable, or unable to follow.
+- **Small:** architecture, height, danger, and history remain greater than the
+  player. Power improves survival without turning the game into triumphal power
+  fantasy.
+- **Forgotten:** names are missing, records are damaged, NPCs misremember, and
+  Anchors may preserve passage without preserving the person who made it.
+
+These feelings are consequences of the king's failure. He abandoned those who
+depended on him, placed himself above his subjects, and removed himself from
+their final history. Each Cycle forces him to experience the kingdom from the
+position of its smallest forgotten pilgrim.
+
+The kingdom forgot its king. It did not forget what he left unfinished.
+
+### Cycles and Atonement
+
+Each ordinary Cycle returns the former king without his royal name, memories,
+or authority. He climbs through the consequences of his reign, reaches the
+upper mountain, and fails to complete the necessary reckoning. The kingdom
+therefore repeats.
+
+An ordinary Cycle may end because the pilgrim repeats some form of the original
+failure: fleeing, choosing power over responsibility, refusing his identity,
+reclaiming authority without accepting guilt, destroying a necessary witness,
+or arriving without sufficient understanding.
+
+The final ending requires more than reaching the summit or collecting a fixed
+set of objects. Through persistent choices across Cycles, the player must prove
+that he has stopped behaving like the king who fled. He must recover enough
+truth to understand the crime, witness its consequences, complete abandoned
+obligations, accept his identity without reclaiming royal authority, relinquish
+something of real value, and remain when escape would be easier.
+
+At the final rite, the player does not conquer the mountain. He accepts judgment
+and pays for his sin. His payment ends his recurrence and finally allows the
+kingdom, the mountain, and the Cenotaph to die.
+
+The true victory is release, not possession.
+
+### Mystery and Gameplay Clarity
+
+Cenotaph may be surreal in meaning, history, imagery, space, and memory. It
+must not become confusing to play.
+
+The player may be uncertain about what something means, but never about what
+they must do or how a mechanic behaves.
+
+- Objectives use direct action language.
+- Hazards, interactions, costs, routes, and rewards have readable rules.
+- Establish a rule before distorting it.
+- Introduce one major strange idea at a time.
+- Give NPCs understandable desires even when their memories are wrong.
+- Deliver major revelations through concrete evidence as well as symbolism.
+- Every contradiction has an intended narrative reason.
+- Reality distortion never excuses unreadable combat, traversal, UI, or state.
+
+Ash-Walk begins with physical, understandable danger. Surreal complexity grows
+with altitude, reaches its greatest concentration in Mirror-Crust and the
+Breach, and always remains mechanically legible.
 
 ---
 
@@ -118,6 +230,10 @@ hand-authored detail before the core ascent loop feels real.
 9. A feature is not real until it works inside an ascent.
 10. If a feature does not improve the climb, survival, relic hunting, buildcraft, replayability, or mystery, cut it.
 11. Prefer reusable systems and asset-efficient presentation over bespoke content volume.
+12. The player may be uncertain about meaning, but never about the immediate objective or mechanical rule.
+13. Surrealism must be patterned, readable, and consequential rather than random.
+14. The player grows more capable without ceasing to feel alone, small, and forgotten.
+15. The final narrative reward is accountability and release, not restored kingship.
 
 ---
 
@@ -130,6 +246,9 @@ at [`docs/README.md`](docs/README.md):
   future design, content, and coding-agent work.
 - `docs/design/ASH_WALK_PILGRIMAGE.md` is the current playable milestone and
   acceptance gate before adding another Stratum.
+- `docs/design/CENOTAPH_STRATA.md` defines the themes, visual identities,
+  gameplay roles, threats, routes, hazards, relic biases, Cycle mutations, and
+  development purposes of all seven Strata.
 - `docs/design/` contains systems, lore, content rules, and the roadmap.
 - `docs/development/` contains the current foundation, smoke checklist,
   technical notes, and ordered project-wide improvement backlog.
@@ -241,6 +360,7 @@ Fast project aliases:
 cargo dev-check          # Check every Rust target
 cargo doctor             # Diagnose layout, content, saves, and pending writes
 cargo levels             # List playable level IDs
+cargo content            # Show the content map and safe change loop
 cargo validate-content   # Validate levels and data without opening a window
 cargo play-foundation    # Launch the foundation systems test level
 cargo resume             # Resume the latest autosave
@@ -312,7 +432,7 @@ Cenotaph is built around five master systems:
 2. **The Relic System** — weapons, loot, rarity, affixes, named relics, inventory.
 3. **The Build System** — stats, perks, synergies, statuses, risk/reward effects.
 4. **The Threat System** — enemies, modifiers, elites, bosses, hazards, suppression.
-5. **The Cycle Director** — run contracts, mutations, replayability, persistent memory.
+5. **Campaign Replayability** — authored campaign progression, optional New Game+, endgame variation, and persistent memory where explicitly defined.
 
 Supporting systems:
 
@@ -330,21 +450,45 @@ See `docs/design/SYSTEMS.md` for the full breakdown.
 
 The world is divided into seven major Strata:
 
-1. Ash-Walk
-2. Ward of Irons
-3. Hanging Slums
-4. Sanctuary
-5. Gallery of Wind
-6. Mirror-Crust
-7. The Breach
+| Stratum | Theme | Narrative and development role |
+| --- | --- | --- |
+| **1. Ash-Walk** | Collapse, ash, and first survival | Introduces the scale of the mountain, basic ascent, relic hunting, route choice, and the first signs that the mountain responds to the pilgrim. |
+| **2. Ward of Irons** | Industrial confinement and machinery without purpose | Shows systems still obeying an absent authority and adds confined environmental pressure. |
+| **3. Hanging Slums** | Precarious life above oblivion | Reveals how ordinary people attempted to live inside the climb and suffered after their king abandoned them. |
+| **4. Sanctuary** | Temporary safety, melancholy, and preparation | Provides relief and long-term preparation while preserving incompatible stories about the missing king. Safety does not become belonging. |
+| **5. Gallery of Wind** | Exposure, height, and insignificance | Expands verticality and confronts the player with the kingdom's impossible scale without becoming a pure movement shooter. |
+| **6. Mirror-Crust** | Reality distortion, reflection, and uncertainty | Turns accumulated clues toward recognition of the pilgrim's identity while keeping illusions and routes mechanically readable. |
+| **7. The Breach** | Final ascent and reality failing to hold its shape | Brings the consequences of every Stratum together for endgame combat, Cycle completion, and the possibility of final atonement. |
 
 Each Stratum should be documented uniformly using the template in `docs/design/CONTENT_GUIDE.md`.
+
+The narrative progression is:
+
+```text
+Physical ruin
+-> purposeless authority
+-> abandoned subjects
+-> safety without belonging
+-> overwhelming scale
+-> recognition
+-> judgment
+```
+
+Ash-Walk is only the first Stratum. It teaches the mountain's basic grammar and
+must not consume the visual, mechanical, enemy, relic, or narrative identities
+reserved for higher Strata.
 
 ---
 
 ## Replayability Principle
 
-Replayability is a first-class design pillar.
+Replayability is a first-class design pillar, but the authored campaign remains
+the primary structure. New Game+ and optional endgame replay must add long-term
+loot and build depth without replacing the mountain with an endless procedural
+run loop.
+
+Cycles may remain as lore or explicitly designed optional systems. They are not
+the primary progression structure.
 
 Cenotaph should not rely on endless handcrafted content.
 
@@ -420,7 +564,8 @@ Implemented now:
   hurtbox damage, death/respawn, prototype prop shooting with solid-world
   obstruction, baseline data-driven enemy chase/attack, prototype resource
   pickup, explicit Anchor rites, authored relic pickups, stable-source enemy relic
-  rewards, named encounter/reward HUD, world-state autosave/resume, basic cycle modifiers, and
+  rewards, named encounter/reward HUD, world-state autosave/resume, and prototype Cycle modifiers pending the
+  campaign/NG+ design decisions,
   full project content validation; Ashwalk now composes those systems into a
   compact readable climb with one hazard, paced resources, a relic choice, an
   authored named Ash-Warden and relic drop, a summit rite, reusable mountain
@@ -431,8 +576,9 @@ Not implemented yet:
 - advanced enemy AI, role-specific enemy behavior, production enemy models,
   generated relic rolls/affixes, item comparison UI, data-authored Anchor rite
   variants and full Sanctuary UI,
-  a data-driven elite modifier, upgrade/perk choice, full run-contract Cycle
-  Director, and procedural route generation
+  a data-driven elite modifier, upgrade/perk choice, campaign completion and
+  New Game+ rules, the replacement replayability system, and procedural route
+  generation
 
 The deterministic prototype model kit can be regenerated without Blender or
 third-party Python packages:
@@ -454,11 +600,20 @@ The goal is to build a foundation strong enough that strange ideas can be added 
 
 The player climbs because the world below cannot hold.
 
+The pilgrim climbs without knowing that he was once the king who fled.
+
 The mountain forgets.
 
 The player remembers.
 
 The relics remember incorrectly.
+
+The kingdom remembers only the wound left by its absent sovereign.
+
+Every ordinary Cycle repeats the failure.
+
+The final Cycle ends when the king remains, answers for his sin, and allows the
+Cenotaph to die.
 
 And every ascent becomes another version of the same impossible dream.
 

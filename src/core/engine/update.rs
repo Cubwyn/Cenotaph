@@ -1,10 +1,7 @@
-// src/engine/update.rs
-// Per-frame update logic split into two passes:
-//
-//   update_physics(input)  — movement intent, physics step, gameplay
-//   update_visuals(input)  — camera rotation, GPU buffer writes
-//
-// Per-frame update logic.
+//! Per-frame simulation and presentation updates.
+//!
+//! Simulation and gameplay run in `update_physics`; camera and GPU state are
+//! synchronized separately in `update_visuals`.
 
 use std::collections::HashSet;
 
@@ -29,10 +26,8 @@ use crate::systems::input::manager::InputManager;
 use crate::systems::render::mesh::try_load_model;
 use crate::systems::render::particles::ParticleBurst;
 
-// ── Public update interface ───────────────────────────────────────────────────
-
 impl EngineState {
-    // Physics pass: movement intent → physics step → gameplay logic.
+    /// Advances simulation, gameplay, and event state for one frame.
     pub fn update_physics(&mut self, input: &InputManager, dt: f32) {
         if self.game_mode == GameMode::Paused {
             return;
@@ -43,7 +38,6 @@ impl EngineState {
         self.particles
             .update(&self.queue, &self.runtime_atmosphere, particle_center, dt);
 
-        // Tick the shared cooldown timer
         if self.action_cooldown > 0.0 {
             self.action_cooldown = (self.action_cooldown - dt).max(0.0);
         }
@@ -63,7 +57,7 @@ impl EngineState {
             return;
         }
 
-        // ── Stamina & movement ────────────────────────────────────────────────
+        // Resolve movement intent and stamina costs before stepping physics.
         let intent = {
             let v =
                 self.camera_controller
@@ -94,13 +88,11 @@ impl EngineState {
             );
         }
 
-        // ── Sprint logic ─────────────────────────────────────────────────────
         self.player.is_sprinting = !self.player.is_dashing
             && sprint_held
             && has_movement
             && self.player.stamina.current > 0.0;
 
-        // ── Stamina consumption ──────────────────────────────────────────────
         let walk_speed = self.config_data.player.walk_speed;
         let sprint_speed = self.config_data.player.sprint_speed;
         let dash_speed = sprint_speed * self.config_data.movement.dash_speed_multiplier;
@@ -119,29 +111,23 @@ impl EngineState {
         let physics_base_speed = self.config_data.physics.player_speed.max(0.001);
         let target_speed_multiplier = target_speed / physics_base_speed;
 
-        // ── Smooth the speed multiplier ──────────────────────────────────────
-        // This prevents instant jumps from 1.0 → 1.6 when sprinting starts
-        let smooth_rate = 8.0_f32; // Higher = faster response
+        // Ease transitions between walking, sprinting, and dashing.
+        let smooth_rate = 8.0_f32;
         let lerp = (smooth_rate * dt).min(1.0);
         self.player.speed_multiplier_smoothed +=
             (target_speed_multiplier - self.player.speed_multiplier_smoothed) * lerp;
         let speed_multiplier = self.player.speed_multiplier_smoothed;
 
-        // ── Smooth the displayed stamina (eliminates bar jump) ──────────────
-        // The actual stamina changes instantly, which makes the bar jump.
-        // We compute a smoothed stamina value (stamina_smoothed) that
-        // interpolates toward the actual value, giving a smooth visual.
+        // Presentation smoothing does not delay the authoritative stamina value.
         self.player.stamina.smooth_display(dt, 8.0);
 
-        // ── Stamina regeneration ──────────────────────────────────────────────
         if !self.player.is_sprinting && !self.player.is_dashing {
             self.player
                 .stamina
                 .tick_regen(dt, self.config_data.player.stamina_regen_rate);
         }
 
-        // ── Level transition check ────────────────────────────────────────────
-        // Check if player is near a prop with trigger_level_id
+        // Queue proximity transitions before explicit world interactions.
         if self.pending_transition.is_none() {
             let player_pos = self.physics.get_player_pos();
             let player_v = Vec3::new(player_pos[0], player_pos[1], player_pos[2]);
@@ -178,7 +164,6 @@ impl EngineState {
             world_interact_pressed = available_interact && !event_consumed;
         }
 
-        // Process pending level transition
         if let Some(ref next_level) = self.pending_transition.clone() {
             println!("[LEVEL] Loading level: {}", next_level);
             match self.load_level(next_level) {
@@ -201,7 +186,6 @@ impl EngineState {
             self.pending_transition = None;
         }
 
-        // Skip movement + combat if player is dead
         if !self.player.is_dead {
             self.update_enemy_ai(dt);
             self.update_non_enemy_path_followers();
@@ -272,13 +256,10 @@ impl EngineState {
                     ..MotionSample::default()
                 },
             );
-            // Dead state: process respawn timer
             self.player.respawn_timer -= dt;
             if self.player.respawn_timer <= 0.0 {
-                // Respawn
                 self.play_sound(SoundEffect::Pickup);
                 self.player.restore_after_respawn(&self.config_data.player);
-                // Reset physics body to spawn position
                 let spawn = self
                     .progress
                     .respawn_position_or(self.level_data.player_spawn);
@@ -294,7 +275,7 @@ impl EngineState {
             }
         }
 
-        // ── Hurtbox proximity damage ───────────────────────────────────────────
+        // Apply periodic proximity damage after movement resolves.
         if !self.player.is_dead
             && !self.player.health.is_depleted()
             && self.player.hurtbox_cooldown <= 0.0
@@ -354,7 +335,7 @@ impl EngineState {
         }
     }
 
-    /// Visuals pass: mouse look → camera → GPU buffer write.
+    /// Synchronizes camera presentation and GPU uniforms after simulation.
     pub fn update_visuals(&mut self, input: &mut InputManager) {
         input.take_scroll();
 
@@ -376,7 +357,6 @@ impl EngineState {
             crate::systems::render::camera::BASE_FOVY + self.feedback.camera_fov_offset();
         self.camera.fovy += (target_fovy - self.camera.fovy) * (1.0 - (-visual_dt * 10.0).exp());
 
-        // In gameplay mode the camera follows the physics body.
         let p = self.physics.get_player_pos();
         self.camera.position =
             Vec3::new(p[0], p[1] + 1.0, p[2]) + self.feedback.camera_offset(self.camera.yaw);
@@ -392,8 +372,6 @@ impl EngineState {
         input.reset_mouse_delta();
     }
 }
-
-// ── Gameplay input (always compiled) ─────────────────────────────────────────
 
 impl EngineState {
     fn play_sound(&mut self, effect: SoundEffect) {
@@ -1195,8 +1173,9 @@ impl EngineState {
         let max_health = prop.enemy_type.as_ref().map_or(0.0, |_| prop.enemy_health);
         let asset_path = format!("assets/{}", prop.asset_id);
         match try_load_model(&asset_path) {
-            Ok((_vertices, _parts, points, indices)) => {
-                self.physics.add_prop(&prop, &points, &indices);
+            Ok(model) => {
+                self.physics
+                    .add_prop(&prop, &model.physics_vertices, &model.physics_triangles);
             }
             Err(error) => {
                 eprintln!(
@@ -1483,7 +1462,7 @@ impl EngineState {
         self.autosave("relic pickup");
     }
 
-    fn remove_prop_data(&mut self, index: usize) -> Option<crate::data::world::level::PropData> {
+    fn remove_prop_data(&mut self, index: usize) -> Option<PropData> {
         if index >= self.level_data.props.len() {
             return None;
         }
@@ -1498,10 +1477,7 @@ impl EngineState {
         Some(prop)
     }
 
-    fn remove_persistent_prop_data(
-        &mut self,
-        index: usize,
-    ) -> Option<crate::data::world::level::PropData> {
+    fn remove_persistent_prop_data(&mut self, index: usize) -> Option<PropData> {
         let prop = self.remove_prop_data(index)?;
         if let Some(prop_id) = prop.id.as_deref() {
             if !prop_id.starts_with(RUNTIME_LOOT_ID_PREFIX) {
@@ -1511,7 +1487,7 @@ impl EngineState {
         Some(prop)
     }
 
-    /// Removes an enemy prop at `index` from level_data, physics, and render instances.
+    /// Removes one prop from level, physics, and render-aligned runtime storage.
     fn remove_prop(&mut self, index: usize) {
         let Some(prop) = self.remove_persistent_prop_data(index) else {
             return;
@@ -1973,7 +1949,6 @@ impl EngineState {
             self.cycle_equipped_relic();
         }
 
-        // Primary fire from DeviceEvent (mouse button 0)
         if input.fire_primary && self.action_cooldown <= 0.0 {
             self.feedback.on_fire();
             self.play_sound(SoundEffect::Fire);

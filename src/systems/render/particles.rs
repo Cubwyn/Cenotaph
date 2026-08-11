@@ -1,3 +1,5 @@
+//! Bounded ambient and short-lived effect particles rendered through one buffer.
+
 use glam::Vec3;
 use wgpu::util::DeviceExt;
 
@@ -92,6 +94,114 @@ pub enum ParticleBurst {
     Damage,
     Dash,
     Land,
+}
+
+#[derive(Clone, Copy)]
+struct BurstProfile {
+    count: usize,
+    color: [f32; 4],
+    speed: f32,
+    spread: f32,
+    size: f32,
+    lifetime: f32,
+    gravity: f32,
+    drag: f32,
+    shape: [f32; 3],
+}
+
+impl ParticleBurst {
+    fn profile(self) -> BurstProfile {
+        match self {
+            Self::Muzzle => BurstProfile {
+                count: 8,
+                color: [1.35, 0.58, 0.16, 0.86],
+                speed: 4.8,
+                spread: 1.4,
+                size: 0.035,
+                lifetime: 0.18,
+                gravity: -1.2,
+                drag: 5.0,
+                shape: [0.22, 1.9, 0.22],
+            },
+            Self::Hit => BurstProfile {
+                count: 15,
+                color: [1.15, 0.20, 0.08, 0.88],
+                speed: 3.6,
+                spread: 2.4,
+                size: 0.045,
+                lifetime: 0.34,
+                gravity: -5.5,
+                drag: 2.8,
+                shape: [0.26, 1.55, 0.26],
+            },
+            Self::Kill => BurstProfile {
+                count: 30,
+                color: [1.20, 0.68, 0.18, 0.92],
+                speed: 4.4,
+                spread: 3.4,
+                size: 0.055,
+                lifetime: 0.68,
+                gravity: -4.2,
+                drag: 1.8,
+                shape: [0.34, 1.35, 0.34],
+            },
+            Self::Blocked => BurstProfile {
+                count: 12,
+                color: [0.72, 0.88, 1.20, 0.90],
+                speed: 4.2,
+                spread: 1.8,
+                size: 0.032,
+                lifetime: 0.24,
+                gravity: -6.0,
+                drag: 3.5,
+                shape: [0.18, 2.0, 0.18],
+            },
+            Self::Pickup => BurstProfile {
+                count: 22,
+                color: [0.58, 0.92, 1.18, 0.82],
+                speed: 2.2,
+                spread: 1.8,
+                size: 0.050,
+                lifetime: 0.72,
+                gravity: 1.2,
+                drag: 1.4,
+                shape: [0.42, 1.25, 0.42],
+            },
+            Self::Damage => BurstProfile {
+                count: 18,
+                color: [1.10, 0.10, 0.04, 0.72],
+                speed: 2.8,
+                spread: 2.6,
+                size: 0.045,
+                lifetime: 0.42,
+                gravity: -2.8,
+                drag: 2.6,
+                shape: [0.30, 1.25, 0.30],
+            },
+            Self::Dash => BurstProfile {
+                count: 22,
+                color: [0.68, 0.62, 0.58, 0.56],
+                speed: 3.2,
+                spread: 1.4,
+                size: 0.055,
+                lifetime: 0.45,
+                gravity: -0.8,
+                drag: 2.4,
+                shape: [0.38, 1.8, 0.38],
+            },
+            Self::Land => BurstProfile {
+                count: 18,
+                color: [0.58, 0.52, 0.47, 0.48],
+                speed: 2.4,
+                spread: 2.0,
+                size: 0.060,
+                lifetime: 0.52,
+                gravity: -2.2,
+                drag: 2.2,
+                shape: [1.65, 0.28, 1.65],
+            },
+        }
+    }
 }
 
 pub struct ParticleSystem {
@@ -332,101 +442,12 @@ impl ParticleSystem {
     }
 
     pub fn spawn_burst(&mut self, kind: ParticleBurst, origin: Vec3, direction: Vec3) {
-        let (count, color, speed, spread, size, lifetime, gravity, drag, shape) = match kind {
-            ParticleBurst::Muzzle => (
-                8,
-                [1.35, 0.58, 0.16, 0.86],
-                4.8,
-                1.4,
-                0.035,
-                0.18,
-                -1.2,
-                5.0,
-                [0.22, 1.9, 0.22],
-            ),
-            ParticleBurst::Hit => (
-                15,
-                [1.15, 0.20, 0.08, 0.88],
-                3.6,
-                2.4,
-                0.045,
-                0.34,
-                -5.5,
-                2.8,
-                [0.26, 1.55, 0.26],
-            ),
-            ParticleBurst::Kill => (
-                30,
-                [1.20, 0.68, 0.18, 0.92],
-                4.4,
-                3.4,
-                0.055,
-                0.68,
-                -4.2,
-                1.8,
-                [0.34, 1.35, 0.34],
-            ),
-            ParticleBurst::Blocked => (
-                12,
-                [0.72, 0.88, 1.20, 0.90],
-                4.2,
-                1.8,
-                0.032,
-                0.24,
-                -6.0,
-                3.5,
-                [0.18, 2.0, 0.18],
-            ),
-            ParticleBurst::Pickup => (
-                22,
-                [0.58, 0.92, 1.18, 0.82],
-                2.2,
-                1.8,
-                0.050,
-                0.72,
-                1.2,
-                1.4,
-                [0.42, 1.25, 0.42],
-            ),
-            ParticleBurst::Damage => (
-                18,
-                [1.10, 0.10, 0.04, 0.72],
-                2.8,
-                2.6,
-                0.045,
-                0.42,
-                -2.8,
-                2.6,
-                [0.30, 1.25, 0.30],
-            ),
-            ParticleBurst::Dash => (
-                22,
-                [0.68, 0.62, 0.58, 0.56],
-                3.2,
-                1.4,
-                0.055,
-                0.45,
-                -0.8,
-                2.4,
-                [0.38, 1.8, 0.38],
-            ),
-            ParticleBurst::Land => (
-                18,
-                [0.58, 0.52, 0.47, 0.48],
-                2.4,
-                2.0,
-                0.060,
-                0.52,
-                -2.2,
-                2.2,
-                [1.65, 0.28, 1.65],
-            ),
-        };
+        let profile = kind.profile();
 
         let overflow = self
             .effects
             .len()
-            .saturating_add(count)
+            .saturating_add(profile.count)
             .saturating_sub(MAX_EFFECT_PARTICLES);
         if overflow > 0 {
             self.effects.drain(..overflow.min(self.effects.len()));
@@ -438,7 +459,7 @@ impl ParticleSystem {
         } else {
             Vec3::Y
         };
-        for index in 0..count {
+        for index in 0..profile.count {
             let seed = index + self.burst_sequence as usize * 37;
             let random = Vec3::new(
                 signed_seed(seed, 11),
@@ -448,34 +469,36 @@ impl ParticleSystem {
             .normalize_or_zero();
             let variation = 0.72 + seed_unit(seed, 14) * 0.58;
             let velocity = match kind {
-                ParticleBurst::Pickup => random * spread + Vec3::Y * speed * variation,
-                ParticleBurst::Dash => -axis * speed * variation + random * spread,
+                ParticleBurst::Pickup => {
+                    random * profile.spread + Vec3::Y * profile.speed * variation
+                }
+                ParticleBurst::Dash => -axis * profile.speed * variation + random * profile.spread,
                 ParticleBurst::Land => {
                     let flat = Vec3::new(random.x, 0.08 + random.y.abs() * 0.24, random.z)
                         .normalize_or_zero();
-                    flat * speed * variation
+                    flat * profile.speed * variation
                 }
                 ParticleBurst::Kill | ParticleBurst::Damage => {
-                    random * speed * variation + Vec3::Y * spread * 0.35
+                    random * profile.speed * variation + Vec3::Y * profile.spread * 0.35
                 }
-                _ => axis * speed * variation + random * spread,
+                _ => axis * profile.speed * variation + random * profile.spread,
             };
             let brightness = 0.82 + seed_unit(seed, 15) * 0.38;
             self.effects.push(EffectParticle {
                 position: origin + random * 0.045,
                 velocity,
                 color: [
-                    color[0] * brightness,
-                    color[1] * brightness,
-                    color[2] * brightness,
-                    color[3],
+                    profile.color[0] * brightness,
+                    profile.color[1] * brightness,
+                    profile.color[2] * brightness,
+                    profile.color[3],
                 ],
-                shape,
-                size: size * variation,
+                shape: profile.shape,
+                size: profile.size * variation,
                 age: 0.0,
-                lifetime: lifetime * (0.82 + seed_unit(seed, 16) * 0.36),
-                gravity,
-                drag,
+                lifetime: profile.lifetime * (0.82 + seed_unit(seed, 16) * 0.36),
+                gravity: profile.gravity,
+                drag: profile.drag,
             });
         }
     }
@@ -566,5 +589,30 @@ mod tests {
     fn particle_wrapping_keeps_offsets_inside_the_field() {
         assert!((wrap_axis(12.5, 10.0) + 7.5).abs() < 0.0001);
         assert!((wrap_axis(-13.0, 10.0) - 7.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn burst_profiles_have_renderable_values() {
+        for kind in [
+            ParticleBurst::Muzzle,
+            ParticleBurst::Hit,
+            ParticleBurst::Kill,
+            ParticleBurst::Blocked,
+            ParticleBurst::Pickup,
+            ParticleBurst::Damage,
+            ParticleBurst::Dash,
+            ParticleBurst::Land,
+        ] {
+            let profile = kind.profile();
+            assert!(profile.count > 0);
+            assert!(profile.speed > 0.0);
+            assert!(profile.spread >= 0.0);
+            assert!(profile.size > 0.0);
+            assert!(profile.lifetime > 0.0);
+            assert!(profile.gravity.is_finite());
+            assert!(profile.drag >= 0.0);
+            assert!(profile.color.iter().all(|component| component.is_finite()));
+            assert!(profile.shape.iter().all(|component| *component > 0.0));
+        }
     }
 }
