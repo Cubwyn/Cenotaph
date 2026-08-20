@@ -569,6 +569,76 @@ pub struct PropData {
     pub event_id: Option<String>,
 }
 
+impl PropData {
+    pub fn spawn_enemy(
+        enemy: &crate::data::enemy::EnemyDefinition,
+        position: [f32; 3],
+        scale: [f32; 3],
+    ) -> Self {
+        Self {
+            id: None,
+            display_name: None,
+            asset_id: enemy.model_asset.clone(),
+            position,
+            rotation: [0.0, 0.0, 0.0],
+            scale,
+            collider_type: enemy.collider_type,
+            surface_material: None,
+            brush_geometry: None,
+            is_climbable: false,
+            is_hurtbox: false,
+            item_id: None,
+            resource_value: 0,
+            anchor_id: None,
+            enemy_type: Some(enemy.id.clone()),
+            enemy_health: enemy.health,
+            light_color: None,
+            light_intensity: 0.0,
+            ambient_sound_id: None,
+            trigger_level_id: None,
+            loot_table_id: None,
+            path_id: None,
+            dialogue_id: None,
+            event_id: None,
+        }
+    }
+
+    pub fn loot(
+        item_id: Option<String>,
+        resource_value: u32,
+        asset_id: String,
+        position: [f32; 3],
+        runtime_id: String,
+    ) -> Self {
+        Self {
+            id: Some(runtime_id),
+            display_name: None,
+            asset_id,
+            position,
+            rotation: [0.0, 0.0, 0.0],
+            scale: [0.35, 0.35, 0.35],
+            collider_type: ColliderType::None,
+            surface_material: None,
+            brush_geometry: None,
+            is_climbable: false,
+            is_hurtbox: false,
+            item_id,
+            resource_value,
+            anchor_id: None,
+            enemy_type: None,
+            enemy_health: 0.0,
+            light_color: None,
+            light_intensity: 0.0,
+            ambient_sound_id: None,
+            trigger_level_id: None,
+            loot_table_id: None,
+            path_id: None,
+            dialogue_id: None,
+            event_id: None,
+        }
+    }
+}
+
 //-- Level ------------------------------------------------------------
 
 /// The full data description of a playable level / stratum.

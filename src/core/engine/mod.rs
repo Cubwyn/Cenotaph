@@ -8,7 +8,9 @@
 //   sync    — instance buffer rebuild (sync_instances)
 //   update  — per-frame logic (physics step, gameplay)
 
+pub mod combat;
 pub mod loader;
+pub mod level_events;
 pub mod state;
 pub mod sync;
 pub mod update;

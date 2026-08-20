@@ -7,6 +7,7 @@
 pub mod combat;
 pub mod cycle;
 pub mod enemy;
+pub mod enemy_ai;
 pub mod feedback;
 pub mod mountain;
 pub mod player;
