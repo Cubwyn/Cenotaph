@@ -91,7 +91,6 @@ impl LevelPrefabData {
             for (field, value) in [
                 ("loot_table_id", prop.loot_table_id.as_deref()),
                 ("path_id", prop.path_id.as_deref()),
-                ("dialogue_id", prop.dialogue_id.as_deref()),
                 ("event_id", prop.event_id.as_deref()),
             ] {
                 if value.is_some() {

@@ -360,12 +360,6 @@ impl PropData {
             self.loot_table_id.as_deref(),
             &mut errors,
         );
-        validate_optional_authoring_id(
-            &label,
-            "dialogue_id",
-            self.dialogue_id.as_deref(),
-            &mut errors,
-        );
         validate_optional_authoring_id(&label, "event_id", self.event_id.as_deref(), &mut errors);
         if self
             .id
@@ -441,12 +435,6 @@ impl PropData {
                     ));
                 }
             }
-        }
-        if self.light_color.is_none() && self.light_intensity > 0.0 {
-            errors.push(format!(
-                "{} light_intensity is set without a light_color",
-                label
-            ));
         }
         if let Some(geometry) = self.brush_geometry.as_ref() {
             if matches!(self.collider_type, ColliderType::Box | ColliderType::Sphere) {

@@ -420,7 +420,7 @@ mod tests {
     use crate::core::engine::level_events::{loot_entries_for_rolls, stable_loot_seed};
     use crate::data::world::level::{
         LevelEventData, LevelEventTriggerData, LevelEventTriggerKind, LevelPathData,
-        LevelPathKind, LootEntryData, LootTableData, PropData,
+        LootEntryData, LootTableData, PropData,
     };
     use crate::game::enemy::EnemyRuntimeState;
     use crate::game::enemy_ai::path_velocity_for_runtime;
@@ -429,7 +429,6 @@ mod tests {
     fn test_path(looped: bool) -> LevelPathData {
         LevelPathData {
             id: "test_path".to_string(),
-            kind: LevelPathKind::Enemy,
             looped,
             speed_multiplier: 0.5,
             waypoints: vec![[0.0, 0.0, 0.0], [4.0, 0.0, 0.0]],

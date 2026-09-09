@@ -443,7 +443,6 @@ mod tests {
             collider_type: ColliderType::Sphere,
             surface_material: None,
             brush_geometry: None,
-            is_climbable: false,
             is_hurtbox: false,
             item_id: None,
             resource_value: 0,
@@ -451,12 +450,9 @@ mod tests {
             enemy_type: Some("ashbound".to_string()),
             enemy_health: 40.0,
             light_color: None,
-            light_intensity: 0.0,
-            ambient_sound_id: None,
             trigger_level_id: None,
             loot_table_id: None,
             path_id: None,
-            dialogue_id: None,
             event_id: None,
         }
     }
@@ -472,7 +468,6 @@ mod tests {
             collider_type: ColliderType::Box,
             surface_material: None,
             brush_geometry: None,
-            is_climbable: false,
             is_hurtbox: false,
             item_id: None,
             resource_value: 0,
@@ -480,12 +475,9 @@ mod tests {
             enemy_type: None,
             enemy_health: 0.0,
             light_color: None,
-            light_intensity: 0.0,
-            ambient_sound_id: None,
             trigger_level_id: None,
             loot_table_id: None,
             path_id: None,
-            dialogue_id: None,
             event_id: None,
         }
     }
@@ -501,7 +493,6 @@ mod tests {
             collider_type: ColliderType::Sphere,
             surface_material: None,
             brush_geometry: None,
-            is_climbable: false,
             is_hurtbox: true,
             item_id: None,
             resource_value: 0,
@@ -509,12 +500,9 @@ mod tests {
             enemy_type: None,
             enemy_health: 0.0,
             light_color: None,
-            light_intensity: 0.0,
-            ambient_sound_id: None,
             trigger_level_id: None,
             loot_table_id: None,
             path_id: None,
-            dialogue_id: None,
             event_id: None,
         }
     }

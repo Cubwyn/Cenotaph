@@ -63,7 +63,6 @@ impl SavedRuntimeLoot {
             collider_type: ColliderType::None,
             surface_material: None,
             brush_geometry: None,
-            is_climbable: false,
             is_hurtbox: false,
             item_id: self.item_id.clone(),
             resource_value: self.resource_value,
@@ -71,12 +70,9 @@ impl SavedRuntimeLoot {
             enemy_type: None,
             enemy_health: 0.0,
             light_color: None,
-            light_intensity: 0.0,
-            ambient_sound_id: None,
             trigger_level_id: None,
             loot_table_id: None,
             path_id: None,
-            dialogue_id: None,
             event_id: None,
         }
     }

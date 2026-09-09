@@ -295,15 +295,6 @@ impl Default for MountainReactionData {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum LevelPathKind {
-    #[default]
-    Enemy,
-    Npc,
-    Platform,
-    Cinematic,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LevelEventTriggerKind {
     #[default]
     Proximity,
@@ -363,8 +354,6 @@ pub struct LootEntryData {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LevelPathData {
     pub id: String,
-    #[serde(default)]
-    pub kind: LevelPathKind,
     #[serde(default)]
     pub looped: bool,
     #[serde(default = "default_one_f32")]
@@ -517,9 +506,6 @@ pub struct PropData {
     /// Optional authored local mesh used for brush or slope geometry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub brush_geometry: Option<BrushGeometryData>,
-    /// Whether the player can climb on this object
-    #[serde(default)]
-    pub is_climbable: bool,
     /// Whether this prop acts as a hurtbox (damage source)
     #[serde(default)]
     pub is_hurtbox: bool,
@@ -538,15 +524,9 @@ pub struct PropData {
     /// Health points for enemies (ignored for non-enemies)
     #[serde(default)]
     pub enemy_health: f32,
-    /// Light color as RGB values [r, g, b] if this prop emits light
+    /// Optional RGB tint override applied to this prop's material.
     #[serde(default)]
     pub light_color: Option<[f32; 3]>,
-    /// Light intensity/brightness value
-    #[serde(default)]
-    pub light_intensity: f32,
-    /// Ambient sound ID to play near this prop
-    #[serde(default)]
-    pub ambient_sound_id: Option<String>,
     /// If set, touching this prop triggers a level transition to the specified level
     #[serde(default)]
     pub trigger_level_id: Option<String>,
@@ -556,9 +536,6 @@ pub struct PropData {
     /// Optional authored patrol/platform/cinematic path.
     #[serde(default)]
     pub path_id: Option<String>,
-    /// Optional dialogue that can be started when interacting with this prop.
-    #[serde(default)]
-    pub dialogue_id: Option<String>,
     /// Optional manual event fired when this enemy dies or this Anchor is first bound.
     #[serde(default)]
     pub event_id: Option<String>,
@@ -580,7 +557,6 @@ impl PropData {
             collider_type: enemy.collider_type,
             surface_material: None,
             brush_geometry: None,
-            is_climbable: false,
             is_hurtbox: false,
             item_id: None,
             resource_value: 0,
@@ -588,12 +564,9 @@ impl PropData {
             enemy_type: Some(enemy.id.clone()),
             enemy_health: enemy.health,
             light_color: None,
-            light_intensity: 0.0,
-            ambient_sound_id: None,
             trigger_level_id: None,
             loot_table_id: None,
             path_id: None,
-            dialogue_id: None,
             event_id: None,
         }
     }
@@ -615,7 +588,6 @@ impl PropData {
             collider_type: ColliderType::None,
             surface_material: None,
             brush_geometry: None,
-            is_climbable: false,
             is_hurtbox: false,
             item_id,
             resource_value,
@@ -623,12 +595,9 @@ impl PropData {
             enemy_type: None,
             enemy_health: 0.0,
             light_color: None,
-            light_intensity: 0.0,
-            ambient_sound_id: None,
             trigger_level_id: None,
             loot_table_id: None,
             path_id: None,
-            dialogue_id: None,
             event_id: None,
         }
     }
@@ -870,13 +839,6 @@ impl LevelData {
                 "path_id",
                 prop.path_id.as_deref(),
                 &path_ids,
-                &mut errors,
-            );
-            validation::validate_reference(
-                &label,
-                "dialogue_id",
-                prop.dialogue_id.as_deref(),
-                &dialogue_ids,
                 &mut errors,
             );
             validation::validate_reference(
