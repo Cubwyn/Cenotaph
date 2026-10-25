@@ -1,81 +1,66 @@
 # Cenotaph
 
-Cenotaph is the home for my fantasy world and all the things that grow out of it.
+Cenotaph is a long-term personal creative project and a central repository for the ideas, experiments, research, tooling, and documentation that support it.
 
-This isn’t a single game, a single story, or a single finished project. It’s a big creative space for whatever this world becomes: games, stories, art, ideas, setting notes, and half-formed concepts that might become something later.
+This repository is organized around several distinct but related areas rather than a single monolithic project. The goal is to keep the main game, prototypes, development tooling, creative archive, visual material, and technical learning separate enough to remain manageable while still clearly tied to the same broader creative effort.
 
-The idea is simple: everything lives under the same world, but each project has its own space.
-
-## What this repository is for
-
-- worldbuilding and lore
-- stories and character writing
-- game ideas and prototypes
-- visual inspiration and art direction
-- rough concepts, abandoned ideas, and future experiments
-
-## The main rule
-
-Every project gets its own folder. That way, a story can sit beside a game concept, a visual project, and a world note without turning into one giant confusing mess.
-
-## Structure
+## Active repository structure
 
 ```text
 Cenotaph/
 ├── README.md
+├── game/
+│   ├── README.md
+│   ├── design/
+│   ├── prototypes/
+│   ├── notes/
+│   └── archive/
+├── toolchain/
+│   ├── README.md
+│   ├── engine/
+│   ├── editor/
+│   └── experiments/
 ├── docs/
-│   ├── REPOSITORY-STRUCTURE.md
-│   └── project-template.md
-├── shared/
 │   ├── README.md
-│   ├── canon/
+│   ├── lore/
+│   ├── narrative/
 │   ├── references/
-│   └── timeline/
-├── world/
-│   ├── README.md
-│   └── projects/
-├── text/
-│   ├── README.md
-│   └── projects/
-├── games/
-│   ├── README.md
-│   └── projects/
+│   ├── decisions/
+│   └── history/
 ├── art/
 │   ├── README.md
-│   └── projects/
-├── ideas/
+│   ├── concept/
+│   ├── references/
+│   └── assets/
+├── learning/
 │   ├── README.md
-│   └── projects/
-├── templates/
-│   ├── project-readme.md
-│   ├── project-brief.md
-│   └── lore-entry.md
+│   ├── rust/
+│   └── experiments/
 ├── .gitignore
-└── LICENSE
+├── LICENSE
+└── legacy/
+    └── README.md
 ```
 
-## Why it’s set up this way
+## Purpose of each area
 
-I want this repository to feel like a real creative vault, not a polished product pitch.
+- `game/` — the main Cenotaph game and all work directly tied to its creative direction.
+- `toolchain/` — Rust tooling, editor infrastructure, and engine-related experiments.
+- `docs/` — lore, narrative, references, design decisions, and history.
+- `art/` — visual references, concept work, and asset organization.
+- `learning/` — Rust and technical learning material kept separate from production work.
+- `legacy/` — intentionally holds older directory layouts that should not be treated as active structure unless explicitly reopened.
 
-Some projects will become major things. Some will be small experiments. Some will be abandoned and revisited later. That’s okay.
+## Design principles
 
-This repo is meant to hold the messy, exciting, living parts of a world-building process.
+- Keep major project categories distinct.
+- Keep separate prototypes and experiments from the main game unless they are intentionally merged.
+- Preserve uncertainty and version history instead of pretending every idea is final.
+- Keep tools, writing, art, and learning work in their own lanes.
+- Do not silently promote exploratory work into canon.
 
-## A few principles
+## Current status
 
-- Each project is separate and can grow however it needs to.
-- Multiple projects can exist in the same category at the same time.
-- Shared lore can live in the broader world folder, but each project still keeps its own identity.
-- It’s okay for things to be unfinished, contradictory, or strange.
+This is a minimal, maintainable structure. It does not add lore, game mechanics, or creative decisions beyond the repository organization itself.
 
-## Starting point
-
-If I were using this repo myself, I’d start with:
-
-1. writing the core world notes in `shared/` or `world/`
-2. making a few project folders under the category I care about most
-3. letting each project develop its own structure and notes
-4. keeping everything connected to the same world, without forcing everything into one format
-
-This is meant to feel like a personal archive of a world that is still growing.
+The repository is intentionally structured for later growth without prematurely locking the project into a final architecture.

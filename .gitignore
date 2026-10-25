@@ -1,0 +1,17 @@
+# Rust and local editor settings
+
+# Rust
+/target/
+**/*.rs.bk
+
+# Editor / OS clutter
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.log

@@ -1,28 +1,13 @@
 # Art directory
 
-This is where the visual side of the world lives.
+This folder is for visual work and material connected to Cenotaph.
 
-Character designs, environment studies, moodboards, references, and concept art can all go here.
+It is separated from code and writing so visual development can grow at its own pace.
 
-## Structure
+## Contents
 
-```text
-art/
-├── README.md
-└── projects/
-    ├── art-series-one/
-    ├── character-pack/
-    └── environment-study/
-```
+- `concept/` for visual development and concept material
+- `references/` for categorized inspiration and asset references
+- `assets/` for final or semi-final asset organization
 
-## Good things to put here
-
-- references and inspiration
-- concept art
-- portraits and character sheets
-- environment and architecture studies
-- visual direction notes
-
-## Rule
-
-If it’s a visual project, give it its own project folder. That makes it easier to keep refinements and references organized.
+This area should not be mistaken for the authoritative game structure. It is a supporting workspace.
